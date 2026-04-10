@@ -1,51 +1,74 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useEffect, useState } from "react";
+import Database from "@tauri-apps/plugin-sql";
+import { createRepository } from "@/db";
+import { setRepository, getRepository } from "@/store/repository";
+import { useTaskStore } from "@/store/tasks";
+import { useProjectStore } from "@/store/projects";
+import { useTagStore } from "@/store/tags";
+import { ThemeProvider } from "@/theme/ThemeProvider";
+import { AppShell } from "@/components/layout/AppShell";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+// Load migration SQL at build time (Vite raw import)
+import migrationSql from "@/db/migrations/001_initial.sql?raw";
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+function AppContent() {
+  const loadTasks = useTaskStore((s) => s.loadTasks);
+  const loadProjects = useProjectStore((s) => s.loadProjects);
+  const loadTags = useTagStore((s) => s.loadTags);
+
+  useEffect(() => {
+    const repo = getRepository();
+    loadProjects(repo);
+    loadTags(repo);
+    loadTasks(repo, { projectId: null }); // Start on Inbox
+  }, []);
+
+  return <AppShell />;
+}
+
+export default function App() {
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function init() {
+      try {
+        const db = await Database.load("sqlite:usagi.db");
+        // Run migration (idempotent CREATE TABLE IF NOT EXISTS)
+        for (const statement of migrationSql
+          .split(";")
+          .map((s) => s.trim())
+          .filter(Boolean)) {
+          await db.execute(statement);
+        }
+        setRepository(createRepository(db));
+        setReady(true);
+      } catch (err) {
+        setError(String(err));
+      }
+    }
+    init();
+  }, []);
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen text-destructive">
+        Failed to initialize database: {error}
+      </div>
+    );
+  }
+
+  if (!ready) {
+    return (
+      <div className="flex items-center justify-center h-screen text-muted-foreground">
+        Loading...
+      </div>
+    );
   }
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
-
-export default App;
