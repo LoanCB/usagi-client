@@ -30,7 +30,7 @@ export function TaskDetail() {
   const taskId = task.id;
 
   async function handleTitleBlur() {
-    if (title.trim() && title !== task.title) {
+    if (title.trim() && title !== task!.title) {
       await updateTask(repo, taskId, { title: title.trim() });
     }
   }
@@ -48,7 +48,7 @@ export function TaskDetail() {
   }
 
   async function handleToggleComplete() {
-    if (task.completedAt) await uncompleteTask(repo, taskId);
+    if (task!.completedAt) await uncompleteTask(repo, taskId);
     else await completeTask(repo, taskId);
   }
 
