@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from "react";
+import { useState, type SubmitEvent, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Dialog,
@@ -33,7 +33,7 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
   const createTask = useTaskStore((s) => s.createTask);
   const { t } = useTranslation();
 
-  async function handleSubmit(e: SubmitEvent) {
+  async function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!title.trim()) return;
     await createTask(getRepository(), {

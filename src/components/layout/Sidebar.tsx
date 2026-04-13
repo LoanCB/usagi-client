@@ -39,9 +39,10 @@ function NavItem({ icon, label, active, collapsed, onClick }: NavItemProps) {
     <button
       onClick={onClick}
       className={cn(
-        "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors",
-        "hover:bg-accent hover:text-accent-foreground",
-        active && "bg-accent text-accent-foreground font-medium"
+        "flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm transition-colors",
+        "border-l-2 border-transparent",
+        "hover:bg-foreground/5 hover:text-foreground hover:border-foreground/30",
+        active && "bg-foreground/[0.08] text-foreground font-medium border-foreground/50"
       )}
     >
       <span className="shrink-0">{icon}</span>
@@ -94,9 +95,10 @@ function ProjectNavItem({ project, active, collapsed, onClick }: ProjectNavItemP
   const inner = (
     <button
       className={cn(
-        "group flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors",
-        "hover:bg-accent hover:text-accent-foreground",
-        active && "bg-accent text-accent-foreground font-medium"
+        "group flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm transition-colors",
+        "border-l-2 border-transparent",
+        "hover:bg-foreground/5 hover:text-foreground hover:border-foreground/30",
+        active && "bg-foreground/[0.08] text-foreground font-medium border-foreground/50"
       )}
       onClick={onClick}
     >
@@ -145,7 +147,7 @@ function ProjectNavItem({ project, active, collapsed, onClick }: ProjectNavItemP
       <>
         <TooltipProvider delay={300}>
           <Tooltip>
-            <TooltipTrigger asChild>{inner}</TooltipTrigger>
+            <TooltipTrigger>{inner}</TooltipTrigger>
             <TooltipContent side="right">{project.name}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -191,7 +193,7 @@ export function Sidebar() {
       </div>
 
       <ScrollArea className="flex-1 px-2">
-        <div className="space-y-1 pb-2">
+        <div className="space-y-1.5 pb-2">
           {!sidebarCollapsed && (
             <p className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               {t('nav.views')}
@@ -229,7 +231,7 @@ export function Sidebar() {
 
         <Separator className="my-2" />
 
-        <div className="space-y-1 pb-2">
+        <div className="space-y-1.5 pb-2">
           {!sidebarCollapsed && (
             <div className="flex items-center justify-between px-3 py-1">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">

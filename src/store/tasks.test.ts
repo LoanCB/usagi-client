@@ -5,7 +5,7 @@ import type { TodoRepository } from "@/db/repository";
 import type { Task } from "@/types";
 
 const baseTask: Task = {
-  id: "t1", title: "Test task", projectId: null, priority: "none",
+  id: "t1", title: "Test task", description: null, projectId: null, priority: "none",
   dueDate: null, completedAt: null, tags: [], sortOrder: 0,
   createdAt: "2026-04-10T10:00:00.000Z", updatedAt: "2026-04-10T10:00:00.000Z",
 };
@@ -27,6 +27,7 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
     createTag: vi.fn(),
     updateTag: vi.fn(),
     deleteTag: vi.fn(),
+    reorderTasks: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
