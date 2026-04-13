@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,13 +10,6 @@ import { Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Priority } from "@/types";
 
-const LABELS: Record<Priority, string> = {
-  none: "Aucune",
-  low: "Basse",
-  medium: "Moyenne",
-  high: "Haute",
-};
-
 const COLORS: Record<Priority, string> = {
   none: "var(--muted-foreground)",
   low: "var(--priority-low)",
@@ -24,11 +18,20 @@ const COLORS: Record<Priority, string> = {
 };
 
 interface PrioritySelectorProps {
-  value: Priority;
-  onChange: (p: Priority) => void;
+  readonly value: Priority;
+  readonly onChange: (p: Priority) => void;
 }
 
 export function PrioritySelector({ value, onChange }: PrioritySelectorProps) {
+  const { t } = useTranslation();
+
+  const LABELS: Record<Priority, string> = {
+    none: t('priority.none'),
+    low: t('priority.low'),
+    medium: t('priority.medium'),
+    high: t('priority.high'),
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger

@@ -1,0 +1,72 @@
+const en = {
+  common: {
+    cancel: "Cancel",
+    save: "Save",
+    delete: "Delete",
+    create: "Create",
+    edit: "Edit",
+    color: "Color",
+    icon: "Icon",
+    colorOption: "Color {{color}}",
+    iconOption: "Icon {{name}}",
+  },
+  nav: {
+    views: "Views",
+    inbox: "Inbox",
+    today: "Today",
+    allTasks: "All tasks",
+    tags: "Tags",
+    projects: "Projects",
+    newProject: "New project",
+    expandSidebar: "Expand sidebar",
+    collapseSidebar: "Collapse sidebar",
+  },
+  task: {
+    new: "New task",
+    titlePlaceholder: "Task title",
+    descriptionPlaceholder: "Add a note…",
+    noTasks: "No tasks",
+    delete: "Delete task",
+    markComplete: "Mark complete",
+    markIncomplete: "Mark incomplete",
+    reorder: "Reorder task",
+    projectFallback: "Project",
+  },
+  priority: {
+    label: "Priority",
+    none: "None",
+    low: "Low",
+    medium: "Medium",
+    high: "High",
+  },
+  filter: {
+    priority: "Priority",
+    completed: "Completed",
+    reset: "Reset",
+  },
+  dueDate: {
+    label: "Due date",
+    remove: "Remove due date",
+  },
+  project: {
+    new: "New project",
+    edit: "Edit project",
+    namePlaceholder: "Project name",
+    delete: "Delete",
+    options: "Project options",
+  },
+  tag: {
+    tags: "Tags",
+    new: "New tag",
+    noTags: "No tags created",
+    namePlaceholder: "Tag name",
+    delete: "Delete tag",
+    edit: "Edit tag",
+  },
+  app: {
+    loading: "Loading…",
+    dbError: "Failed to initialize database: {{error}}",
+  },
+};
+
+export default en;

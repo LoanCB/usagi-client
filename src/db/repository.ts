@@ -17,6 +17,7 @@ export interface TodoRepository {
   completeTask(id: string): Promise<Task>;
   uncompleteTask(id: string): Promise<Task>;
   deleteTask(id: string): Promise<void>;
+  reorderTasks(orderedIds: string[]): Promise<void>;
 
   // Projects
   getProjects(): Promise<Project[]>;

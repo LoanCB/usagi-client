@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -20,8 +21,8 @@ import { getRepository } from "@/store/repository";
 import type { Priority } from "@/types";
 
 interface TaskFormProps {
-  children: ReactElement;
-  projectId?: string | null;
+  readonly children: ReactElement;
+  readonly projectId?: string | null;
 }
 
 export function TaskForm({ children, projectId = null }: TaskFormProps) {
@@ -30,8 +31,9 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
   const [priority, setPriority] = useState<Priority>("none");
   const [dueDate, setDueDate] = useState("");
   const createTask = useTaskStore((s) => s.createTask);
+  const { t } = useTranslation();
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
     if (!title.trim()) return;
     await createTask(getRepository(), {
@@ -51,11 +53,11 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
       <DialogTrigger render={children} />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Nouvelle tâche</DialogTitle>
+          <DialogTitle>{t('task.new')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <Input
-            placeholder="Titre de la tâche"
+            placeholder={t('task.titlePlaceholder')}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             autoFocus
@@ -66,13 +68,20 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
               onValueChange={(v) => setPriority(v as Priority)}
             >
               <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Priorité" />
+                <SelectValue placeholder={t('priority.label')}>
+                  {(v: string) => ({
+                    none: t('priority.none'),
+                    low: t('priority.low'),
+                    medium: t('priority.medium'),
+                    high: t('priority.high'),
+                  }[v])}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Aucune</SelectItem>
-                <SelectItem value="low">Basse</SelectItem>
-                <SelectItem value="medium">Moyenne</SelectItem>
-                <SelectItem value="high">Haute</SelectItem>
+                <SelectItem value="none">{t('priority.none')}</SelectItem>
+                <SelectItem value="low">{t('priority.low')}</SelectItem>
+                <SelectItem value="medium">{t('priority.medium')}</SelectItem>
+                <SelectItem value="high">{t('priority.high')}</SelectItem>
               </SelectContent>
             </Select>
             <Input
@@ -88,10 +97,10 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
               variant="outline"
               onClick={() => setOpen(false)}
             >
-              Annuler
+              {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={!title.trim()}>
-              Créer
+              {t('common.create')}
             </Button>
           </div>
         </form>

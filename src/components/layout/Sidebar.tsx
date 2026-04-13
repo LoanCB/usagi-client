@@ -1,4 +1,7 @@
-import { ChevronLeft, ChevronRight, Inbox, Calendar, ListChecks } from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { ChevronLeft, ChevronRight, Inbox, Calendar, ListChecks, Plus, MoreVertical, Pencil, Trash2, Tags } from "lucide-react";
+import { PRESET_ICONS } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -8,16 +11,27 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
 import { useProjectStore } from "@/store/projects";
+import { getRepository } from "@/store/repository";
+import { ProjectForm } from "@/components/projects/ProjectForm";
+import { LanguageToggle } from "@/components/layout/LanguageToggle";
+import type { Project } from "@/types";
 
 interface NavItemProps {
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-  collapsed: boolean;
-  onClick: () => void;
+  readonly icon: React.ReactNode;
+  readonly label: string;
+  readonly active: boolean;
+  readonly collapsed: boolean;
+  readonly onClick: () => void;
 }
 
 function NavItem({ icon, label, active, collapsed, onClick }: NavItemProps) {
@@ -48,7 +62,107 @@ function NavItem({ icon, label, active, collapsed, onClick }: NavItemProps) {
   return inner;
 }
 
+interface ProjectNavItemProps {
+  readonly project: Project;
+  readonly active: boolean;
+  readonly collapsed: boolean;
+  readonly onClick: () => void;
+}
+
+function ProjectNavItem({ project, active, collapsed, onClick }: ProjectNavItemProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const { deleteProject } = useProjectStore();
+  const { selectedProjectId, setSelectedProject } = useUIStore();
+  const { t } = useTranslation();
+
+  async function handleDelete() {
+    await deleteProject(getRepository(), project.id);
+    if (selectedProjectId === project.id) setSelectedProject(null);
+  }
+
+  const iconDef = PRESET_ICONS.find((i) => i.name === project.icon) ?? PRESET_ICONS[0];
+  const ProjectIcon = iconDef.icon;
+
+  const icon = (
+    <ProjectIcon
+      className="h-4 w-4 shrink-0"
+      style={{ color: project.color ?? undefined }}
+    />
+  );
+
+  const inner = (
+    <button
+      className={cn(
+        "group flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors",
+        "hover:bg-accent hover:text-accent-foreground",
+        active && "bg-accent text-accent-foreground font-medium"
+      )}
+      onClick={onClick}
+    >
+      {icon}
+      {!collapsed && (
+        <>
+          <span className="truncate flex-1">{project.name}</span>
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+            <DropdownMenuTrigger
+              className="opacity-0 group-hover:opacity-100 focus:opacity-100 h-5 w-5 flex items-center justify-center rounded hover:bg-accent-foreground/10 transition-opacity shrink-0"
+              onClick={(e) => e.stopPropagation()}
+              aria-label={t('project.options')}
+            >
+              <MoreVertical className="h-3.5 w-3.5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="right" align="start">
+              <DropdownMenuItem
+                render={
+                  <button className="w-full flex items-center gap-2" onClick={() => { setMenuOpen(false); setEditOpen(true); }}>
+                    <Pencil className="h-4 w-4" />
+                    {t('common.edit')}
+                  </button>
+                }
+              />
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={handleDelete}
+              >
+                <Trash2 className="h-4 w-4" />
+                {t('common.delete')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
+      )}
+    </button>
+  );
+
+  const editDialog = (
+    <ProjectForm project={project} open={editOpen} onOpenChange={setEditOpen} />
+  );
+
+  if (collapsed) {
+    return (
+      <>
+        <TooltipProvider delay={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>{inner}</TooltipTrigger>
+            <TooltipContent side="right">{project.name}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        {editDialog}
+      </>
+    );
+  }
+  return (
+    <>
+      {inner}
+      {editDialog}
+    </>
+  );
+}
+
 export function Sidebar() {
+  const { t } = useTranslation();
   const { sidebarCollapsed, setSidebarCollapsed, selectedProjectId, setSelectedProject } =
     useUIStore();
   const projects = useProjectStore((s) => s.projects);
@@ -60,14 +174,13 @@ export function Sidebar() {
         sidebarCollapsed ? "w-14" : "w-56"
       )}
     >
-      {/* Toggle button */}
       <div className="flex justify-end p-2">
         <Button
           variant="ghost"
           size="icon"
           className="h-7 w-7"
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={sidebarCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
         >
           {sidebarCollapsed ? (
             <ChevronRight className="h-4 w-4" />
@@ -78,66 +191,87 @@ export function Sidebar() {
       </div>
 
       <ScrollArea className="flex-1 px-2">
-        {/* Smart lists */}
         <div className="space-y-1 pb-2">
           {!sidebarCollapsed && (
             <p className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Vues
+              {t('nav.views')}
             </p>
           )}
           <NavItem
             icon={<Inbox className="h-4 w-4" />}
-            label="Inbox"
+            label={t('nav.inbox')}
             active={selectedProjectId === null}
             collapsed={sidebarCollapsed}
             onClick={() => setSelectedProject(null)}
           />
           <NavItem
             icon={<Calendar className="h-4 w-4" />}
-            label="Aujourd'hui"
+            label={t('nav.today')}
             active={selectedProjectId === "today"}
             collapsed={sidebarCollapsed}
             onClick={() => setSelectedProject("today")}
           />
           <NavItem
             icon={<ListChecks className="h-4 w-4" />}
-            label="Toutes les tâches"
+            label={t('nav.allTasks')}
             active={selectedProjectId === undefined}
             collapsed={sidebarCollapsed}
             onClick={() => setSelectedProject(undefined)}
           />
+          <NavItem
+            icon={<Tags className="h-4 w-4" />}
+            label={t('nav.tags')}
+            active={selectedProjectId === "tags"}
+            collapsed={sidebarCollapsed}
+            onClick={() => setSelectedProject("tags")}
+          />
         </div>
 
-        {projects.length > 0 && (
-          <>
-            <Separator className="my-2" />
-            <div className="space-y-1 pb-2">
-              {!sidebarCollapsed && (
-                <p className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Projets
-                </p>
-              )}
-              {projects.map((project) => (
-                <NavItem
-                  key={project.id}
-                  icon={
-                    <span
-                      className="h-4 w-4 rounded-sm flex items-center justify-center text-xs"
-                      style={{ background: project.color ?? "var(--muted)" }}
-                    >
-                      {project.icon ?? "📁"}
-                    </span>
-                  }
-                  label={project.name}
-                  active={selectedProjectId === project.id}
-                  collapsed={sidebarCollapsed}
-                  onClick={() => setSelectedProject(project.id)}
-                />
-              ))}
+        <Separator className="my-2" />
+
+        <div className="space-y-1 pb-2">
+          {!sidebarCollapsed && (
+            <div className="flex items-center justify-between px-3 py-1">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {t('nav.projects')}
+              </p>
+              <ProjectForm>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5"
+                  aria-label={t('project.new')}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </ProjectForm>
             </div>
-          </>
-        )}
+          )}
+          {projects.map((project) => (
+            <ProjectNavItem
+              key={project.id}
+              project={project}
+              active={selectedProjectId === project.id}
+              collapsed={sidebarCollapsed}
+              onClick={() => setSelectedProject(project.id)}
+            />
+          ))}
+          {sidebarCollapsed && (
+            <ProjectForm>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-full"
+                aria-label={t('project.new')}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </ProjectForm>
+          )}
+        </div>
       </ScrollArea>
+
+      <LanguageToggle collapsed={sidebarCollapsed} />
     </div>
   );
 }

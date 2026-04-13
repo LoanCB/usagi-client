@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,15 +12,16 @@ import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
 import type { Priority } from "@/types";
 
-const PRIORITY_LABELS: Record<Priority, string> = {
-  none: "Aucune",
-  low: "Basse",
-  medium: "Moyenne",
-  high: "Haute",
-};
-
 export function FilterBar() {
+  const { t } = useTranslation();
   const { activeFilters, setFilters } = useUIStore();
+
+  const PRIORITY_LABELS: Record<Priority, string> = {
+    none: t('priority.none'),
+    low: t('priority.low'),
+    medium: t('priority.medium'),
+    high: t('priority.high'),
+  };
 
   const hasFilters =
     !!activeFilters.priority ||
@@ -39,7 +41,7 @@ export function FilterBar() {
           <SlidersHorizontal className="h-3 w-3" />
           {activeFilters.priority
             ? PRIORITY_LABELS[activeFilters.priority]
-            : "Priorité"}
+            : t('filter.priority')}
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           {(["high", "medium", "low", "none"] as Priority[]).map((p) => (
@@ -61,7 +63,7 @@ export function FilterBar() {
           })
         }
       >
-        Complétées
+        {t('filter.completed')}
       </Button>
 
       {/* Active filter chips */}
@@ -85,7 +87,7 @@ export function FilterBar() {
             setFilters({ priority: undefined, tagIds: [], completed: undefined })
           }
         >
-          Réinitialiser
+          {t('filter.reset')}
         </Button>
       )}
     </div>

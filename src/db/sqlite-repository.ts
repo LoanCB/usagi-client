@@ -31,6 +31,7 @@ interface TagRow {
 interface TaskRow {
   id: string;
   title: string;
+  description: string | null;
   project_id: string | null;
   priority: string;
   due_date: string | null;
@@ -69,6 +70,7 @@ function mapTask(row: TaskRow, tags: Tag[]): Task {
   return {
     id: row.id,
     title: row.title,
+    description: row.description,
     projectId: row.project_id,
     priority: row.priority as Task["priority"],
     dueDate: row.due_date,
@@ -83,7 +85,7 @@ function mapTask(row: TaskRow, tags: Tag[]): Task {
 // ---- Repository ----
 
 export class SqliteRepository implements TodoRepository {
-  constructor(private db: DbDriver) {}
+  constructor(private readonly db: DbDriver) {}
 
   // ---------- Projects ----------
 
@@ -201,11 +203,11 @@ export class SqliteRepository implements TodoRepository {
       params.push(filters.dueBefore);
     }
 
-    let sql = `SELECT t.id, t.title, t.project_id, t.priority, t.due_date, t.completed_at, t.sort_order, t.created_at, t.updated_at FROM tasks t WHERE ${conditions.join(" AND ")} ORDER BY t.sort_order, t.created_at`;
+    let sql = `SELECT t.id, t.title, t.description, t.project_id, t.priority, t.due_date, t.completed_at, t.sort_order, t.created_at, t.updated_at FROM tasks t WHERE ${conditions.join(" AND ")} ORDER BY t.sort_order, t.created_at`;
 
     if (filters?.tagIds && filters.tagIds.length > 0) {
       const placeholders = filters.tagIds.map(() => "?").join(", ");
-      sql = `SELECT DISTINCT t.id, t.title, t.project_id, t.priority, t.due_date, t.completed_at, t.sort_order, t.created_at, t.updated_at FROM tasks t INNER JOIN task_tags tt ON tt.task_id = t.id WHERE ${conditions.join(" AND ")} AND tt.tag_id IN (${placeholders}) ORDER BY t.sort_order, t.created_at`;
+      sql = `SELECT DISTINCT t.id, t.title, t.description, t.project_id, t.priority, t.due_date, t.completed_at, t.sort_order, t.created_at, t.updated_at FROM tasks t INNER JOIN task_tags tt ON tt.task_id = t.id WHERE ${conditions.join(" AND ")} AND tt.tag_id IN (${placeholders}) ORDER BY t.sort_order, t.created_at`;
       params.push(...filters.tagIds);
     }
 
@@ -216,7 +218,7 @@ export class SqliteRepository implements TodoRepository {
 
   async getTask(id: string): Promise<Task | null> {
     const rows = await this.db.select<TaskRow>(
-      "SELECT id, title, project_id, priority, due_date, completed_at, sort_order, created_at, updated_at FROM tasks WHERE id = ? AND deleted_at IS NULL",
+      "SELECT id, title, description, project_id, priority, due_date, completed_at, sort_order, created_at, updated_at FROM tasks WHERE id = ? AND deleted_at IS NULL",
       [id]
     );
     if (!rows[0]) return null;
@@ -228,8 +230,8 @@ export class SqliteRepository implements TodoRepository {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     await this.db.execute(
-      "INSERT INTO tasks (id, title, project_id, priority, due_date, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
-      [id, input.title, input.projectId ?? null, input.priority ?? "none", input.dueDate ?? null, now, now]
+      "INSERT INTO tasks (id, title, description, project_id, priority, due_date, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)",
+      [id, input.title, input.description ?? null, input.projectId ?? null, input.priority ?? "none", input.dueDate ?? null, now, now]
     );
     if (input.tagIds && input.tagIds.length > 0) {
       for (const tagId of input.tagIds) {
@@ -244,6 +246,7 @@ export class SqliteRepository implements TodoRepository {
     const sets: string[] = ["updated_at = ?"];
     const params: unknown[] = [now];
     if ("title" in patch) { sets.push("title = ?"); params.push(patch.title); }
+    if ("description" in patch) { sets.push("description = ?"); params.push(patch.description ?? null); }
     if ("projectId" in patch) { sets.push("project_id = ?"); params.push(patch.projectId ?? null); }
     if ("priority" in patch) { sets.push("priority = ?"); params.push(patch.priority); }
     if ("dueDate" in patch) { sets.push("due_date = ?"); params.push(patch.dueDate ?? null); }
@@ -273,6 +276,13 @@ export class SqliteRepository implements TodoRepository {
   async deleteTask(id: string): Promise<void> {
     const now = new Date().toISOString();
     await this.db.execute("UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?", [now, now, id]);
+  }
+
+  async reorderTasks(orderedIds: string[]): Promise<void> {
+    const now = new Date().toISOString();
+    for (let i = 0; i < orderedIds.length; i++) {
+      await this.db.execute("UPDATE tasks SET sort_order = ?, updated_at = ? WHERE id = ?", [i, now, orderedIds[i]]);
+    }
   }
 
   private async _attachTags(taskRows: TaskRow[]): Promise<Task[]> {

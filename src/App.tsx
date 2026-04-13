@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import Database from "@tauri-apps/plugin-sql";
 import { createRepository } from "@/db";
 import { setRepository, getRepository } from "@/store/repository";
@@ -10,6 +11,7 @@ import { AppShell } from "@/components/layout/AppShell";
 
 // Load migration SQL at build time (Vite raw import)
 import migrationSql from "@/db/migrations/001_initial.sql?raw";
+import migration002 from "@/db/migrations/002_add_description.sql?raw";
 
 function AppContent() {
   const loadTasks = useTaskStore((s) => s.loadTasks);
@@ -27,6 +29,7 @@ function AppContent() {
 }
 
 export default function App() {
+  const { t } = useTranslation();
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,12 +37,16 @@ export default function App() {
     async function init() {
       try {
         const db = await Database.load("sqlite:usagi.db");
-        // Run migration (idempotent CREATE TABLE IF NOT EXISTS)
-        for (const statement of migrationSql
-          .split(";")
-          .map((s) => s.trim())
-          .filter(Boolean)) {
-          await db.execute(statement);
+        // Run migrations sequentially (idempotent)
+        for (const migration of [migrationSql, migration002]) {
+          for (const statement of migration
+            .split(";")
+            .map((s) => s.trim())
+            .filter(Boolean)) {
+            await db.execute(statement).catch(() => {
+              // Ignore "duplicate column" errors from ALTER TABLE on subsequent runs
+            });
+          }
         }
         setRepository(createRepository(db));
         setReady(true);
@@ -53,7 +60,7 @@ export default function App() {
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen text-destructive">
-        Failed to initialize database: {error}
+        {t('app.dbError', { error })}
       </div>
     );
   }
@@ -61,7 +68,7 @@ export default function App() {
   if (!ready) {
     return (
       <div className="flex items-center justify-center h-screen text-muted-foreground">
-        Loading...
+        {t('app.loading')}
       </div>
     );
   }

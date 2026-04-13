@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { buttonVariants } from "@/components/ui/button";
@@ -11,6 +12,7 @@ interface DueDatePickerProps {
 }
 
 export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
+  const { t } = useTranslation();
   const selected = value ? new Date(value) : undefined;
 
   function handleSelect(date: Date | undefined) {
@@ -25,7 +27,7 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
         >
           <CalendarIcon className="h-3.5 w-3.5" />
           <span className="text-xs">
-            {value ? formatDate(value) : "Date d'échéance"}
+            {value ? formatDate(value) : t('dueDate.label')}
           </span>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
@@ -43,7 +45,7 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
           size="icon"
           className="h-6 w-6"
           onClick={() => onChange(null)}
-          aria-label="Remove due date"
+          aria-label={t('dueDate.remove')}
         >
           <X className="h-3 w-3" />
         </Button>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -15,12 +16,15 @@ export function TaskDetail() {
   const { tasks, updateTask, completeTask, uncompleteTask, deleteTask } =
     useTaskStore();
   const { selectedTaskId, setSelectedTask } = useUIStore();
+  const { t } = useTranslation();
 
   const task = tasks.find((t) => t.id === selectedTaskId) ?? null;
   const [title, setTitle] = useState(task?.title ?? "");
+  const [description, setDescription] = useState("");
 
   useEffect(() => {
     setTitle(task?.title ?? "");
+    setDescription(task?.description ?? "");
   }, [task?.id]);
 
   if (!task) return null;
@@ -32,6 +36,14 @@ export function TaskDetail() {
   async function handleTitleBlur() {
     if (title.trim() && title !== task!.title) {
       await updateTask(repo, taskId, { title: title.trim() });
+    }
+  }
+
+  async function handleDescriptionBlur() {
+    const value = description.trim();
+    const stored = task!.description ?? "";
+    if (value !== stored) {
+      await updateTask(repo, taskId, { description: value || null });
     }
   }
 
@@ -64,7 +76,7 @@ export function TaskDetail() {
         <button
           onClick={handleToggleComplete}
           className="mt-1 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-          aria-label={task.completedAt ? "Mark incomplete" : "Mark complete"}
+          aria-label={task.completedAt ? t('task.markIncomplete') : t('task.markComplete')}
         >
           {task.completedAt ? (
             <CheckCircle className="h-5 w-5 text-[var(--priority-low)]" />
@@ -80,7 +92,19 @@ export function TaskDetail() {
             e.key === "Enter" && (e.target as HTMLInputElement).blur()
           }
           className="border-none shadow-none p-0 text-base font-medium focus-visible:ring-0 bg-transparent"
-          placeholder="Titre de la tâche"
+          placeholder={t('task.titlePlaceholder')}
+        />
+      </div>
+
+      {/* Description */}
+      <div className="px-4 py-3 border-b border-border">
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          onBlur={handleDescriptionBlur}
+          placeholder={t('task.descriptionPlaceholder')}
+          rows={3}
+          className="w-full resize-none bg-transparent text-sm text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:text-foreground transition-colors"
         />
       </div>
 
@@ -107,7 +131,7 @@ export function TaskDetail() {
           onClick={handleDelete}
         >
           <Trash2 className="h-4 w-4" />
-          Supprimer la tâche
+          {t('task.delete')}
         </Button>
       </div>
     </div>

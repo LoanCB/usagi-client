@@ -9,6 +9,7 @@ export interface Tag {
 export interface Task {
   id: string;
   title: string;
+  description: string | null;
   projectId: string | null;
   priority: Priority;
   dueDate: string | null;       // ISO 8601 date string
@@ -39,6 +40,7 @@ export interface TaskFilters {
 
 export interface CreateTaskInput {
   title: string;
+  description?: string | null;
   projectId?: string | null;
   priority?: Priority;
   dueDate?: string | null;

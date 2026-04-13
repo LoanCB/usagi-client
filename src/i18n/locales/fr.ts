@@ -1,0 +1,74 @@
+import type en from './en';
+
+const fr: typeof en = {
+  common: {
+    cancel: "Annuler",
+    save: "Enregistrer",
+    delete: "Supprimer",
+    create: "Créer",
+    edit: "Modifier",
+    color: "Couleur",
+    icon: "Icône",
+    colorOption: "Couleur {{color}}",
+    iconOption: "Icône {{name}}",
+  },
+  nav: {
+    views: "Vues",
+    inbox: "Inbox",
+    today: "Aujourd'hui",
+    allTasks: "Toutes les tâches",
+    tags: "Tags",
+    projects: "Projets",
+    newProject: "Nouveau projet",
+    expandSidebar: "Développer la sidebar",
+    collapseSidebar: "Réduire la sidebar",
+  },
+  task: {
+    new: "Nouvelle tâche",
+    titlePlaceholder: "Titre de la tâche",
+    descriptionPlaceholder: "Ajouter une note…",
+    noTasks: "Aucune tâche",
+    delete: "Supprimer la tâche",
+    markComplete: "Marquer comme terminée",
+    markIncomplete: "Marquer comme non terminée",
+    reorder: "Réordonner la tâche",
+    projectFallback: "Projet",
+  },
+  priority: {
+    label: "Priorité",
+    none: "Aucune",
+    low: "Basse",
+    medium: "Moyenne",
+    high: "Haute",
+  },
+  filter: {
+    priority: "Priorité",
+    completed: "Complétées",
+    reset: "Réinitialiser",
+  },
+  dueDate: {
+    label: "Date d'échéance",
+    remove: "Supprimer la date d'échéance",
+  },
+  project: {
+    new: "Nouveau projet",
+    edit: "Modifier le projet",
+    namePlaceholder: "Nom du projet",
+    delete: "Supprimer",
+    options: "Options du projet",
+  },
+  tag: {
+    tags: "Tags",
+    new: "Nouveau tag",
+    noTags: "Aucun tag créé",
+    namePlaceholder: "Nom du tag",
+    delete: "Supprimer le tag",
+    edit: "Modifier le tag",
+  },
+  app: {
+    loading: "Chargement…",
+    dbError: "Erreur d'initialisation de la base de données : {{error}}",
+  },
+} as const;
+
+export default fr;
