@@ -10,6 +10,7 @@ import { getRepository } from "@/store/repository";
 import { PrioritySelector } from "@/components/tasks/PrioritySelector";
 import { DueDatePicker } from "@/components/tasks/DueDatePicker";
 import { TagSelector } from "@/components/tasks/TagSelector";
+import { RichTextEditor } from "@/components/tasks/RichTextEditor";
 import type { Priority } from "@/types";
 
 export function TaskDetail() {
@@ -96,17 +97,13 @@ export function TaskDetail() {
         />
       </div>
 
-      {/* Description */}
-      <div className="px-4 py-3 border-b border-border">
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          onBlur={handleDescriptionBlur}
-          placeholder={t('task.descriptionPlaceholder')}
-          rows={3}
-          className="w-full resize-none bg-transparent text-sm text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:text-foreground transition-colors"
-        />
-      </div>
+      {/* Description rich text */}
+      <RichTextEditor
+        value={description}
+        onChange={setDescription}
+        onBlur={handleDescriptionBlur}
+        placeholder={t('task.descriptionPlaceholder')}
+      />
 
       {/* Metadata */}
       <div className="flex flex-col gap-1 p-3 border-b border-border">
