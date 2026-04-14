@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { fr } from "react-day-picker/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { buttonVariants } from "@/components/ui/button";
@@ -12,7 +13,8 @@ interface DueDatePickerProps {
 }
 
 export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language === "fr" ? fr : undefined;
   const selected = value ? new Date(value) : undefined;
 
   function handleSelect(date: Date | undefined) {
@@ -35,6 +37,7 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
             mode="single"
             selected={selected}
             onSelect={handleSelect}
+            locale={locale}
             initialFocus
           />
         </PopoverContent>

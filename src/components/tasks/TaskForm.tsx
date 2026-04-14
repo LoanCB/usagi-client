@@ -1,4 +1,5 @@
-import { useState, type SubmitEvent, type ReactElement } from "react";
+import React, { useState, type ReactElement } from "react";
+import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   Dialog,
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { useTaskStore } from "@/store/tasks";
 import { getRepository } from "@/store/repository";
+import { TagSelector } from "@/components/tasks/TagSelector";
 import type { Priority } from "@/types";
 
 interface TaskFormProps {
@@ -30,10 +32,12 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Priority>("none");
   const [dueDate, setDueDate] = useState("");
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const createTask = useTaskStore((s) => s.createTask);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
-  async function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!title.trim()) return;
     await createTask(getRepository(), {
@@ -41,10 +45,13 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
       projectId: projectId ?? null,
       priority,
       dueDate: dueDate || null,
+      tagIds,
     });
     setTitle("");
     setPriority("none");
     setDueDate("");
+    setShowDatePicker(false);
+    setTagIds([]);
     setOpen(false);
   }
 
@@ -62,6 +69,7 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
             onChange={(e) => setTitle(e.target.value)}
             autoFocus
           />
+          <TagSelector selectedTagIds={tagIds} onChange={setTagIds} />
           <div className="flex gap-3">
             <Select
               value={priority}
@@ -84,12 +92,36 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
                 <SelectItem value="high">{t('priority.high')}</SelectItem>
               </SelectContent>
             </Select>
-            <Input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="flex-1"
-            />
+            {showDatePicker ? (
+              <div className="flex flex-1 gap-1">
+                <Input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="flex-1"
+                  lang={i18n.language}
+                  autoFocus
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => { setDueDate(""); setShowDatePicker(false); }}
+                  aria-label={t('dueDate.remove')}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                className="flex-1 justify-start text-muted-foreground"
+                onClick={() => setShowDatePicker(true)}
+              >
+                + {t('task.addDate')}
+              </Button>
+            )}
           </div>
           <div className="flex justify-end gap-2">
             <Button

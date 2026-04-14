@@ -33,6 +33,7 @@ const fr: typeof en = {
     markIncomplete: "Marquer comme non terminée",
     reorder: "Réordonner la tâche",
     projectFallback: "Projet",
+    addDate: "Ajouter une date",
   },
   priority: {
     label: "Priorité",
@@ -45,6 +46,7 @@ const fr: typeof en = {
     priority: "Priorité",
     completed: "Complétées",
     reset: "Réinitialiser",
+    tags: "Tags",
   },
   dueDate: {
     label: "Date d'échéance",

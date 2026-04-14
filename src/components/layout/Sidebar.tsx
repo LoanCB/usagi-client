@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Inbox, Calendar, ListChecks, Plus, MoreVertical, Pencil, Trash2, Tags } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, ListChecks, Plus, MoreVertical, Pencil, Trash2, Tags } from "lucide-react";
 import { PRESET_ICONS } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -199,13 +199,6 @@ export function Sidebar() {
               {t('nav.views')}
             </p>
           )}
-          <NavItem
-            icon={<Inbox className="h-4 w-4" />}
-            label={t('nav.inbox')}
-            active={selectedProjectId === null}
-            collapsed={sidebarCollapsed}
-            onClick={() => setSelectedProject(null)}
-          />
           <NavItem
             icon={<Calendar className="h-4 w-4" />}
             label={t('nav.today')}

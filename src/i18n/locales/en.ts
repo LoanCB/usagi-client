@@ -31,6 +31,7 @@ const en = {
     markIncomplete: "Mark incomplete",
     reorder: "Reorder task",
     projectFallback: "Project",
+    addDate: "Add date",
   },
   priority: {
     label: "Priority",
@@ -43,6 +44,7 @@ const en = {
     priority: "Priority",
     completed: "Completed",
     reset: "Reset",
+    tags: "Tags",
   },
   dueDate: {
     label: "Due date",

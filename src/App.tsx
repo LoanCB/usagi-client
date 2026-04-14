@@ -22,7 +22,7 @@ function AppContent() {
     const repo = getRepository();
     loadProjects(repo);
     loadTags(repo);
-    loadTasks(repo, { projectId: null }); // Start on Inbox
+    loadTasks(repo, {}); // Start on All Tasks
   }, []);
 
   return <AppShell />;
