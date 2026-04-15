@@ -23,6 +23,10 @@ const fr: typeof en = {
     expandSidebar: "Développer la sidebar",
     collapseSidebar: "Réduire la sidebar",
   },
+  sort: {
+    urgency: "Trier par urgence",
+    dueDate: "Trier par date d'échéance",
+  },
   task: {
     new: "Nouvelle tâche",
     titlePlaceholder: "Titre de la tâche",
@@ -70,6 +74,11 @@ const fr: typeof en = {
   app: {
     loading: "Chargement…",
     dbError: "Erreur d'initialisation de la base de données : {{error}}",
+  },
+  theme: {
+    light: "Clair",
+    dark: "Sombre",
+    system: "Système",
   },
 } as const;
 

@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
-import { GripVertical } from "lucide-react";
+import { GripVertical, TriangleAlert } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatDate, isOverdue } from "@/lib/utils";
@@ -10,10 +10,11 @@ import { useUIStore } from "@/store/ui";
 import { getRepository } from "@/store/repository";
 import type { Task } from "@/types";
 
-const PRIORITY_COLORS: Record<string, string> = {
+const PRIORITY_BORDER_COLORS: Record<string, string> = {
   high: "var(--priority-high)",
   medium: "var(--priority-medium)",
   low: "var(--priority-low)",
+  none: "transparent",
 };
 
 interface TaskItemProps {
@@ -23,7 +24,7 @@ interface TaskItemProps {
 export function TaskItem({ task }: TaskItemProps) {
   const { completeTask, uncompleteTask } = useTaskStore();
   const { selectedTaskId, setSelectedTask } = useUIStore();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isSelected = selectedTaskId === task.id;
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -33,6 +34,7 @@ export function TaskItem({ task }: TaskItemProps) {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : undefined,
+    borderLeftColor: PRIORITY_BORDER_COLORS[task.priority],
   };
 
   async function handleChecked(checked: boolean) {
@@ -46,7 +48,7 @@ export function TaskItem({ task }: TaskItemProps) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-3 px-4 py-2.5 border-b border-border/50 transition-colors",
+        "flex items-center gap-3 pl-3 pr-4 py-2.5 border-b border-l-[3px] border-border/50 transition-colors",
         "hover:bg-accent/40",
         isSelected && "bg-accent"
       )}
@@ -79,23 +81,17 @@ export function TaskItem({ task }: TaskItemProps) {
         {task.title}
       </button>
 
-      {task.priority !== "none" && (
-        <span
-          className="h-2 w-2 rounded-full shrink-0"
-          style={{ background: PRIORITY_COLORS[task.priority] }}
-          aria-label={`${t('priority.label')}: ${t(`priority.${task.priority}` as const)}`}
-        />
-      )}
       {task.dueDate && (
-        <span
-          className={cn(
-            "text-xs shrink-0",
-            isOverdue(task.dueDate)
-              ? "text-[var(--priority-high)]"
-              : "text-muted-foreground"
+        <span className="flex items-center gap-1 shrink-0">
+          {isOverdue(task.dueDate) && (
+            <TriangleAlert className="h-3.5 w-3.5 text-[var(--priority-high)]" />
           )}
-        >
-          {formatDate(task.dueDate)}
+          <span className={cn(
+            "text-xs",
+            isOverdue(task.dueDate) ? "text-[var(--priority-high)]" : "text-muted-foreground"
+          )}>
+            {formatDate(task.dueDate, i18n.language)}
+          </span>
         </span>
       )}
       {task.tags.slice(0, 2).map((tag) => (

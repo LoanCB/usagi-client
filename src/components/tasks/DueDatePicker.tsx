@@ -25,11 +25,11 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
     <div className="flex items-center gap-1">
       <Popover>
         <PopoverTrigger
-          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "gap-2 h-7 px-2")}
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "gap-2 h-7 px-2 justify-start flex-1")}
         >
           <CalendarIcon className="h-3.5 w-3.5" />
           <span className="text-xs">
-            {value ? formatDate(value) : t('dueDate.label')}
+            {value ? formatDate(value, i18n.language) : t('dueDate.label')}
           </span>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">

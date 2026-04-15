@@ -7,8 +7,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { SlidersHorizontal, X, Tag, Check } from "lucide-react";
+import { SlidersHorizontal, Tag, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
 import { useTagStore } from "@/store/tags";
@@ -27,7 +26,6 @@ export function FilterBar() {
   };
 
   const selectedTagIds = activeFilters.tagIds ?? [];
-  const selectedTags = tags.filter((tag) => selectedTagIds.includes(tag.id));
 
   function toggleTag(tagId: string) {
     if (selectedTagIds.includes(tagId)) {
@@ -111,50 +109,18 @@ export function FilterBar() {
 
       {/* Show completed toggle */}
       <Button
-        variant={activeFilters.completed ? "secondary" : "outline"}
+        variant="outline"
         size="sm"
-        className="h-7 text-xs"
+        className={cn(
+          "h-7 text-xs",
+          activeFilters.completed && "border-[var(--priority-low)] text-[var(--priority-low)] bg-[var(--priority-low)]/10"
+        )}
         onClick={() =>
           setFilters({ completed: activeFilters.completed ? undefined : true })
         }
       >
         {t('filter.completed')}
       </Button>
-
-      {/* Active priority chip */}
-      {activeFilters.priority && (
-        <Badge variant="secondary" className="gap-1 h-6 text-xs">
-          {PRIORITY_LABELS[activeFilters.priority]}
-          <X
-            className="h-3 w-3 cursor-pointer"
-            onClick={() => setFilters({ priority: undefined })}
-          />
-        </Badge>
-      )}
-
-      {/* Active tag chips */}
-      {selectedTags.map((tag) => (
-        <Badge
-          key={tag.id}
-          variant="secondary"
-          className="gap-1 h-6 text-xs"
-          style={tag.color ? {
-            backgroundColor: `${tag.color}28`,
-            color: tag.color,
-            borderColor: `${tag.color}50`,
-          } : undefined}
-        >
-          {tag.name}
-          <button
-            type="button"
-            aria-label={`Remove ${tag.name} filter`}
-            className="rounded-sm opacity-70 hover:opacity-100"
-            onClick={(e) => { e.stopPropagation(); toggleTag(tag.id); }}
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </Badge>
-      ))}
 
       {/* Reset all */}
       {hasFilters && (

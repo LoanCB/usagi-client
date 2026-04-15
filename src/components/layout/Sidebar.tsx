@@ -24,6 +24,7 @@ import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import { ProjectForm } from "@/components/projects/ProjectForm";
 import { LanguageToggle } from "@/components/layout/LanguageToggle";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import type { Project } from "@/types";
 
 interface NavItemProps {
@@ -266,6 +267,7 @@ export function Sidebar() {
         </div>
       </ScrollArea>
 
+      <ThemeToggle collapsed={sidebarCollapsed} />
       <LanguageToggle collapsed={sidebarCollapsed} />
     </div>
   );

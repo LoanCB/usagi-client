@@ -21,6 +21,10 @@ const en = {
     expandSidebar: "Expand sidebar",
     collapseSidebar: "Collapse sidebar",
   },
+  sort: {
+    urgency: "Sort by urgency",
+    dueDate: "Sort by due date",
+  },
   task: {
     new: "New task",
     titlePlaceholder: "Task title",
@@ -68,6 +72,11 @@ const en = {
   app: {
     loading: "Loading…",
     dbError: "Failed to initialize database: {{error}}",
+  },
+  theme: {
+    light: "Light",
+    dark: "Dark",
+    system: "System",
   },
 };
 

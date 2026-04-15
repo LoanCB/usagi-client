@@ -29,7 +29,7 @@ export function LanguageToggle({ collapsed }: LanguageToggleProps) {
           className={cn(
             'flex-1 text-xs py-1 rounded-md transition-colors uppercase font-medium',
             current === lang
-              ? 'bg-accent text-accent-foreground'
+              ? 'bg-primary text-primary-foreground'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >

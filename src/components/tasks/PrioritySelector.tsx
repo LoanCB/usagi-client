@@ -35,7 +35,7 @@ export function PrioritySelector({ value, onChange }: PrioritySelectorProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "gap-2 h-7 px-2")}
+        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "gap-2 h-7 px-2 justify-start")}
       >
         <Flag className="h-3.5 w-3.5" style={{ color: COLORS[value] }} />
         <span className="text-xs">{LABELS[value]}</span>

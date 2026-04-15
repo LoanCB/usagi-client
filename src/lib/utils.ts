@@ -6,8 +6,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Format ISO date string to locale-friendly short date ("Apr 12")
-export function formatDate(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString(undefined, {
+export function formatDate(isoDate: string, locale?: string): string {
+  return new Date(isoDate).toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
   });

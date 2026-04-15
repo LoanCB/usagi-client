@@ -13,7 +13,11 @@ import { TagSelector } from "@/components/tasks/TagSelector";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
 import type { Priority } from "@/types";
 
-export function TaskDetail() {
+interface TaskDetailProps {
+  readonly width: number;
+}
+
+export function TaskDetail({ width }: TaskDetailProps) {
   const { tasks, updateTask, completeTask, uncompleteTask, deleteTask } =
     useTaskStore();
   const { selectedTaskId, setSelectedTask } = useUIStore();
@@ -71,7 +75,7 @@ export function TaskDetail() {
   }
 
   return (
-    <div className="w-80 shrink-0 flex flex-col h-full border-l border-border bg-card">
+    <div className="shrink-0 flex flex-col h-full border-l border-border bg-card" style={{ width }}>
       {/* Complete / title */}
       <div className="flex items-start gap-3 p-4 border-b border-border">
         <button

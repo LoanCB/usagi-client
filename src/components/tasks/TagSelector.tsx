@@ -46,7 +46,7 @@ export function TagSelector({ selectedTagIds, onChange }: TagSelectorProps) {
       <PopoverTrigger
         className={cn(
           buttonVariants({ variant: "ghost", size: "sm" }),
-          "gap-2 h-7 px-2 flex-wrap max-w-xs"
+          "gap-2 h-7 px-2 justify-start flex-wrap max-w-xs"
         )}
       >
         <Tag className="h-3.5 w-3.5 shrink-0" />
