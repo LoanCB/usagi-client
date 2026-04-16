@@ -97,6 +97,13 @@ const fr: typeof en = {
     addTime: "Ajouter un horaire",
     removeTime: "Supprimer l'horaire",
     toggleTime: "Activer/désactiver cet horaire",
+    shortcuts: "Raccourcis",
+    shortcutUrgency: "Trier par urgence",
+    shortcutDueDate: "Trier par date d'échéance",
+    shortcutProject: "Trier par projet",
+    shortcutRecording: "Appuyez sur une touche…",
+    shortcutConflict: "Déjà utilisé par un autre raccourci",
+    shortcutClear: "Effacer le raccourci",
   },
 } as const;
 

@@ -95,6 +95,13 @@ const en = {
     addTime: "Add a time",
     removeTime: "Remove time",
     toggleTime: "Enable/disable this time",
+    shortcuts: "Shortcuts",
+    shortcutUrgency: "Sort by urgency",
+    shortcutDueDate: "Sort by due date",
+    shortcutProject: "Sort by project",
+    shortcutRecording: "Press a key…",
+    shortcutConflict: "Already used by another shortcut",
+    shortcutClear: "Clear shortcut",
   },
 };
 

@@ -7,6 +7,7 @@ import { useTaskStore } from "@/store/tasks";
 import { useProjectStore } from "@/store/projects";
 import { useTagStore } from "@/store/tags";
 import { useSettingsStore } from "@/store/settings";
+import { useShortcutsStore } from "@/store/shortcuts";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { useOverdueNotifications } from "@/hooks/useOverdueNotifications";
@@ -21,6 +22,7 @@ function AppContent() {
   const loadProjects = useProjectStore((s) => s.loadProjects);
   const loadTags = useTagStore((s) => s.loadTags);
   const loadSettings = useSettingsStore((s) => s.loadSettings);
+  const loadShortcuts = useShortcutsStore((s) => s.loadShortcuts);
   const tasks = useTaskStore((s) => s.tasks);
   useOverdueNotifications(tasks);
 
@@ -28,6 +30,7 @@ function AppContent() {
     const repo = getRepository();
     async function load() {
       await loadSettings(repo);
+      await loadShortcuts(repo);
       loadProjects(repo);
       loadTags(repo);
       loadTasks(repo, {});

@@ -16,7 +16,9 @@ import { useTaskStore } from "@/store/tasks";
 import { useProjectStore } from "@/store/projects";
 import { useUIStore } from "@/store/ui";
 import { getRepository } from "@/store/repository";
-import { todayIso, hasModifier } from "@/lib/utils";
+import { todayIso } from "@/lib/utils";
+import { useShortcutsStore } from "@/store/shortcuts";
+import { matchesShortcut } from "@/lib/shortcuts";
 import { TaskItem } from "@/components/tasks/TaskItem";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { FilterBar } from "@/components/tasks/FilterBar";
@@ -120,15 +122,25 @@ export function TaskList() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.altKey) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (!hasModifier(e)) {
-        if (e.key === "Escape" && selectedTaskId) { setSelectedTask(null); }
+
+      // Escape (no modifiers) closes task detail
+      if (
+        e.key === "Escape" &&
+        !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey &&
+        selectedTaskId
+      ) {
+        setSelectedTask(null);
         return;
       }
-      if (e.key === "s" || e.key === "S") { e.preventDefault(); sortByUrgency(); return; }
-      if (e.key === "d" || e.key === "D") { e.preventDefault(); sortByDueDate(); return; }
-      if ((e.key === "p" || e.key === "P") && selectedProjectId === undefined) { e.preventDefault(); sortByProject(); }
+
+      const { sortUrgency, sortDueDate, sortProject } = useShortcutsStore.getState();
+      if (matchesShortcut(e, sortUrgency)) { e.preventDefault(); sortByUrgency(); return; }
+      if (matchesShortcut(e, sortDueDate)) { e.preventDefault(); sortByDueDate(); return; }
+      if (matchesShortcut(e, sortProject) && selectedProjectId === undefined) {
+        e.preventDefault();
+        sortByProject();
+      }
     }
     globalThis.addEventListener("keydown", handleKeyDown);
     return () => globalThis.removeEventListener("keydown", handleKeyDown);

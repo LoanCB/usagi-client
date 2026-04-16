@@ -9,9 +9,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SlidersHorizontal, Tag, Check, Flame, CalendarArrowUp, Layers } from "lucide-react";
-import { cn, modifierLabel } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
 import { useTagStore } from "@/store/tags";
+import { useShortcutsStore } from "@/store/shortcuts";
+import { formatShortcut } from "@/lib/shortcuts";
 import type { Priority } from "@/types";
 
 interface FilterBarProps {
@@ -27,6 +29,9 @@ export function FilterBar({ sortDir, sortDateDir, sortProjectDir, onSortByUrgenc
   const { t } = useTranslation();
   const { activeFilters, setFilters } = useUIStore();
   const { tags } = useTagStore();
+  const sortUrgency = useShortcutsStore((s) => s.sortUrgency);
+  const sortDueDate = useShortcutsStore((s) => s.sortDueDate);
+  const sortProject = useShortcutsStore((s) => s.sortProject);
 
   const PRIORITY_LABELS: Record<Priority, string> = {
     none: t('priority.none'),
@@ -160,7 +165,10 @@ export function FilterBar({ sortDir, sortDateDir, sortProjectDir, onSortByUrgenc
               {sortDir != null && <span className="text-[10px] leading-none">{sortDir === "asc" ? "↑" : "↓"}</span>}
             </TooltipTrigger>
             <TooltipContent>
-              {t('sort.urgency')} <kbd className="ml-1 text-xs opacity-60">{modifierLabel()}S</kbd>
+              {t('sort.urgency')}
+              {formatShortcut(sortUrgency) && (
+                <kbd className="ml-1 text-xs opacity-60">{formatShortcut(sortUrgency)}</kbd>
+              )}
             </TooltipContent>
           </Tooltip>
         )}
@@ -178,7 +186,10 @@ export function FilterBar({ sortDir, sortDateDir, sortProjectDir, onSortByUrgenc
               {sortDateDir != null && <span className="text-[10px] leading-none">{sortDateDir === "asc" ? "↑" : "↓"}</span>}
             </TooltipTrigger>
             <TooltipContent>
-              {t('sort.dueDate')} <kbd className="ml-1 text-xs opacity-60">{modifierLabel()}D</kbd>
+              {t('sort.dueDate')}
+              {formatShortcut(sortDueDate) && (
+                <kbd className="ml-1 text-xs opacity-60">{formatShortcut(sortDueDate)}</kbd>
+              )}
             </TooltipContent>
           </Tooltip>
         )}
@@ -196,7 +207,10 @@ export function FilterBar({ sortDir, sortDateDir, sortProjectDir, onSortByUrgenc
               {sortProjectDir != null && <span className="text-[10px] leading-none">{sortProjectDir === "asc" ? "↑" : "↓"}</span>}
             </TooltipTrigger>
             <TooltipContent>
-              {t('sort.project')} <kbd className="ml-1 text-xs opacity-60">{modifierLabel()}P</kbd>
+              {t('sort.project')}
+              {formatShortcut(sortProject) && (
+                <kbd className="ml-1 text-xs opacity-60">{formatShortcut(sortProject)}</kbd>
+              )}
             </TooltipContent>
           </Tooltip>
         )}

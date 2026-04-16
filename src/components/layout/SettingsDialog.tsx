@@ -1,6 +1,8 @@
-import { type ReactElement } from "react";
+import { type ReactElement, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Trash2, Plus, ChevronUp, ChevronDown, Sun, Moon, Monitor } from "lucide-react";
+import { Trash2, Plus, ChevronUp, ChevronDown, Sun, Moon, Monitor, X } from "lucide-react";
+import { useShortcutsStore, type ShortcutAction } from "@/store/shortcuts";
+import { formatShortcut, type SortShortcut } from "@/lib/shortcuts";
 import { useTheme } from "@/theme/ThemeProvider";
 import type { ThemeMode } from "@/theme/types";
 import {
@@ -108,6 +110,92 @@ const THEME_MODES: { mode: ThemeMode; icon: React.ElementType; labelKey: "theme.
   { mode: "system", icon: Monitor, labelKey: "theme.system" },
 ];
 
+function hasConflict(a: SortShortcut, b: SortShortcut): boolean {
+  if (!a.key || !b.key) return false;
+  return (
+    a.key.toLowerCase() === b.key.toLowerCase() &&
+    a.meta === b.meta &&
+    a.ctrl === b.ctrl &&
+    a.alt === b.alt &&
+    a.shift === b.shift
+  );
+}
+
+interface ShortcutInputProps {
+  readonly shortcut: SortShortcut;
+  readonly onChange: (s: SortShortcut) => void;
+  readonly conflict: boolean;
+}
+
+
+function ShortcutInput({ shortcut, onChange, conflict }: ShortcutInputProps) {
+  const { t } = useTranslation();
+  const [recording, setRecording] = useState(false);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; });
+
+  useEffect(() => {
+    if (!recording) return;
+    const MODIFIER_KEYS = new Set(["Meta", "Control", "Alt", "Shift"]);
+
+    function onKey(e: KeyboardEvent) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (MODIFIER_KEYS.has(e.key)) return;
+      if (e.key === "Escape") { setRecording(false); return; }
+      if (e.key === "Backspace" || e.key === "Delete") {
+        onChangeRef.current({ key: null, meta: false, ctrl: false, alt: false, shift: false });
+        setRecording(false);
+        return;
+      }
+      onChangeRef.current({ key: e.key.toLowerCase(), meta: e.metaKey, ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey });
+      setRecording(false);
+    }
+
+    globalThis.addEventListener("keydown", onKey, true);
+    return () => globalThis.removeEventListener("keydown", onKey, true);
+  }, [recording]);
+
+  const label = shortcut.key ? formatShortcut(shortcut) : "—";
+  const idleClass = conflict ? "border-destructive text-foreground" : "border-input text-foreground hover:border-primary/50";
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => setRecording(true)}
+          aria-label={recording ? t("settings.shortcutRecording") : label}
+          aria-pressed={recording}
+          className={cn(
+            "min-w-[80px] h-7 px-2 rounded-md border text-xs font-mono text-left transition-colors",
+            recording ? "border-primary bg-primary/10 text-primary" : idleClass
+          )}
+        >
+          {recording ? t("settings.shortcutRecording") : label}
+        </button>
+        {shortcut.key && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            onClick={() =>
+              onChange({ key: null, meta: false, ctrl: false, alt: false, shift: false })
+            }
+            aria-label={t("settings.shortcutClear")}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+      {conflict && (
+        <p className="text-[11px] text-destructive leading-none">{t("settings.shortcutConflict")}</p>
+      )}
+    </div>
+  );
+}
+
 export function SettingsDialog({ children }: SettingsDialogProps) {
   const { t, i18n } = useTranslation();
   const { mode: themeMode, setMode: setThemeMode } = useTheme();
@@ -116,6 +204,22 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
   const notificationTimes = useSettingsStore((s) => s.notificationTimes);
   const setNotificationsEnabled = useSettingsStore((s) => s.setNotificationsEnabled);
   const setNotificationTimes = useSettingsStore((s) => s.setNotificationTimes);
+
+  const sortUrgency = useShortcutsStore((s) => s.sortUrgency);
+  const sortDueDate = useShortcutsStore((s) => s.sortDueDate);
+  const sortProject = useShortcutsStore((s) => s.sortProject);
+  const setShortcut = useShortcutsStore((s) => s.setShortcut);
+
+  function handleShortcut(action: ShortcutAction, s: SortShortcut) {
+    setShortcut(getRepository(), action, s);
+  }
+
+  const urgencyConflict =
+    hasConflict(sortUrgency, sortDueDate) || hasConflict(sortUrgency, sortProject);
+  const dateConflict =
+    hasConflict(sortDueDate, sortUrgency) || hasConflict(sortDueDate, sortProject);
+  const projectConflict =
+    hasConflict(sortProject, sortUrgency) || hasConflict(sortProject, sortDueDate);
 
   function handleToggleEnabled(checked: boolean) {
     setNotificationsEnabled(getRepository(), checked);
@@ -243,6 +347,39 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                 <Plus className="h-3.5 w-3.5 mr-1" />
                 {t("settings.addTime")}
               </Button>
+            </div>
+          </div>
+
+          {/* Section: Shortcuts */}
+          <div className="flex flex-col gap-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              {t("settings.shortcuts")}
+            </p>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-sm pt-1">{t("settings.shortcutUrgency")}</span>
+                <ShortcutInput
+                  shortcut={sortUrgency}
+                  onChange={(s) => handleShortcut("sortUrgency", s)}
+                  conflict={urgencyConflict}
+                />
+              </div>
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-sm pt-1">{t("settings.shortcutDueDate")}</span>
+                <ShortcutInput
+                  shortcut={sortDueDate}
+                  onChange={(s) => handleShortcut("sortDueDate", s)}
+                  conflict={dateConflict}
+                />
+              </div>
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-sm pt-1">{t("settings.shortcutProject")}</span>
+                <ShortcutInput
+                  shortcut={sortProject}
+                  onChange={(s) => handleShortcut("sortProject", s)}
+                  conflict={projectConflict}
+                />
+              </div>
             </div>
           </div>
         </div>
