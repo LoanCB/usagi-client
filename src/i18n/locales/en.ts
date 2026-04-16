@@ -78,6 +78,22 @@ const en = {
     dark: "Dark",
     system: "System",
   },
+  notifications: {
+    overdueTitle: "Overdue tasks",
+    overdueBody: "You have {{count}} overdue tasks",
+    overdueTaskBody: "Due date has passed",
+  },
+  settings: {
+    title: "Settings",
+    appearance: "Appearance",
+    language: "Language",
+    notifications: "Notifications",
+    enableNotifications: "Enable notifications",
+    notificationTimes: "Reminder times",
+    addTime: "Add a time",
+    removeTime: "Remove time",
+    toggleTime: "Enable/disable this time",
+  },
 };
 
 export default en;

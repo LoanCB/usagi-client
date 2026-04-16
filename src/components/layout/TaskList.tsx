@@ -124,30 +124,30 @@ export function TaskList() {
         <h2 className="font-semibold text-base">{getTitle()}</h2>
         <div className="flex items-center gap-1">
           <Tooltip>
-            <TooltipTrigger asChild>
+            <TooltipTrigger render={
               <Button
                 size="sm"
                 variant="ghost"
                 className={sortDir === null ? "text-muted-foreground" : "text-foreground"}
                 onClick={sortByUrgency}
-              >
-                <ArrowDownUp className="h-4 w-4" />
-              </Button>
+              />
+            }>
+              <ArrowDownUp className="h-4 w-4" />
             </TooltipTrigger>
             <TooltipContent>
               {t('sort.urgency')} · {sortDir === "asc" ? "↑" : "↓"} <kbd className="ml-1 text-xs opacity-60">S</kbd>
             </TooltipContent>
           </Tooltip>
           <Tooltip>
-            <TooltipTrigger asChild>
+            <TooltipTrigger render={
               <Button
                 size="sm"
                 variant="ghost"
                 className={sortDateDir === null ? "text-muted-foreground" : "text-foreground"}
                 onClick={sortByDueDate}
-              >
-                <CalendarArrowUp className="h-4 w-4" />
-              </Button>
+              />
+            }>
+              <CalendarArrowUp className="h-4 w-4" />
             </TooltipTrigger>
             <TooltipContent>
               {t('sort.dueDate')} · {sortDateDir === "asc" ? "↑" : "↓"}

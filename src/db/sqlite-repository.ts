@@ -285,6 +285,22 @@ export class SqliteRepository implements TodoRepository {
     }
   }
 
+  // ---------- Settings ----------
+
+  async getSettings(): Promise<Record<string, string>> {
+    const rows = await this.db.select<{ key: string; value: string }>(
+      "SELECT key, value FROM settings"
+    );
+    return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  }
+
+  async setSetting(key: string, value: string): Promise<void> {
+    await this.db.execute(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+      [key, value]
+    );
+  }
+
   private async _attachTags(taskRows: TaskRow[]): Promise<Task[]> {
     if (taskRows.length === 0) return [];
     const ids = taskRows.map((r) => r.id);

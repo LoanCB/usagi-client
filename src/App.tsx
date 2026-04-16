@@ -6,24 +6,34 @@ import { setRepository, getRepository } from "@/store/repository";
 import { useTaskStore } from "@/store/tasks";
 import { useProjectStore } from "@/store/projects";
 import { useTagStore } from "@/store/tags";
+import { useSettingsStore } from "@/store/settings";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { AppShell } from "@/components/layout/AppShell";
+import { useOverdueNotifications } from "@/hooks/useOverdueNotifications";
 
 // Load migration SQL at build time (Vite raw import)
 import migrationSql from "@/db/migrations/001_initial.sql?raw";
 import migration002 from "@/db/migrations/002_add_description.sql?raw";
+import migration003 from "@/db/migrations/003_settings.sql?raw";
 
 function AppContent() {
   const loadTasks = useTaskStore((s) => s.loadTasks);
   const loadProjects = useProjectStore((s) => s.loadProjects);
   const loadTags = useTagStore((s) => s.loadTags);
+  const loadSettings = useSettingsStore((s) => s.loadSettings);
+  const tasks = useTaskStore((s) => s.tasks);
+  useOverdueNotifications(tasks);
 
   useEffect(() => {
     const repo = getRepository();
-    loadProjects(repo);
-    loadTags(repo);
-    loadTasks(repo, {}); // Start on All Tasks
-  }, []);
+    async function load() {
+      await loadSettings(repo);
+      loadProjects(repo);
+      loadTags(repo);
+      loadTasks(repo, {});
+    }
+    load();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return <AppShell />;
 }
@@ -38,7 +48,7 @@ export default function App() {
       try {
         const db = await Database.load("sqlite:usagi.db");
         // Run migrations sequentially (idempotent)
-        for (const migration of [migrationSql, migration002]) {
+        for (const migration of [migrationSql, migration002, migration003]) {
           for (const statement of migration
             .split(";")
             .map((s) => s.trim())

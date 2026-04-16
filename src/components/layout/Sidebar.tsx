@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Calendar, ListChecks, Plus, MoreVertical, Pencil, Trash2, Tags } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, ListChecks, Plus, MoreVertical, Pencil, Trash2, Tags, Settings2 } from "lucide-react";
 import { PRESET_ICONS } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -23,8 +23,7 @@ import { useUIStore } from "@/store/ui";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import { ProjectForm } from "@/components/projects/ProjectForm";
-import { LanguageToggle } from "@/components/layout/LanguageToggle";
-import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { SettingsDialog } from "@/components/layout/SettingsDialog";
 import type { Project } from "@/types";
 
 interface NavItemProps {
@@ -267,8 +266,21 @@ export function Sidebar() {
         </div>
       </ScrollArea>
 
-      <ThemeToggle collapsed={sidebarCollapsed} />
-      <LanguageToggle collapsed={sidebarCollapsed} />
+      <SettingsDialog>
+        <div className={cn(
+          "flex border-t border-border px-2 py-2",
+          sidebarCollapsed ? "justify-center" : "justify-start"
+        )}>
+          <button
+            type="button"
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm"
+            aria-label={t("settings.title")}
+          >
+            <Settings2 className="h-4 w-4 shrink-0" />
+            {!sidebarCollapsed && <span>{t("settings.title")}</span>}
+          </button>
+        </div>
+      </SettingsDialog>
     </div>
   );
 }

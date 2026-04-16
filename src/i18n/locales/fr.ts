@@ -80,6 +80,22 @@ const fr: typeof en = {
     dark: "Sombre",
     system: "Système",
   },
+  notifications: {
+    overdueTitle: "Tâches en retard",
+    overdueBody: "Vous avez {{count}} tâches en retard",
+    overdueTaskBody: "Date d'échéance dépassée",
+  },
+  settings: {
+    title: "Paramètres",
+    appearance: "Apparence",
+    language: "Langue",
+    notifications: "Notifications",
+    enableNotifications: "Activer les notifications",
+    notificationTimes: "Horaires de rappel",
+    addTime: "Ajouter un horaire",
+    removeTime: "Supprimer l'horaire",
+    toggleTime: "Activer/désactiver cet horaire",
+  },
 } as const;
 
 export default fr;

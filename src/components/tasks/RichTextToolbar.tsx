@@ -139,7 +139,7 @@ export function RichTextToolbar({ editor }: RichTextToolbarProps) {
       {/* Link button with popover */}
       <Popover open={linkOpen} onOpenChange={setLinkOpen}>
         <Tooltip>
-          <TooltipTrigger asChild>
+          <TooltipTrigger render={
             <PopoverTrigger
               type="button"
               onClick={handleLinkButtonClick}
@@ -149,13 +149,13 @@ export function RichTextToolbar({ editor }: RichTextToolbarProps) {
                 "text-muted-foreground hover:text-foreground hover:bg-accent",
                 editor.isActive("link") && "text-foreground bg-accent"
               )}
-            >
-              <Link className="h-3.5 w-3.5" />
-            </PopoverTrigger>
+            />
+          }>
+            <Link className="h-3.5 w-3.5" />
           </TooltipTrigger>
           <TooltipContent>Lien</TooltipContent>
         </Tooltip>
-        <PopoverContent className="w-72 p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <PopoverContent className="w-72 p-2">
           <form
             onSubmit={(e) => { e.preventDefault(); handleLinkSubmit(); }}
             className="flex gap-2"

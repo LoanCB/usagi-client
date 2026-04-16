@@ -30,4 +30,8 @@ export interface TodoRepository {
   createTag(input: CreateTagInput): Promise<Tag>;
   updateTag(id: string, patch: Partial<CreateTagInput>): Promise<Tag>;
   deleteTag(id: string): Promise<void>;
+
+  // Settings
+  getSettings(): Promise<Record<string, string>>;
+  setSetting(key: string, value: string): Promise<void>;
 }

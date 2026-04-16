@@ -294,3 +294,32 @@ describe("SqliteRepository — tasks", () => {
     expect(sql).toContain("completed_at IS NOT NULL");
   });
 });
+
+describe("SqliteRepository — settings", () => {
+  it("getSettings returns all rows as a key-value record", async () => {
+    const db = makeDb({
+      select: vi.fn().mockResolvedValueOnce([
+        { key: "notification_enabled", value: "true" },
+        { key: "notification_times", value: '[{"hour":10,"minute":0}]' },
+      ]),
+    });
+    const repo = new SqliteRepository(db);
+    const settings = await repo.getSettings();
+    expect(settings).toEqual({
+      notification_enabled: "true",
+      notification_times: '[{"hour":10,"minute":0}]',
+    });
+    const [sql] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(sql).toContain("FROM settings");
+  });
+
+  it("setSetting calls INSERT OR REPLACE with key and value", async () => {
+    const db = makeDb();
+    const repo = new SqliteRepository(db);
+    await repo.setSetting("notification_enabled", "false");
+    expect(db.execute).toHaveBeenCalledWith(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+      ["notification_enabled", "false"]
+    );
+  });
+});
