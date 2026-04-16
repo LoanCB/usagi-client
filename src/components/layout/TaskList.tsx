@@ -20,6 +20,7 @@ import { todayIso, hasModifier } from "@/lib/utils";
 import { TaskItem } from "@/components/tasks/TaskItem";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { FilterBar } from "@/components/tasks/FilterBar";
+import { QuickAddTask } from "@/components/tasks/QuickAddTask";
 import type { Task } from "@/types";
 
 const PRIORITY_WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1, none: 0 };
@@ -192,6 +193,7 @@ export function TaskList() {
             </SortableContext>
           </DndContext>
         )}
+        <QuickAddTask projectId={formProjectId} />
       </ScrollArea>
     </div>
   );
