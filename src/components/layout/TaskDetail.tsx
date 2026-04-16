@@ -81,10 +81,10 @@ export function TaskDetail({ width }: TaskDetailProps) {
   return (
     <div className="shrink-0 flex flex-col h-full border-l border-border bg-card" style={{ width }}>
       {/* Complete / title */}
-      <div className="flex items-start gap-3 p-4 border-b border-border">
+      <div className="flex items-center gap-3 p-4 border-b border-border">
         <button
           onClick={handleToggleComplete}
-          className="mt-1 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+          className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
           aria-label={task.completedAt ? t('task.markIncomplete') : t('task.markComplete')}
         >
           {task.completedAt ? (
@@ -100,8 +100,9 @@ export function TaskDetail({ width }: TaskDetailProps) {
           onKeyDown={(e) =>
             e.key === "Enter" && (e.target as HTMLInputElement).blur()
           }
-          className="border-none shadow-none p-0 text-base font-medium focus-visible:ring-0 bg-transparent"
+          className="border-none shadow-none py-0 pl-2 pr-0 text-base font-medium focus-visible:ring-0 bg-transparent"
           placeholder={t('task.titlePlaceholder')}
+          title={title}
         />
         <button
           onClick={() => setSelectedTask(null)}

@@ -49,7 +49,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "tiptap focus:outline-none text-sm text-muted-foreground focus:text-foreground min-h-[72px] px-4 py-3",
+          "tiptap focus:outline-none text-sm text-muted-foreground focus:text-foreground min-h-[72px] grow px-4 py-3",
         "data-placeholder": placeholder ?? "",
       },
     },
@@ -71,8 +71,8 @@ export function RichTextEditor({
       <div className="sticky top-0 bg-card z-10">
         <RichTextToolbar editor={editor} />
       </div>
-      <div className="overflow-y-auto flex-1 min-h-0">
-        <EditorContent editor={editor} />
+      <div className="overflow-y-auto flex-1 min-h-0 flex flex-col">
+        <EditorContent editor={editor} className="flex-1 flex flex-col" />
       </div>
     </div>
   );

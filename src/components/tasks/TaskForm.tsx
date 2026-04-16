@@ -23,6 +23,7 @@ import {
 import { useTaskStore } from "@/store/tasks";
 import { getRepository } from "@/store/repository";
 import { TagSelector } from "@/components/tasks/TagSelector";
+import { RichTextEditor } from "@/components/tasks/RichTextEditor";
 import { cn, formatDate } from "@/lib/utils";
 import type { Priority } from "@/types";
 
@@ -34,6 +35,7 @@ interface TaskFormProps {
 export function TaskForm({ children, projectId = null }: TaskFormProps) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>("none");
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [tagIds, setTagIds] = useState<string[]>([]);
@@ -47,12 +49,14 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
     if (!title.trim()) return;
     await createTask(getRepository(), {
       title: title.trim(),
+      description: description || null,
       projectId: projectId ?? null,
       priority,
       dueDate: dueDate || null,
       tagIds,
     });
     setTitle("");
+    setDescription("");
     setPriority("none");
     setDueDate(null);
     setShowDatePicker(false);
@@ -64,7 +68,7 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
   return (
     <Dialog open={open} onOpenChange={(isOpen) => setOpen(isOpen)}>
       <DialogTrigger render={children} />
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t('task.new')}</DialogTitle>
         </DialogHeader>
@@ -75,6 +79,14 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
             onChange={(e) => setTitle(e.target.value)}
             autoFocus
           />
+          <div className="h-48 overflow-hidden rounded-md border border-input flex flex-col">
+            <RichTextEditor
+              value={description}
+              onChange={setDescription}
+              onBlur={() => {}}
+              placeholder={t('task.descriptionPlaceholder')}
+            />
+          </div>
           <TagSelector selectedTagIds={tagIds} onChange={setTagIds} />
           <div className="flex gap-3">
             <Select
