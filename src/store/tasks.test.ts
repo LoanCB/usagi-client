@@ -28,6 +28,8 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
     updateTag: vi.fn(),
     deleteTag: vi.fn(),
     reorderTasks: vi.fn().mockResolvedValue(undefined),
+    getSettings: vi.fn().mockResolvedValue({}),
+    setSetting: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
