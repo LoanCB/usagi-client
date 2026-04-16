@@ -24,6 +24,7 @@ const en = {
   sort: {
     urgency: "Sort by urgency",
     dueDate: "Sort by due date",
+    project: "Sort by project",
   },
   task: {
     new: "New task",
@@ -31,6 +32,7 @@ const en = {
     descriptionPlaceholder: "Add a note…",
     noTasks: "No tasks",
     delete: "Delete task",
+    close: "Close detail",
     markComplete: "Mark complete",
     markIncomplete: "Mark incomplete",
     reorder: "Reorder task",

@@ -1,6 +1,7 @@
 import React, { useState, type ReactElement } from "react";
-import { X } from "lucide-react";
+import { X, CalendarIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { fr } from "react-day-picker/locale";
 import {
   Dialog,
   DialogContent,
@@ -8,8 +9,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Select,
   SelectContent,
@@ -20,6 +23,7 @@ import {
 import { useTaskStore } from "@/store/tasks";
 import { getRepository } from "@/store/repository";
 import { TagSelector } from "@/components/tasks/TagSelector";
+import { cn, formatDate } from "@/lib/utils";
 import type { Priority } from "@/types";
 
 interface TaskFormProps {
@@ -31,9 +35,10 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Priority>("none");
-  const [dueDate, setDueDate] = useState("");
+  const [dueDate, setDueDate] = useState<string | null>(null);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const createTask = useTaskStore((s) => s.createTask);
   const { t, i18n } = useTranslation();
 
@@ -49,8 +54,9 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
     });
     setTitle("");
     setPriority("none");
-    setDueDate("");
+    setDueDate(null);
     setShowDatePicker(false);
+    setCalendarOpen(false);
     setTagIds([]);
     setOpen(false);
   }
@@ -93,20 +99,31 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
               </SelectContent>
             </Select>
             {showDatePicker ? (
-              <div className="flex flex-1 gap-1">
-                <Input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="flex-1"
-                  lang={i18n.language}
-                  autoFocus
-                />
+              <div className="flex flex-1 gap-1 items-center">
+                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                  <PopoverTrigger
+                    className={cn(buttonVariants({ variant: "ghost" }), "gap-2 justify-start flex-1")}
+                  >
+                    <CalendarIcon className="h-4 w-4" />
+                    <span>{dueDate ? formatDate(dueDate, i18n.language) : t('dueDate.label')}</span>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dueDate ? new Date(dueDate) : undefined}
+                      onSelect={(date) => {
+                        setDueDate(date ? date.toISOString().split("T")[0] : null);
+                        setCalendarOpen(false);
+                      }}
+                      locale={i18n.language === "fr" ? fr : undefined}
+                    />
+                  </PopoverContent>
+                </Popover>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={() => { setDueDate(""); setShowDatePicker(false); }}
+                  onClick={() => { setDueDate(null); setShowDatePicker(false); }}
                   aria-label={t('dueDate.remove')}
                 >
                   <X className="h-4 w-4" />
@@ -117,7 +134,7 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
                 type="button"
                 variant="ghost"
                 className="flex-1 justify-start text-muted-foreground"
-                onClick={() => setShowDatePicker(true)}
+                onClick={() => { setShowDatePicker(true); setCalendarOpen(true); }}
               >
                 + {t('task.addDate')}
               </Button>

@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import { Trash2, CheckCircle, Circle } from "lucide-react";
+import { Trash2, CheckCircle, Circle, X } from "lucide-react";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
 import { getRepository } from "@/store/repository";
 import { PrioritySelector } from "@/components/tasks/PrioritySelector";
 import { DueDatePicker } from "@/components/tasks/DueDatePicker";
 import { TagSelector } from "@/components/tasks/TagSelector";
+import { ProjectSelector } from "@/components/tasks/ProjectSelector";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
 import type { Priority } from "@/types";
 
@@ -64,6 +64,10 @@ export function TaskDetail({ width }: TaskDetailProps) {
     await updateTask(repo, taskId, { tagIds });
   }
 
+  async function handleProjectChange(projectId: string | null) {
+    await updateTask(repo, taskId, { projectId });
+  }
+
   async function handleToggleComplete() {
     if (task!.completedAt) await uncompleteTask(repo, taskId);
     else await completeTask(repo, taskId);
@@ -99,6 +103,13 @@ export function TaskDetail({ width }: TaskDetailProps) {
           className="border-none shadow-none p-0 text-base font-medium focus-visible:ring-0 bg-transparent"
           placeholder={t('task.titlePlaceholder')}
         />
+        <button
+          onClick={() => setSelectedTask(null)}
+          className="ml-auto shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+          aria-label={t('task.close')}
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Description rich text */}
@@ -111,6 +122,7 @@ export function TaskDetail({ width }: TaskDetailProps) {
 
       {/* Metadata */}
       <div className="flex flex-col gap-1 p-3 border-b border-border">
+        <ProjectSelector value={task.projectId} onChange={handleProjectChange} />
         <PrioritySelector
           value={task.priority}
           onChange={handlePriorityChange}
@@ -124,7 +136,6 @@ export function TaskDetail({ width }: TaskDetailProps) {
 
       {/* Actions */}
       <div className="p-3 mt-auto">
-        <Separator className="mb-3" />
         <Button
           variant="ghost"
           size="sm"

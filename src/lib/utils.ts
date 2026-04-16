@@ -24,3 +24,20 @@ export function isOverdue(isoDate: string): boolean {
 export function todayIso(): string {
   return new Date().toISOString().split("T")[0];
 }
+
+// Returns true if the current platform is macOS
+export function isMac(): boolean {
+  const platform = (navigator as Navigator & { userAgentData?: { platform: string } })
+    .userAgentData?.platform ?? navigator.userAgent;
+  return platform.toLowerCase().includes("mac");
+}
+
+// Returns the platform modifier key label for display in tooltips
+export function modifierLabel(): string {
+  return isMac() ? "⌘" : "Ctrl+";
+}
+
+// Returns true if the platform modifier key is held in a keyboard event
+export function hasModifier(e: KeyboardEvent): boolean {
+  return isMac() ? e.metaKey : e.ctrlKey;
+}

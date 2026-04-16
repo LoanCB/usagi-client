@@ -8,7 +8,8 @@ import { cn, formatDate, isOverdue } from "@/lib/utils";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
 import { getRepository } from "@/store/repository";
-import type { Task } from "@/types";
+import { PRESET_ICONS } from "@/lib/icons";
+import type { Task, Project } from "@/types";
 
 const PRIORITY_BORDER_COLORS: Record<string, string> = {
   high: "var(--priority-high)",
@@ -19,9 +20,10 @@ const PRIORITY_BORDER_COLORS: Record<string, string> = {
 
 interface TaskItemProps {
   readonly task: Task;
+  readonly project?: Project;
 }
 
-export function TaskItem({ task }: TaskItemProps) {
+export function TaskItem({ task, project }: TaskItemProps) {
   const { completeTask, uncompleteTask } = useTaskStore();
   const { selectedTaskId, setSelectedTask } = useUIStore();
   const { t, i18n } = useTranslation();
@@ -69,6 +71,12 @@ export function TaskItem({ task }: TaskItemProps) {
         onCheckedChange={handleChecked}
         className="shrink-0"
       />
+
+      {project?.icon && (() => {
+        const iconDef = PRESET_ICONS.find((i) => i.name === project.icon) ?? PRESET_ICONS[0];
+        const ProjectIcon = iconDef.icon;
+        return <ProjectIcon className="h-3.5 w-3.5 shrink-0" style={{ color: project.color ?? undefined }} />;
+      })()}
 
       {/* Clickable title area */}
       <button

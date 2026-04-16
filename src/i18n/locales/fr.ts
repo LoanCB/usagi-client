@@ -26,6 +26,7 @@ const fr: typeof en = {
   sort: {
     urgency: "Trier par urgence",
     dueDate: "Trier par date d'échéance",
+    project: "Trier par projet",
   },
   task: {
     new: "Nouvelle tâche",
@@ -33,6 +34,7 @@ const fr: typeof en = {
     descriptionPlaceholder: "Ajouter une note…",
     noTasks: "Aucune tâche",
     delete: "Supprimer la tâche",
+    close: "Fermer le détail",
     markComplete: "Marquer comme terminée",
     markIncomplete: "Marquer comme non terminée",
     reorder: "Réordonner la tâche",
