@@ -41,7 +41,7 @@ function NavItem({ icon, label, active, collapsed, onClick, count }: NavItemProp
     <button
       onClick={onClick}
       className={cn(
-        "flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm transition-colors",
+        "flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm text-left transition-colors",
         "border-l-2 border-transparent",
         "hover:bg-foreground/5 hover:text-foreground hover:border-foreground/30",
         active && "bg-foreground/[0.08] text-foreground font-medium border-foreground/50"
@@ -103,7 +103,7 @@ function ProjectNavItem({ project, active, collapsed, onClick, count }: ProjectN
   const inner = (
     <button
       className={cn(
-        "group flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm transition-colors",
+        "group flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm text-left transition-colors",
         "border-l-2 border-transparent",
         "hover:bg-foreground/5 hover:text-foreground hover:border-foreground/30",
         active && "bg-foreground/[0.08] text-foreground font-medium border-foreground/50"
@@ -114,11 +114,6 @@ function ProjectNavItem({ project, active, collapsed, onClick, count }: ProjectN
       {!collapsed && (
         <>
           <span className="truncate flex-1">{project.name}</span>
-          {count !== undefined && (
-            <span className="text-xs text-muted-foreground/70 bg-foreground/[0.06] rounded-full min-w-[1.25rem] text-center px-1.5 py-0.5 leading-none shrink-0">
-              {count}
-            </span>
-          )}
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger
               className="opacity-0 group-hover:opacity-100 focus:opacity-100 h-5 w-5 flex items-center justify-center rounded hover:bg-accent-foreground/10 transition-opacity shrink-0"
@@ -146,6 +141,11 @@ function ProjectNavItem({ project, active, collapsed, onClick, count }: ProjectN
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {count !== undefined && (
+            <span className="text-xs text-muted-foreground/70 bg-foreground/[0.06] rounded-full min-w-[1.25rem] text-center px-1.5 py-0.5 leading-none shrink-0">
+              {count}
+            </span>
+          )}
         </>
       )}
     </button>
