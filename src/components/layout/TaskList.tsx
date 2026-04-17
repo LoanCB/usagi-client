@@ -61,6 +61,7 @@ export function TaskList() {
   const { selectedProjectId, activeFilters, selectedTaskId, setSelectedTask } = useUIStore();
 
   const currentProject = projects.find((p) => p.id === selectedProjectId);
+  const [searchQuery, setSearchQuery] = useState("");
   const [sortDir, setSortDir] = useState<"asc" | "desc" | null>(null);
   const [sortDateDir, setSortDateDir] = useState<"asc" | "desc" | null>(null);
   const [sortProjectDir, setSortProjectDir] = useState<"asc" | "desc" | null>(null);
@@ -163,6 +164,10 @@ export function TaskList() {
       ? null
       : selectedProjectId;
 
+  const visibleTasks = searchQuery
+    ? tasks.filter((t) => t.title.toLowerCase().includes(searchQuery.toLowerCase()))
+    : tasks;
+
   return (
     <div className="flex flex-col flex-1 min-w-0 overflow-hidden border-r border-border">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
@@ -181,10 +186,12 @@ export function TaskList() {
         onSortByUrgency={sortByUrgency}
         onSortByDueDate={sortByDueDate}
         onSortByProject={selectedProjectId === undefined ? sortByProject : undefined}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
       />
 
       <ScrollArea className="flex-1">
-        {tasks.length === 0 ? (
+        {visibleTasks.length === 0 ? (
           <p className="text-center text-muted-foreground text-sm py-12">
             {t('task.noTasks')}
           </p>
@@ -194,8 +201,8 @@ export function TaskList() {
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              {tasks.map((task) => (
+            <SortableContext items={visibleTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+              {visibleTasks.map((task) => (
                 <TaskItem
                   key={task.id}
                   task={task}

@@ -51,6 +51,7 @@ const en = {
     completed: "Completed",
     reset: "Reset",
     tags: "Tags",
+    search: "Search…",
   },
   dueDate: {
     label: "Due date",

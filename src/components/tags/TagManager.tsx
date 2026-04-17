@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Trash2, Check, X, Plus } from "lucide-react";
+import { Pencil, Trash2, Check, X, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTagStore } from "@/store/tags";
@@ -32,12 +32,17 @@ function ColorPicker({ value, onChange }: { readonly value: string; readonly onC
 export function TagManager() {
   const { t } = useTranslation();
   const { tags, createTag, updateTag, deleteTag } = useTagStore();
+  const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState<string>(PRESET_COLORS[5]);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState<string>(PRESET_COLORS[5]);
   const [showNew, setShowNew] = useState(false);
+
+  const visibleTags = searchQuery
+    ? tags.filter((tag) => tag.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : tags;
 
   function startEdit(id: string, name: string, color: string | null) {
     setEditingId(id);
@@ -68,6 +73,18 @@ export function TagManager() {
         </Button>
       </div>
 
+      <div className="px-3 pt-3 pb-1 shrink-0">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('filter.search')}
+            className="h-7 pl-6 pr-2 text-xs w-full"
+          />
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto p-3 space-y-1">
         {/* New tag form */}
         {showNew && (
@@ -91,13 +108,13 @@ export function TagManager() {
           </div>
         )}
 
-        {tags.length === 0 && !showNew && (
+        {visibleTags.length === 0 && !showNew && (
           <p className="text-sm text-muted-foreground text-center py-12">
             {t('tag.noTags')}
           </p>
         )}
 
-        {tags.map((tag) => (
+        {visibleTags.map((tag) => (
           <div
             key={tag.id}
             className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-accent/40 group"

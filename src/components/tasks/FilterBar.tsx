@@ -7,8 +7,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { SlidersHorizontal, Tag, Check, Flame, CalendarArrowUp, Layers } from "lucide-react";
+import { SlidersHorizontal, Tag, Check, Flame, CalendarArrowUp, Layers, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
 import { useTagStore } from "@/store/tags";
@@ -23,9 +24,11 @@ interface FilterBarProps {
   readonly onSortByUrgency?: () => void;
   readonly onSortByDueDate?: () => void;
   readonly onSortByProject?: () => void;
+  readonly searchQuery?: string;
+  readonly onSearchChange?: (v: string) => void;
 }
 
-export function FilterBar({ sortDir, sortDateDir, sortProjectDir, onSortByUrgency, onSortByDueDate, onSortByProject }: FilterBarProps) {
+export function FilterBar({ sortDir, sortDateDir, sortProjectDir, onSortByUrgency, onSortByDueDate, onSortByProject, searchQuery = "", onSearchChange }: FilterBarProps) {
   const { t } = useTranslation();
   const { activeFilters, setFilters } = useUIStore();
   const { tags } = useTagStore();
@@ -53,10 +56,24 @@ export function FilterBar({ sortDir, sortDateDir, sortProjectDir, onSortByUrgenc
   const hasFilters =
     !!activeFilters.priority ||
     selectedTagIds.length > 0 ||
-    !!activeFilters.completed;
+    !!activeFilters.completed ||
+    !!searchQuery;
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b border-border shrink-0 flex-wrap">
+      {/* Search */}
+      {onSearchChange && (
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder={t('filter.search')}
+            className="h-7 pl-6 pr-2 text-xs w-40"
+          />
+        </div>
+      )}
+
       {/* Priority filter */}
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -144,9 +161,10 @@ export function FilterBar({ sortDir, sortDateDir, sortProjectDir, onSortByUrgenc
             variant="ghost"
             size="sm"
             className="h-7 text-xs text-muted-foreground"
-            onClick={() =>
-              setFilters({ priority: undefined, tagIds: [], completed: undefined })
-            }
+            onClick={() => {
+              setFilters({ priority: undefined, tagIds: [], completed: undefined });
+              onSearchChange?.("");
+            }}
           >
             {t('filter.reset')}
           </Button>

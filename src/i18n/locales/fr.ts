@@ -53,6 +53,7 @@ const fr: typeof en = {
     completed: "Complétées",
     reset: "Réinitialiser",
     tags: "Tags",
+    search: "Rechercher…",
   },
   dueDate: {
     label: "Date d'échéance",
