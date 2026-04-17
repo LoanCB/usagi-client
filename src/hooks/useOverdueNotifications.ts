@@ -35,18 +35,22 @@ export function useOverdueNotifications(tasks: Task[]): void {
     }
     if (!permitted) return;
 
-    if (overdue.length > 2) {
-      sendNotification({
-        title: t("notifications.overdueTitle"),
-        body: t("notifications.overdueBody", { count: overdue.length }),
-      });
-    } else {
-      for (const task of overdue) {
+    try {
+      if (overdue.length > 2) {
         sendNotification({
-          title: task.title,
-          body: t("notifications.overdueTaskBody"),
+          title: t("notifications.overdueTitle"),
+          body: t("notifications.overdueBody", { count: overdue.length }),
         });
+      } else {
+        for (const task of overdue) {
+          sendNotification({
+            title: task.title,
+            body: t("notifications.overdueTaskBody"),
+          });
+        }
       }
+    } catch (err) {
+      console.error("[notifications] sendNotification failed:", err);
     }
   }
 
