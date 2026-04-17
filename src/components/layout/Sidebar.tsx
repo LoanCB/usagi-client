@@ -18,9 +18,10 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+import { cn, todayIso } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
 import { useProjectStore } from "@/store/projects";
+import { useTaskStore } from "@/store/tasks";
 import { getRepository } from "@/store/repository";
 import { ProjectForm } from "@/components/projects/ProjectForm";
 import { SettingsDialog } from "@/components/layout/SettingsDialog";
@@ -32,9 +33,10 @@ interface NavItemProps {
   readonly active: boolean;
   readonly collapsed: boolean;
   readonly onClick: () => void;
+  readonly count?: number;
 }
 
-function NavItem({ icon, label, active, collapsed, onClick }: NavItemProps) {
+function NavItem({ icon, label, active, collapsed, onClick, count }: NavItemProps) {
   const inner = (
     <button
       onClick={onClick}
@@ -46,7 +48,12 @@ function NavItem({ icon, label, active, collapsed, onClick }: NavItemProps) {
       )}
     >
       <span className="shrink-0">{icon}</span>
-      {!collapsed && <span className="truncate">{label}</span>}
+      {!collapsed && <span className="truncate flex-1">{label}</span>}
+      {!collapsed && count !== undefined && (
+        <span className="ml-auto text-xs text-muted-foreground/70 bg-foreground/[0.06] rounded-full min-w-[1.25rem] text-center px-1.5 py-0.5 leading-none shrink-0">
+          {count}
+        </span>
+      )}
     </button>
   );
 
@@ -68,9 +75,10 @@ interface ProjectNavItemProps {
   readonly active: boolean;
   readonly collapsed: boolean;
   readonly onClick: () => void;
+  readonly count?: number;
 }
 
-function ProjectNavItem({ project, active, collapsed, onClick }: ProjectNavItemProps) {
+function ProjectNavItem({ project, active, collapsed, onClick, count }: ProjectNavItemProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const { deleteProject } = useProjectStore();
@@ -106,6 +114,11 @@ function ProjectNavItem({ project, active, collapsed, onClick }: ProjectNavItemP
       {!collapsed && (
         <>
           <span className="truncate flex-1">{project.name}</span>
+          {count !== undefined && (
+            <span className="text-xs text-muted-foreground/70 bg-foreground/[0.06] rounded-full min-w-[1.25rem] text-center px-1.5 py-0.5 leading-none shrink-0">
+              {count}
+            </span>
+          )}
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger
               className="opacity-0 group-hover:opacity-100 focus:opacity-100 h-5 w-5 flex items-center justify-center rounded hover:bg-accent-foreground/10 transition-opacity shrink-0"
@@ -168,6 +181,10 @@ export function Sidebar() {
   const { sidebarCollapsed, setSidebarCollapsed, selectedProjectId, setSelectedProject } =
     useUIStore();
   const projects = useProjectStore((s) => s.projects);
+  const tasks = useTaskStore((s) => s.tasks);
+  const today = todayIso();
+  const allCount = tasks.filter((t) => !t.completedAt).length;
+  const todayCount = tasks.filter((t) => !t.completedAt && t.dueDate !== null && t.dueDate <= today).length;
 
   return (
     <div
@@ -205,6 +222,7 @@ export function Sidebar() {
             active={selectedProjectId === "today"}
             collapsed={sidebarCollapsed}
             onClick={() => setSelectedProject("today")}
+            count={todayCount}
           />
           <NavItem
             icon={<ListChecks className="h-4 w-4" />}
@@ -212,6 +230,7 @@ export function Sidebar() {
             active={selectedProjectId === undefined}
             collapsed={sidebarCollapsed}
             onClick={() => setSelectedProject(undefined)}
+            count={allCount}
           />
           <NavItem
             icon={<Tags className="h-4 w-4" />}
@@ -249,6 +268,7 @@ export function Sidebar() {
               active={selectedProjectId === project.id}
               collapsed={sidebarCollapsed}
               onClick={() => setSelectedProject(project.id)}
+              count={tasks.filter((t) => !t.completedAt && t.projectId === project.id).length}
             />
           ))}
           {sidebarCollapsed && (
