@@ -43,8 +43,8 @@ function NavItem({ icon, label, active, collapsed, onClick, count }: NavItemProp
       className={cn(
         "flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm text-left transition-colors",
         "border-l-2 border-transparent",
-        "hover:bg-foreground/5 hover:text-foreground hover:border-foreground/30",
-        active && "bg-foreground/[0.08] text-foreground font-medium border-foreground/50"
+        "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-primary/50",
+        active && "bg-sidebar-primary/20 text-sidebar-foreground font-medium border-sidebar-primary"
       )}
     >
       <span className="shrink-0">{icon}</span>
@@ -105,8 +105,8 @@ function ProjectNavItem({ project, active, collapsed, onClick, count }: ProjectN
       className={cn(
         "group flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm text-left transition-colors",
         "border-l-2 border-transparent",
-        "hover:bg-foreground/5 hover:text-foreground hover:border-foreground/30",
-        active && "bg-foreground/[0.08] text-foreground font-medium border-foreground/50"
+        "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-primary/50",
+        active && "bg-sidebar-primary/20 text-sidebar-foreground font-medium border-sidebar-primary"
       )}
       onClick={onClick}
     >
@@ -116,7 +116,7 @@ function ProjectNavItem({ project, active, collapsed, onClick, count }: ProjectN
           <span className="truncate flex-1">{project.name}</span>
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger
-              className="opacity-0 group-hover:opacity-100 focus:opacity-100 h-5 w-5 flex items-center justify-center rounded hover:bg-accent-foreground/10 transition-opacity shrink-0"
+              className="opacity-0 group-hover:opacity-100 focus:opacity-100 h-5 w-5 flex items-center justify-center rounded hover:bg-sidebar-foreground/10 transition-opacity shrink-0"
               onClick={(e) => e.stopPropagation()}
               aria-label={t('project.options')}
             >
@@ -189,7 +189,7 @@ export function Sidebar() {
   return (
     <div
       className={cn(
-        "flex flex-col h-full bg-secondary border-r border-border shrink-0 transition-all duration-200",
+        "flex flex-col h-full bg-sidebar border-r border-sidebar-border shrink-0 transition-all duration-200",
         sidebarCollapsed ? "w-14" : "w-56"
       )}
     >
@@ -197,7 +197,7 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
+          className="h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           aria-label={sidebarCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
         >
@@ -212,7 +212,7 @@ export function Sidebar() {
       <ScrollArea className="flex-1 px-2">
         <div className="space-y-1.5 pb-2">
           {!sidebarCollapsed && (
-            <p className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <p className="px-3 py-1 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
               {t('nav.views')}
             </p>
           )}
@@ -241,19 +241,19 @@ export function Sidebar() {
           />
         </div>
 
-        <Separator className="my-2" />
+        <Separator className="my-2 bg-sidebar-border" />
 
         <div className="space-y-1.5 pb-2">
           {!sidebarCollapsed && (
             <div className="flex items-center justify-between px-3 py-1">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <p className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
                 {t('nav.projects')}
               </p>
               <ProjectForm>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-5 w-5"
+                  className="h-5 w-5 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
                   aria-label={t('project.new')}
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -276,7 +276,7 @@ export function Sidebar() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-full"
+                className="h-8 w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
                 aria-label={t('project.new')}
               >
                 <Plus className="h-4 w-4" />
@@ -288,12 +288,12 @@ export function Sidebar() {
 
       <SettingsDialog>
         <div className={cn(
-          "flex border-t border-border px-2 py-2",
+          "flex border-t border-sidebar-border px-2 py-2",
           sidebarCollapsed ? "justify-center" : "justify-start"
         )}>
           <button
             type="button"
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm"
+            className="flex items-center gap-2 text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors text-sm focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
             aria-label={t("settings.title")}
           >
             <Settings2 className="h-4 w-4 shrink-0" />

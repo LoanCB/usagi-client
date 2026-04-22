@@ -50,9 +50,11 @@ export function TaskItem({ task, project }: TaskItemProps) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-3 pl-3 pr-4 py-2.5 border-b border-l-[3px] border-border/50 transition-colors",
-        "hover:bg-accent/40",
-        isSelected && "bg-accent"
+        "flex items-center gap-3 mx-2 my-1 pl-3 pr-4 py-2.5",
+        "rounded-lg border border-border border-l-[3px] bg-card",
+        "shadow-sm hover:shadow-md transition-shadow",
+        task.completedAt && "opacity-60",
+        isSelected && "ring-2 ring-primary/50"
       )}
     >
       {/* Drag handle */}

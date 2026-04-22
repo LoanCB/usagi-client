@@ -106,6 +106,11 @@ const fr: typeof en = {
     shortcutConflict: "Déjà utilisé par un autre raccourci",
     shortcutClear: "Effacer le raccourci",
   },
+  taskList: {
+    remaining_one: "{{count}} restante",
+    remaining_other: "{{count}} restantes",
+    progressLabel: "Avancement des tâches",
+  },
 } as const;
 
 export default fr;

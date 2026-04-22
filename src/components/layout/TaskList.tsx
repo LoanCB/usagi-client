@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { format } from "date-fns";
+import { fr, enUS } from "date-fns/locale";
 import {
   DndContext,
   PointerSensor,
@@ -55,7 +57,7 @@ function byProjectName(projectMap: Map<string, string>) {
 }
 
 export function TaskList() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { tasks, loadTasks, reorderTasks } = useTaskStore();
   const projects = useProjectStore((s) => s.projects);
   const { selectedProjectId, activeFilters, selectedTaskId, setSelectedTask } = useUIStore();
@@ -170,14 +172,52 @@ export function TaskList() {
 
   return (
     <div className="flex flex-col flex-1 min-w-0 overflow-hidden border-r border-border">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
-        <h2 className="font-semibold text-base">{getTitle()}</h2>
-        <TaskForm projectId={formProjectId}>
-          <Button size="sm" variant="ghost" className="gap-1">
-            <Plus className="h-4 w-4" />
-          </Button>
-        </TaskForm>
-      </div>
+      {/* Header */}
+      {(() => {
+        const showProgress = selectedProjectId === "today" || selectedProjectId === undefined;
+        const totalCount = tasks.length;
+        const completedCount = tasks.filter((t) => t.completedAt).length;
+        const remainingCount = totalCount - completedCount;
+        const locale = i18n.language === "fr" ? fr : enUS;
+        const dateLabel = format(new Date(), "EEEE d MMMM", { locale });
+
+        return (
+          <div className="px-4 pt-4 pb-3 border-b border-border shrink-0">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="font-semibold text-base">{getTitle()}</h2>
+              <TaskForm projectId={formProjectId}>
+                <Button size="sm" variant="ghost" className="gap-1">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </TaskForm>
+            </div>
+            {showProgress && (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs text-muted-foreground capitalize">{dateLabel}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                  {t('taskList.remaining', { count: remainingCount })}
+                </span>
+              </div>
+            )}
+            {showProgress && totalCount > 0 && (
+              <div
+                role="progressbar"
+                aria-label={t('taskList.progressLabel')}
+                aria-valuenow={completedCount}
+                aria-valuemin={0}
+                aria-valuemax={totalCount}
+                aria-valuetext={`${completedCount} / ${totalCount}`}
+                className="h-1 rounded-full bg-primary/15 overflow-hidden"
+              >
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-300"
+                  style={{ width: `${(completedCount / totalCount) * 100}%` }}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <FilterBar
         sortDir={sortDir}

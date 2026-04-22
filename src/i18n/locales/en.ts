@@ -104,6 +104,11 @@ const en = {
     shortcutConflict: "Already used by another shortcut",
     shortcutClear: "Clear shortcut",
   },
+  taskList: {
+    remaining_one: "{{count}} remaining",
+    remaining_other: "{{count}} remaining",
+    progressLabel: "Task completion",
+  },
 };
 
 export default en;

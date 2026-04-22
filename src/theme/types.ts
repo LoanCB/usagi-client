@@ -17,6 +17,20 @@ export interface ThemeTokens {
   "--border": string;
   "--input": string;
   "--ring": string;
+  "--destructive": string;
+  "--chart-1": string;
+  "--chart-2": string;
+  "--chart-3": string;
+  "--chart-4": string;
+  "--chart-5": string;
+  "--sidebar": string;
+  "--sidebar-foreground": string;
+  "--sidebar-primary": string;
+  "--sidebar-primary-foreground": string;
+  "--sidebar-accent": string;
+  "--sidebar-accent-foreground": string;
+  "--sidebar-border": string;
+  "--sidebar-ring": string;
   "--radius": string;
   // Usagi-specific
   "--priority-high": string;
