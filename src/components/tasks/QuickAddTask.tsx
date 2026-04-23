@@ -2,13 +2,15 @@ import { useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useTaskStore } from "@/store/tasks";
 import { getRepository } from "@/store/repository";
+import { TagSelector } from "@/components/tasks/TagSelector";
 
 interface QuickAddTaskProps {
-  projectId: string | null | undefined;
+  readonly projectId: string | null | undefined;
 }
 
 export function QuickAddTask({ projectId }: QuickAddTaskProps) {
   const [title, setTitle] = useState("");
+  const [tagIds, setTagIds] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const createTask = useTaskStore((s) => s.createTask);
   const { t } = useTranslation();
@@ -21,8 +23,10 @@ export function QuickAddTask({ projectId }: QuickAddTaskProps) {
         await createTask(getRepository(), {
           title: trimmed,
           projectId: projectId ?? null,
+          tagIds,
         });
         setTitle("");
+        setTagIds([]);
         inputRef.current?.focus();
       } catch (err) {
         console.error("Failed to create task", err);
@@ -45,6 +49,7 @@ export function QuickAddTask({ projectId }: QuickAddTaskProps) {
         aria-label={t("task.titlePlaceholder")}
         className="flex-1 bg-transparent text-sm text-muted-foreground placeholder:text-muted-foreground/50 outline-none"
       />
+      <TagSelector selectedTagIds={tagIds} onChange={setTagIds} />
     </div>
   );
 }
