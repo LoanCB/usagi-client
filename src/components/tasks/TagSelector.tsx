@@ -13,9 +13,10 @@ import { PRESET_COLORS } from "@/lib/colors";
 interface TagSelectorProps {
   readonly selectedTagIds: string[];
   readonly onChange: (tagIds: string[]) => void;
+  readonly triggerClassName?: string;
 }
 
-export function TagSelector({ selectedTagIds, onChange }: TagSelectorProps) {
+export function TagSelector({ selectedTagIds, onChange, triggerClassName }: TagSelectorProps) {
   const { t } = useTranslation();
   const { tags, createTag } = useTagStore();
   const [newName, setNewName] = useState("");
@@ -46,7 +47,8 @@ export function TagSelector({ selectedTagIds, onChange }: TagSelectorProps) {
       <PopoverTrigger
         className={cn(
           buttonVariants({ variant: "ghost", size: "sm" }),
-          "gap-2 h-7 px-2 justify-start flex-wrap max-w-xs"
+          "gap-2 h-7 px-2 justify-start flex-wrap max-w-xs",
+          triggerClassName
         )}
       >
         <Tag className="h-3.5 w-3.5 shrink-0" />

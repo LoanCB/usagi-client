@@ -49,7 +49,7 @@ export function QuickAddTask({ projectId }: QuickAddTaskProps) {
         aria-label={t("task.titlePlaceholder")}
         className="flex-1 bg-transparent text-sm text-muted-foreground placeholder:text-muted-foreground/50 outline-none"
       />
-      <TagSelector selectedTagIds={tagIds} onChange={setTagIds} />
+      <TagSelector selectedTagIds={tagIds} onChange={setTagIds} triggerClassName="text-muted-foreground" />
     </div>
   );
 }
