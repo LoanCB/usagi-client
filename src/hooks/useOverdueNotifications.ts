@@ -2,8 +2,8 @@ import { useEffect, useRef } from "react";
 import {
   isPermissionGranted,
   requestPermission,
-  sendNotification,
 } from "@tauri-apps/plugin-notification";
+import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/types";
 import { getOverdueTasks } from "@/lib/overdue";
@@ -37,20 +37,20 @@ export function useOverdueNotifications(tasks: Task[]): void {
 
     try {
       if (overdue.length > 2) {
-        sendNotification({
+        await invoke("send_app_notification", {
           title: t("notifications.overdueTitle"),
           body: t("notifications.overdueBody", { count: overdue.length }),
         });
       } else {
         for (const task of overdue) {
-          sendNotification({
+          await invoke("send_app_notification", {
             title: task.title,
             body: t("notifications.overdueTaskBody"),
           });
         }
       }
     } catch (err) {
-      console.error("[notifications] sendNotification failed:", err);
+      console.error("[notifications] send_app_notification failed:", err);
     }
   }
 

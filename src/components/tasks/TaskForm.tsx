@@ -122,9 +122,16 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
-                      selected={dueDate ? new Date(dueDate) : undefined}
+                      selected={dueDate ? (() => { const [y, m, d] = dueDate.split("-").map(Number); return new Date(y, m - 1, d); })() : undefined}
                       onSelect={(date) => {
-                        setDueDate(date ? date.toISOString().split("T")[0] : null);
+                        if (date) {
+                          const y = date.getFullYear();
+                          const mo = String(date.getMonth() + 1).padStart(2, "0");
+                          const d = String(date.getDate()).padStart(2, "0");
+                          setDueDate(`${y}-${mo}-${d}`);
+                        } else {
+                          setDueDate(null);
+                        }
                         setCalendarOpen(false);
                       }}
                       locale={i18n.language === "fr" ? fr : undefined}

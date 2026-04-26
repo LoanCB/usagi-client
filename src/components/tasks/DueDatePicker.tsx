@@ -15,10 +15,16 @@ interface DueDatePickerProps {
 export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language === "fr" ? fr : undefined;
-  const selected = value ? new Date(value) : undefined;
+  const selected = value
+    ? (() => { const [y, m, d] = value.split("-").map(Number); return new Date(y, m - 1, d); })()
+    : undefined;
 
   function handleSelect(date: Date | undefined) {
-    onChange(date ? date.toISOString().split("T")[0] : null);
+    if (!date) { onChange(null); return; }
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    onChange(`${y}-${m}-${d}`);
   }
 
   return (

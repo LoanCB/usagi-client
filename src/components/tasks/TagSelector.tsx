@@ -73,6 +73,9 @@ export function TagSelector({ selectedTagIds, onChange, triggerClassName }: TagS
       </PopoverTrigger>
       <PopoverContent className="w-56 p-2" align="start">
         <div className="space-y-1">
+          {tags.length === 0 && (
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">{t('tag.noTags')}</p>
+          )}
           {tags.map((tag) => {
             const selected = selectedTagIds.includes(tag.id);
             return (

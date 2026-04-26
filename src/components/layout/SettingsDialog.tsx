@@ -22,6 +22,61 @@ interface SettingsDialogProps {
   readonly children: ReactElement;
 }
 
+interface TimeSegmentProps {
+  readonly field: "hour" | "minute";
+  readonly value: number;
+  readonly step: number;
+  readonly onAdj: (delta: number) => void;
+  readonly onSet: (val: number) => void;
+}
+
+function TimeSegment({ field, value, step, onAdj, onSet }: TimeSegmentProps) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const max = field === "hour" ? 23 : 59;
+
+  function commit(raw: string) {
+    const n = parseInt(raw, 10);
+    if (!isNaN(n)) onSet(Math.min(max, Math.max(0, n)));
+    setDraft(null);
+  }
+
+  return (
+    <div className="flex flex-col items-center">
+      <button
+        type="button"
+        onClick={() => onAdj(step)}
+        className="h-4 w-5 flex items-center justify-center text-muted-foreground/50 hover:text-foreground transition-colors"
+      >
+        <ChevronUp className="h-3 w-3" />
+      </button>
+      <input
+        type="text"
+        inputMode="numeric"
+        maxLength={2}
+        value={draft ?? String(value).padStart(2, "0")}
+        onFocus={(e) => { setDraft(String(value).padStart(2, "0")); e.target.select(); }}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter")     { commit(draft ?? ""); e.currentTarget.blur(); }
+          if (e.key === "Escape")    { setDraft(null); e.currentTarget.blur(); }
+          if (e.key === "ArrowUp")   { e.preventDefault(); onAdj(step); }
+          if (e.key === "ArrowDown") { e.preventDefault(); onAdj(-step); }
+        }}
+        className="font-mono text-sm leading-snug w-5 text-center bg-transparent border-none outline-none cursor-text"
+        aria-label={field === "hour" ? "Heures" : "Minutes"}
+      />
+      <button
+        type="button"
+        onClick={() => onAdj(-step)}
+        className="h-4 w-5 flex items-center justify-center text-muted-foreground/50 hover:text-foreground transition-colors"
+      >
+        <ChevronDown className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
 interface TimeSlotRowProps {
   readonly slot: NotificationTime;
   readonly onUpdate: (updated: NotificationTime) => void;
@@ -38,30 +93,6 @@ function TimeSlotRow({ slot, onUpdate, onRemove, removeLabel, toggleLabel }: Tim
     else onUpdate({ ...slot, minute: (slot.minute + delta + 60) % 60 });
   }
 
-  function TimeSegment({ field, value, step }: { field: "hour" | "minute"; value: number; step: number }) {
-    return (
-      <div className="flex flex-col items-center">
-        <button
-          type="button"
-          onClick={() => adj(field, step)}
-          className="h-4 w-5 flex items-center justify-center text-muted-foreground/50 hover:text-foreground transition-colors"
-        >
-          <ChevronUp className="h-3 w-3" />
-        </button>
-        <span className="font-mono text-sm leading-snug w-5 text-center select-none">
-          {String(value).padStart(2, "0")}
-        </span>
-        <button
-          type="button"
-          onClick={() => adj(field, -step)}
-          className="h-4 w-5 flex items-center justify-center text-muted-foreground/50 hover:text-foreground transition-colors"
-        >
-          <ChevronDown className="h-3 w-3" />
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="flex items-center gap-2">
       <Checkbox
@@ -70,9 +101,21 @@ function TimeSlotRow({ slot, onUpdate, onRemove, removeLabel, toggleLabel }: Tim
         aria-label={toggleLabel}
       />
       <div className={cn("flex items-center rounded-lg border border-input bg-transparent px-1.5 dark:bg-input/30 gap-0.5 transition-opacity", !isEnabled && "opacity-40")}>
-        <TimeSegment field="hour" value={slot.hour} step={1} />
+        <TimeSegment
+          field="hour"
+          value={slot.hour}
+          step={1}
+          onAdj={(delta) => adj("hour", delta)}
+          onSet={(val) => onUpdate({ ...slot, hour: val })}
+        />
         <span className="text-muted-foreground text-sm font-mono leading-none self-center">:</span>
-        <TimeSegment field="minute" value={slot.minute} step={5} />
+        <TimeSegment
+          field="minute"
+          value={slot.minute}
+          step={5}
+          onAdj={(delta) => adj("minute", delta)}
+          onSet={(val) => onUpdate({ ...slot, minute: val })}
+        />
       </div>
 
       <Button

@@ -6,6 +6,7 @@ version = 4
 name = "Bunly"
 version = "0.1.0"
 dependencies = [
+ "mac-notification-sys",
  "serde",
  "serde_json",
  "tauri",

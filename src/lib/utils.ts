@@ -20,9 +20,13 @@ export function isOverdue(isoDate: string): boolean {
   return new Date(isoDate) < today;
 }
 
-// Today's date as ISO date string ("2026-04-10")
+// Today's date as ISO date string ("2026-04-10") — uses local date, not UTC
 export function todayIso(): string {
-  return new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 // Returns true if the current platform is macOS
