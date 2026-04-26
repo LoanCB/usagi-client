@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import logoUrl from "@/assets/logo.png";
 import { ChevronLeft, ChevronRight, Calendar, ListChecks, Plus, MoreVertical, Pencil, Trash2, Tags, Settings2 } from "lucide-react";
 import { PRESET_ICONS } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
@@ -189,24 +190,28 @@ export function Sidebar() {
   return (
     <div
       className={cn(
-        "flex flex-col h-full bg-sidebar border-r border-sidebar-border shrink-0 transition-all duration-200",
+        "glass-sidebar relative flex flex-col h-full bg-sidebar shrink-0 transition-all duration-200",
         sidebarCollapsed ? "w-14" : "w-56"
       )}
     >
-      <div className="flex justify-end p-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          aria-label={sidebarCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
-        >
-          {sidebarCollapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
-        </Button>
+      {/* Collapse handle — floats on the sidebar's right edge */}
+      <button
+        type="button"
+        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+        aria-label={sidebarCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
+        className="absolute top-[22px] -right-3 z-20 flex h-6 w-6 items-center justify-center rounded-full border border-border/60 bg-popover/90 text-muted-foreground shadow-sm backdrop-blur-md transition-colors hover:text-foreground"
+      >
+        {sidebarCollapsed ? (
+          <ChevronRight className="h-3 w-3" />
+        ) : (
+          <ChevronLeft className="h-3 w-3" />
+        )}
+      </button>
+
+      {/* Logo */}
+      <div className={cn("flex items-center gap-2.5 px-4 py-[18px] shrink-0", sidebarCollapsed && "justify-center")}>
+        <img src={logoUrl} alt="Logo" className="h-8 w-8 shrink-0 object-contain drop-shadow-sm" />
+        {!sidebarCollapsed && <span className="text-[15px] font-bold tracking-tight text-sidebar-foreground">Bunly</span>}
       </div>
 
       <ScrollArea className="flex-1 px-2">
@@ -287,17 +292,19 @@ export function Sidebar() {
       </ScrollArea>
 
       <SettingsDialog>
-        <div className={cn(
-          "flex border-t border-sidebar-border px-2 py-2",
-          sidebarCollapsed ? "justify-center" : "justify-start"
-        )}>
+        <div className="border-t border-sidebar-border px-2 py-2 shrink-0">
           <button
             type="button"
-            className="flex items-center gap-2 text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors text-sm focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
             aria-label={t("settings.title")}
+            className={cn(
+              "flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm transition-colors",
+              "border-l-2 border-transparent",
+              "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-primary/50",
+              sidebarCollapsed && "justify-center"
+            )}
           >
             <Settings2 className="h-4 w-4 shrink-0" />
-            {!sidebarCollapsed && <span>{t("settings.title")}</span>}
+            {!sidebarCollapsed && <span className="truncate">{t("settings.title")}</span>}
           </button>
         </div>
       </SettingsDialog>

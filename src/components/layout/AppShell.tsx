@@ -18,15 +18,32 @@ export function AppShell() {
   const showDetail = selectedTaskId && selectedProjectId !== "tags";
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
-      <Sidebar />
-      {selectedProjectId === "tags" ? <TagManager /> : <TaskList />}
-      {showDetail && (
-        <>
-          <ResizeHandle onMouseDown={onMouseDown} isDragging={isDragging} />
-          <TaskDetail width={width} />
-        </>
-      )}
+    <div className="app-shell relative flex h-screen overflow-hidden text-foreground">
+      {/* Vignette overlay */}
+      <div className="app-vignette pointer-events-none absolute inset-0 z-[1]" />
+
+      {/* Floating orbs */}
+      <div className="app-orb-wrap-1 pointer-events-none absolute inset-0 z-0">
+        <div className="app-orb-1 absolute" />
+      </div>
+      <div className="app-orb-wrap-2 pointer-events-none absolute inset-0 z-0">
+        <div className="app-orb-2 absolute" />
+      </div>
+      <div className="app-orb-wrap-3 pointer-events-none absolute inset-0 z-0">
+        <div className="app-orb-3 absolute" />
+      </div>
+
+      {/* App content */}
+      <div className="relative z-10 flex h-full w-full overflow-hidden">
+        <Sidebar />
+        {selectedProjectId === "tags" ? <TagManager /> : <TaskList />}
+        {showDetail && (
+          <>
+            <ResizeHandle onMouseDown={onMouseDown} isDragging={isDragging} />
+            <TaskDetail width={width} />
+          </>
+        )}
+      </div>
     </div>
   );
 }

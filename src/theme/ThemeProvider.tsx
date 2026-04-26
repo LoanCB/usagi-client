@@ -2,6 +2,9 @@ import { useEffect, createContext, useContext, useState, type ReactNode } from "
 import type { Theme, ThemeMode } from "./types";
 import { lightTheme } from "./themes/light";
 import { darkTheme } from "./themes/dark";
+import { luxuryTheme } from "./themes/luxury";
+import { natureTheme } from "./themes/nature";
+import { draculaTheme } from "./themes/dracula";
 
 interface ThemeContextValue {
   mode: ThemeMode;
@@ -24,11 +27,18 @@ function applyTheme(theme: Theme) {
   }
 }
 
+function isDarkTheme(mode: ThemeMode, prefersDark: boolean): boolean {
+  if (mode === "system") return prefersDark;
+  return mode === "dark" || mode === "dracula";
+}
+
 function resolveTheme(mode: ThemeMode, prefersDark: boolean): Theme {
   if (mode === "system") return prefersDark ? darkTheme : lightTheme;
   if (mode === "dark") return darkTheme;
   if (mode === "light") return lightTheme;
-  // Custom theme: not yet implemented — fall back to system
+  if (mode === "luxury") return luxuryTheme;
+  if (mode === "nature") return natureTheme;
+  if (mode === "dracula") return draculaTheme;
   return prefersDark ? darkTheme : lightTheme;
 }
 
@@ -56,11 +66,10 @@ export function ThemeProvider({ children, defaultMode = "system" }: ThemeProvide
   }, [mode]);
 
   useEffect(() => {
-    const isDark =
-      mode === "dark" ||
-      (mode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    document.documentElement.classList.toggle("dark", isDark);
-    applyTheme(resolveTheme(mode, isDark));
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const dark = isDarkTheme(mode, prefersDark);
+    document.documentElement.classList.toggle("dark", dark);
+    applyTheme(resolveTheme(mode, prefersDark));
   }, [mode]);
 
   function setMode(newMode: ThemeMode) {

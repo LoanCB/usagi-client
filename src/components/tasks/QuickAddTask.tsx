@@ -37,7 +37,7 @@ export function QuickAddTask({ projectId }: QuickAddTaskProps) {
   }
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 border-t border-border bg-background sticky bottom-0">
+    <div className="flex items-center gap-3 mx-3 mb-3 mt-1 px-4 py-2.5 rounded-xl glass-stat">
       <div className="w-3.5 h-3.5 rounded-sm border border-dashed border-muted-foreground/40 shrink-0" />
       <input
         ref={inputRef}

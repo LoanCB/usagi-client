@@ -79,7 +79,7 @@ export function TaskDetail({ width }: TaskDetailProps) {
   }
 
   return (
-    <div className="shrink-0 flex flex-col h-full border-l border-border bg-card" style={{ width }}>
+    <div className="detail-panel-animate glass-panel shrink-0 flex flex-col h-full" style={{ width }}>
       {/* Complete / title */}
       <div className="flex items-center gap-3 p-4 border-b border-border">
         <button

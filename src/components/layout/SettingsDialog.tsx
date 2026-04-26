@@ -94,6 +94,12 @@ const THEME_MODES: { mode: ThemeMode; icon: React.ElementType; labelKey: "theme.
   { mode: "system", icon: Monitor, labelKey: "theme.system" },
 ];
 
+const CUSTOM_THEMES: { mode: ThemeMode; color: string; labelKey: "theme.luxury" | "theme.nature" | "theme.dracula" }[] = [
+  { mode: "luxury", color: "oklch(0.564 0.239 12)", labelKey: "theme.luxury" },
+  { mode: "nature", color: "oklch(0.59 0.19 145)", labelKey: "theme.nature" },
+  { mode: "dracula", color: "oklch(0.716 0.171 295)", labelKey: "theme.dracula" },
+];
+
 function hasConflict(a: SortShortcut, b: SortShortcut): boolean {
   if (!a.key || !b.key) return false;
   return (
@@ -262,6 +268,30 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                     )}
                   >
                     <Icon className="h-3.5 w-3.5" />
+                    {t(labelKey)}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-1">
+                {CUSTOM_THEMES.map(({ mode, color, labelKey }) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setThemeMode(mode)}
+                    aria-label={t(labelKey)}
+                    aria-pressed={themeMode === mode}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-colors",
+                      themeMode === mode
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground border border-input"
+                    )}
+                  >
+                    <span
+                      className="h-3.5 w-3.5 rounded-full flex-shrink-0"
+                      style={{ background: color }}
+                      aria-hidden
+                    />
                     {t(labelKey)}
                   </button>
                 ))}

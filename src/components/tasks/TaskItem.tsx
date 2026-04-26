@@ -50,18 +50,18 @@ export function TaskItem({ task, project }: TaskItemProps) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-3 mx-2 my-1 pl-3 pr-4 py-2.5",
-        "rounded-lg border border-border border-l-[3px] bg-card",
-        "shadow-sm hover:shadow-md transition-shadow",
+        "task-row-animate group",
+        "flex items-center gap-2 mx-3 my-1 pl-2 pr-3 py-2.5",
+        "rounded-xl border border-l-[3px] glass-card transition-all duration-150",
         task.completedAt && "opacity-60",
-        isSelected && "ring-2 ring-primary/50"
+        isSelected && "selected"
       )}
     >
-      {/* Drag handle */}
+      {/* Drag handle — always present, revealed on hover */}
       <button
         {...attributes}
         {...listeners}
-        className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors touch-none"
+        className="w-[15px] shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground opacity-0 group-hover:opacity-50 transition-opacity touch-none"
         aria-label={t('task.reorder')}
         tabIndex={0}
       >

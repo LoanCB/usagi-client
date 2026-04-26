@@ -40,6 +40,7 @@ const fr: typeof en = {
     reorder: "Réordonner la tâche",
     projectFallback: "Projet",
     addDate: "Ajouter une date",
+    search: "Rechercher…",
   },
   priority: {
     label: "Priorité",
@@ -82,6 +83,9 @@ const fr: typeof en = {
     light: "Clair",
     dark: "Sombre",
     system: "Système",
+    luxury: "Luxe",
+    nature: "Nature",
+    dracula: "Dracula",
   },
   notifications: {
     overdueTitle: "Tâches en retard",
@@ -110,6 +114,9 @@ const fr: typeof en = {
     remaining_one: "{{count}} restante",
     remaining_other: "{{count}} restantes",
     progressLabel: "Avancement des tâches",
+    statPending: "À faire",
+    statDone: "Terminées",
+    statTotal: "Total",
   },
 } as const;
 

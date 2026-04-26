@@ -36,6 +36,14 @@ export interface ThemeTokens {
   "--priority-high": string;
   "--priority-medium": string;
   "--priority-low": string;
+  // Glassmorphism — per-theme computed values used in index.css
+  "--app-gradient": string;
+  "--orb-1-color": string;
+  "--orb-2-color": string;
+  "--orb-3-color": string;
+  "--vignette-end-color": string;
+  "--glass-border-color": string;
+  "--glass-border-hover-color": string;
 }
 
 export interface Theme {

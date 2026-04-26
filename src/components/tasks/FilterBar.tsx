@@ -7,9 +7,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { SlidersHorizontal, Tag, Check, Flame, CalendarArrowUp, Layers, Search } from "lucide-react";
+import { SlidersHorizontal, Tag, Check, Flame, CalendarArrowUp, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
 import { useTagStore } from "@/store/tags";
@@ -60,20 +59,7 @@ export function FilterBar({ sortDir, sortDateDir, sortProjectDir, onSortByUrgenc
     !!searchQuery;
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 border-b border-border shrink-0 flex-wrap">
-      {/* Search */}
-      {onSearchChange && (
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={t('filter.search')}
-            className="h-7 pl-6 pr-2 text-xs w-40"
-          />
-        </div>
-      )}
-
+    <div className="flex items-center gap-2 px-5 py-2 glass-header shrink-0 flex-wrap">
       {/* Priority filter */}
       <DropdownMenu>
         <DropdownMenuTrigger

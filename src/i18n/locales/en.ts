@@ -38,6 +38,7 @@ const en = {
     reorder: "Reorder task",
     projectFallback: "Project",
     addDate: "Add date",
+    search: "Search…",
   },
   priority: {
     label: "Priority",
@@ -80,6 +81,9 @@ const en = {
     light: "Light",
     dark: "Dark",
     system: "System",
+    luxury: "Luxury",
+    nature: "Nature",
+    dracula: "Dracula",
   },
   notifications: {
     overdueTitle: "Overdue tasks",
@@ -108,6 +112,9 @@ const en = {
     remaining_one: "{{count}} remaining",
     remaining_other: "{{count}} remaining",
     progressLabel: "Task completion",
+    statPending: "Pending",
+    statDone: "Done",
+    statTotal: "Total",
   },
 };
 
