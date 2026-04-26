@@ -84,6 +84,9 @@ const en = {
     luxury: "Luxury",
     nature: "Nature",
     dracula: "Dracula",
+    retro: "Retro",
+    ember: "Ember",
+    contrast: "Contrast",
   },
   notifications: {
     overdueTitle: "Overdue tasks",

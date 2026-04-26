@@ -137,10 +137,14 @@ const THEME_MODES: { mode: ThemeMode; icon: React.ElementType; labelKey: "theme.
   { mode: "system", icon: Monitor, labelKey: "theme.system" },
 ];
 
-const CUSTOM_THEMES: { mode: ThemeMode; color: string; labelKey: "theme.luxury" | "theme.nature" | "theme.dracula" }[] = [
-  { mode: "luxury", color: "oklch(0.564 0.239 12)", labelKey: "theme.luxury" },
-  { mode: "nature", color: "oklch(0.59 0.19 145)", labelKey: "theme.nature" },
-  { mode: "dracula", color: "oklch(0.716 0.171 295)", labelKey: "theme.dracula" },
+type CustomThemeLabelKey = "theme.luxury" | "theme.nature" | "theme.dracula" | "theme.retro" | "theme.ember" | "theme.contrast";
+const CUSTOM_THEMES: { mode: ThemeMode; color: string; labelKey: CustomThemeLabelKey }[] = [
+  { mode: "luxury",   color: "oklch(0.46 0.18 20)",    labelKey: "theme.luxury" },
+  { mode: "nature",   color: "oklch(0.59 0.19 145)",   labelKey: "theme.nature" },
+  { mode: "dracula",  color: "oklch(0.716 0.171 295)", labelKey: "theme.dracula" },
+  { mode: "retro",    color: "oklch(0.50 0.10 55)",    labelKey: "theme.retro" },
+  { mode: "ember",    color: "oklch(0.70 0.22 42)",    labelKey: "theme.ember" },
+  { mode: "contrast", color: "oklch(0.98 0 0)",          labelKey: "theme.contrast" },
 ];
 
 function hasConflict(a: SortShortcut, b: SortShortcut): boolean {
@@ -315,7 +319,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                   </button>
                 ))}
               </div>
-              <div className="flex gap-1">
+              <div className="flex flex-wrap gap-1">
                 {CUSTOM_THEMES.map(({ mode, color, labelKey }) => (
                   <button
                     key={mode}
@@ -323,8 +327,9 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                     onClick={() => setThemeMode(mode)}
                     aria-label={t(labelKey)}
                     aria-pressed={themeMode === mode}
+                    style={{ flexBasis: "calc(33.333% - 0.167rem)" }}
                     className={cn(
-                      "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-colors",
+                      "flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-colors",
                       themeMode === mode
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:text-foreground border border-input"

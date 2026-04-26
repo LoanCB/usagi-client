@@ -86,6 +86,9 @@ const fr: typeof en = {
     luxury: "Luxe",
     nature: "Nature",
     dracula: "Dracula",
+    retro: "Rétro",
+    ember: "Ember",
+    contrast: "Contraste",
   },
   notifications: {
     overdueTitle: "Tâches en retard",

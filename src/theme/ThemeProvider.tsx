@@ -5,6 +5,9 @@ import { darkTheme } from "./themes/dark";
 import { luxuryTheme } from "./themes/luxury";
 import { natureTheme } from "./themes/nature";
 import { draculaTheme } from "./themes/dracula";
+import { retroTheme } from "./themes/retro";
+import { emberTheme } from "./themes/ember";
+import { contrastTheme } from "./themes/contrast";
 
 interface ThemeContextValue {
   mode: ThemeMode;
@@ -29,7 +32,7 @@ function applyTheme(theme: Theme) {
 
 function isDarkTheme(mode: ThemeMode, prefersDark: boolean): boolean {
   if (mode === "system") return prefersDark;
-  return mode === "dark" || mode === "dracula";
+  return mode === "dark" || mode === "dracula" || mode === "ember" || mode === "contrast";
 }
 
 function resolveTheme(mode: ThemeMode, prefersDark: boolean): Theme {
@@ -39,6 +42,9 @@ function resolveTheme(mode: ThemeMode, prefersDark: boolean): Theme {
   if (mode === "luxury") return luxuryTheme;
   if (mode === "nature") return natureTheme;
   if (mode === "dracula") return draculaTheme;
+  if (mode === "retro") return retroTheme;
+  if (mode === "ember") return emberTheme;
+  if (mode === "contrast") return contrastTheme;
   return prefersDark ? darkTheme : lightTheme;
 }
 
