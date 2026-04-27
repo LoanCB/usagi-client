@@ -2,9 +2,9 @@ import { useEffect, useRef, useCallback } from "react";
 
 // Max offset for each orb (in px, as a fraction of the smallest viewport dimension).
 // Negative value = drifts opposite to cursor (depth illusion).
-const STRENGTHS = [0.03, -0.018, 0.042] as const;
+const STRENGTHS = [0.08, -0.05, 0.12] as const;
 // Lerp factor per frame — lower = lazier, dreamier follow
-const LERP = 0.04;
+const LERP = 0.06;
 
 export function useOrbParallax(enabled: boolean) {
   const orbEls = useRef<(HTMLDivElement | null)[]>([null, null, null]);
@@ -16,10 +16,15 @@ export function useOrbParallax(enabled: boolean) {
   ]);
   const rafRef = useRef<number>(0);
 
+  // Stable callbacks — created once so React never re-runs ref assignment on re-renders
+  const refCallbacks = useRef([
+    (el: HTMLDivElement | null) => { orbEls.current[0] = el; },
+    (el: HTMLDivElement | null) => { orbEls.current[1] = el; },
+    (el: HTMLDivElement | null) => { orbEls.current[2] = el; },
+  ]);
+
   const setOrbRef = useCallback(
-    (index: 0 | 1 | 2) => (el: HTMLDivElement | null) => {
-      orbEls.current[index] = el;
-    },
+    (index: 0 | 1 | 2) => refCallbacks.current[index],
     []
   );
 
