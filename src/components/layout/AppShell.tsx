@@ -5,15 +5,19 @@ import { ResizeHandle } from "./ResizeHandle";
 import { TagManager } from "@/components/tags/TagManager";
 import { useUIStore } from "@/store/ui";
 import { useResizable } from "@/hooks/useResizable";
+import { useOrbParallax } from "@/hooks/useOrbParallax";
+import { useSettingsStore } from "@/store/settings";
 
 export function AppShell() {
   const { selectedTaskId, selectedProjectId } = useUIStore();
+  const parallaxEnabled = useSettingsStore((s) => s.parallaxEnabled);
   const { width, isDragging, onMouseDown } = useResizable({
     storageKey: "task-detail-width",
     defaultWidth: 320,
     minWidth: 240,
     maxWidth: 600,
   });
+  const { setOrbRef } = useOrbParallax(parallaxEnabled);
 
   const showDetail = selectedTaskId && selectedProjectId !== "tags";
 
@@ -22,15 +26,21 @@ export function AppShell() {
       {/* Vignette overlay */}
       <div className="app-vignette pointer-events-none absolute inset-0 z-[1]" />
 
-      {/* Floating orbs */}
-      <div className="app-orb-wrap-1 pointer-events-none absolute inset-0 z-0">
-        <div className="app-orb-1 absolute" />
+      {/* Floating orbs — outer div: parallax JS offset; inner div: CSS ambient animation */}
+      <div ref={setOrbRef(0)} className="pointer-events-none absolute inset-0 z-0">
+        <div className="app-orb-wrap-1 absolute inset-0">
+          <div className="app-orb-1 absolute" />
+        </div>
       </div>
-      <div className="app-orb-wrap-2 pointer-events-none absolute inset-0 z-0">
-        <div className="app-orb-2 absolute" />
+      <div ref={setOrbRef(1)} className="pointer-events-none absolute inset-0 z-0">
+        <div className="app-orb-wrap-2 absolute inset-0">
+          <div className="app-orb-2 absolute" />
+        </div>
       </div>
-      <div className="app-orb-wrap-3 pointer-events-none absolute inset-0 z-0">
-        <div className="app-orb-3 absolute" />
+      <div ref={setOrbRef(2)} className="pointer-events-none absolute inset-0 z-0">
+        <div className="app-orb-wrap-3 absolute inset-0">
+          <div className="app-orb-3 absolute" />
+        </div>
       </div>
 
       {/* App content */}

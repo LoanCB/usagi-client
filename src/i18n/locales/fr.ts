@@ -112,6 +112,7 @@ const fr: typeof en = {
     shortcutRecording: "Appuyez sur une touche…",
     shortcutConflict: "Déjà utilisé par un autre raccourci",
     shortcutClear: "Effacer le raccourci",
+    parallax: "Animation du fond",
   },
   taskList: {
     remaining_one: "{{count}} restante",

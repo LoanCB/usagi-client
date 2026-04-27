@@ -263,7 +263,7 @@ export function TaskList() {
         onSearchChange={setSearch}
       />
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         {(() => {
           const filteredTasks = search.trim()
             ? tasks.filter((t) => t.title.toLowerCase().includes(search.toLowerCase()))
@@ -299,8 +299,8 @@ export function TaskList() {
             </DndContext>
           );
         })()}
-        <QuickAddTask projectId={formProjectId} />
       </ScrollArea>
+      <QuickAddTask projectId={formProjectId} />
     </div>
   );
 }

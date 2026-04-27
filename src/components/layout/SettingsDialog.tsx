@@ -239,8 +239,10 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
   const currentLang = i18n.language.startsWith("fr") ? "fr" : "en";
   const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
   const notificationTimes = useSettingsStore((s) => s.notificationTimes);
+  const parallaxEnabled = useSettingsStore((s) => s.parallaxEnabled);
   const setNotificationsEnabled = useSettingsStore((s) => s.setNotificationsEnabled);
   const setNotificationTimes = useSettingsStore((s) => s.setNotificationTimes);
+  const setParallaxEnabled = useSettingsStore((s) => s.setParallaxEnabled);
 
   const sortUrgency = useShortcutsStore((s) => s.sortUrgency);
   const sortDueDate = useShortcutsStore((s) => s.sortDueDate);
@@ -343,6 +345,16 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                     {t(labelKey)}
                   </button>
                 ))}
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-foreground cursor-pointer select-none" htmlFor="parallax-toggle">
+                  {t("settings.parallax")}
+                </label>
+                <Checkbox
+                  id="parallax-toggle"
+                  checked={parallaxEnabled}
+                  onCheckedChange={(v) => setParallaxEnabled(getRepository(), v === true)}
+                />
               </div>
             </div>
 

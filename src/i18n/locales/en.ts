@@ -110,6 +110,7 @@ const en = {
     shortcutRecording: "Press a key…",
     shortcutConflict: "Already used by another shortcut",
     shortcutClear: "Clear shortcut",
+    parallax: "Background animation",
   },
   taskList: {
     remaining_one: "{{count}} remaining",
