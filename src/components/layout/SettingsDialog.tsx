@@ -137,14 +137,15 @@ const THEME_MODES: { mode: ThemeMode; icon: React.ElementType; labelKey: "theme.
   { mode: "system", icon: Monitor, labelKey: "theme.system" },
 ];
 
-type CustomThemeLabelKey = "theme.luxury" | "theme.nature" | "theme.dracula" | "theme.retro" | "theme.ember" | "theme.contrast";
+type CustomThemeLabelKey = "theme.luxury" | "theme.nature" | "theme.dracula" | "theme.retro" | "theme.ember" | "theme.deepOcean" | "theme.ocean";
 const CUSTOM_THEMES: { mode: ThemeMode; color: string; labelKey: CustomThemeLabelKey }[] = [
-  { mode: "luxury",   color: "oklch(0.46 0.18 20)",    labelKey: "theme.luxury" },
-  { mode: "nature",   color: "oklch(0.59 0.19 145)",   labelKey: "theme.nature" },
-  { mode: "dracula",  color: "oklch(0.716 0.171 295)", labelKey: "theme.dracula" },
-  { mode: "retro",    color: "oklch(0.50 0.10 55)",    labelKey: "theme.retro" },
-  { mode: "ember",    color: "oklch(0.70 0.22 42)",    labelKey: "theme.ember" },
-  { mode: "contrast", color: "oklch(0.98 0 0)",          labelKey: "theme.contrast" },
+  { mode: "luxury",     color: "oklch(0.46 0.18 20)",    labelKey: "theme.luxury" },
+  { mode: "nature",     color: "oklch(0.59 0.19 145)",   labelKey: "theme.nature" },
+  { mode: "dracula",    color: "oklch(0.716 0.171 295)", labelKey: "theme.dracula" },
+  { mode: "retro",      color: "oklch(0.50 0.10 55)",    labelKey: "theme.retro" },
+  { mode: "ember",      color: "oklch(0.70 0.22 42)",    labelKey: "theme.ember" },
+  { mode: "deep-ocean", color: "oklch(0.70 0.14 193)",   labelKey: "theme.deepOcean" },
+  { mode: "ocean",      color: "oklch(0.62 0.15 193)",   labelKey: "theme.ocean" },
 ];
 
 function hasConflict(a: SortShortcut, b: SortShortcut): boolean {
@@ -243,6 +244,8 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
   const setNotificationsEnabled = useSettingsStore((s) => s.setNotificationsEnabled);
   const setNotificationTimes = useSettingsStore((s) => s.setNotificationTimes);
   const setParallaxEnabled = useSettingsStore((s) => s.setParallaxEnabled);
+  const glassmorphismEnabled = useSettingsStore((s) => s.glassmorphismEnabled);
+  const setGlassmorphismEnabled = useSettingsStore((s) => s.setGlassmorphismEnabled);
 
   const sortUrgency = useShortcutsStore((s) => s.sortUrgency);
   const sortDueDate = useShortcutsStore((s) => s.sortDueDate);
@@ -346,7 +349,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                   </button>
                 ))}
               </div>
-              <div className="flex items-center justify-between">
+              <div className={cn("flex items-center justify-between", !glassmorphismEnabled && "pointer-events-none opacity-40")}>
                 <label className="text-sm text-foreground cursor-pointer select-none" htmlFor="parallax-toggle">
                   {t("settings.parallax")}
                 </label>
@@ -354,6 +357,16 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                   id="parallax-toggle"
                   checked={parallaxEnabled}
                   onCheckedChange={(v) => setParallaxEnabled(getRepository(), v === true)}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-foreground cursor-pointer select-none" htmlFor="glass-toggle">
+                  {t("settings.glassmorphism")}
+                </label>
+                <Checkbox
+                  id="glass-toggle"
+                  checked={glassmorphismEnabled}
+                  onCheckedChange={(v) => setGlassmorphismEnabled(getRepository(), v === true)}
                 />
               </div>
             </div>

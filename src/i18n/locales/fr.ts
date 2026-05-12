@@ -88,7 +88,8 @@ const fr: typeof en = {
     dracula: "Dracula",
     retro: "Rétro",
     ember: "Ember",
-    contrast: "Contraste",
+    deepOcean: "Fond marin",
+    ocean: "Océan",
   },
   notifications: {
     overdueTitle: "Tâches en retard",
@@ -113,6 +114,7 @@ const fr: typeof en = {
     shortcutConflict: "Déjà utilisé par un autre raccourci",
     shortcutClear: "Effacer le raccourci",
     parallax: "Animation du fond",
+    glassmorphism: "Glassmorphisme",
   },
   taskList: {
     remaining_one: "{{count}} restante",

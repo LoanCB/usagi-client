@@ -86,7 +86,8 @@ const en = {
     dracula: "Dracula",
     retro: "Retro",
     ember: "Ember",
-    contrast: "Contrast",
+    deepOcean: "Deep Ocean",
+    ocean: "Ocean",
   },
   notifications: {
     overdueTitle: "Overdue tasks",
@@ -111,6 +112,7 @@ const en = {
     shortcutConflict: "Already used by another shortcut",
     shortcutClear: "Clear shortcut",
     parallax: "Background animation",
+    glassmorphism: "Glassmorphism",
   },
   taskList: {
     remaining_one: "{{count}} remaining",

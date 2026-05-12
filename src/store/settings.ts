@@ -11,10 +11,12 @@ interface SettingsStore {
   notificationsEnabled: boolean;
   notificationTimes: NotificationTime[];
   parallaxEnabled: boolean;
+  glassmorphismEnabled: boolean;
   loadSettings(repo: TodoRepository): Promise<void>;
   setNotificationsEnabled(repo: TodoRepository, enabled: boolean): Promise<void>;
   setNotificationTimes(repo: TodoRepository, times: NotificationTime[]): Promise<void>;
   setParallaxEnabled(repo: TodoRepository, enabled: boolean): Promise<void>;
+  setGlassmorphismEnabled(repo: TodoRepository, enabled: boolean): Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -24,6 +26,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     { hour: 14, minute: 0 },
   ],
   parallaxEnabled: true,
+  glassmorphismEnabled: false,
 
   async loadSettings(repo) {
     const raw = await repo.getSettings();
@@ -32,7 +35,8 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
       ? (JSON.parse(raw["notification_times"]) as NotificationTime[])
       : [{ hour: 10, minute: 0 }, { hour: 14, minute: 0 }];
     const parallaxEnabled = raw["parallax_enabled"] !== "false";
-    set({ notificationsEnabled, notificationTimes, parallaxEnabled });
+    const glassmorphismEnabled = raw["glassmorphism_enabled"] === "true";
+    set({ notificationsEnabled, notificationTimes, parallaxEnabled, glassmorphismEnabled });
   },
 
   async setNotificationsEnabled(repo, enabled) {
@@ -48,5 +52,10 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
   async setParallaxEnabled(repo, enabled) {
     await repo.setSetting("parallax_enabled", String(enabled));
     set({ parallaxEnabled: enabled });
+  },
+
+  async setGlassmorphismEnabled(repo, enabled) {
+    await repo.setSetting("glassmorphism_enabled", String(enabled));
+    set({ glassmorphismEnabled: enabled });
   },
 }));

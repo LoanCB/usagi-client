@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { TaskList } from "./TaskList";
 import { TaskDetail } from "./TaskDetail";
@@ -11,39 +12,44 @@ import { useSettingsStore } from "@/store/settings";
 export function AppShell() {
   const { selectedTaskId, selectedProjectId } = useUIStore();
   const parallaxEnabled = useSettingsStore((s) => s.parallaxEnabled);
+  const glassmorphismEnabled = useSettingsStore((s) => s.glassmorphismEnabled);
   const { width, isDragging, onMouseDown } = useResizable({
     storageKey: "task-detail-width",
     defaultWidth: 320,
     minWidth: 240,
     maxWidth: 600,
   });
-  const { setOrbRef } = useOrbParallax(parallaxEnabled);
+  const { setOrbRef } = useOrbParallax(parallaxEnabled && glassmorphismEnabled);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("glass", glassmorphismEnabled);
+  }, [glassmorphismEnabled]);
 
   const showDetail = selectedTaskId && selectedProjectId !== "tags";
 
   return (
     <div className="app-shell relative flex h-screen overflow-hidden text-foreground">
-      {/* Vignette overlay */}
-      <div className="app-vignette pointer-events-none absolute inset-0 z-[1]" />
+      {glassmorphismEnabled && (
+        <>
+          <div className="app-vignette pointer-events-none absolute inset-0 z-[1]" />
+          <div ref={setOrbRef(0)} className="pointer-events-none absolute inset-0 z-0">
+            <div className="app-orb-wrap-1 absolute inset-0">
+              <div className="app-orb-1 absolute" />
+            </div>
+          </div>
+          <div ref={setOrbRef(1)} className="pointer-events-none absolute inset-0 z-0">
+            <div className="app-orb-wrap-2 absolute inset-0">
+              <div className="app-orb-2 absolute" />
+            </div>
+          </div>
+          <div ref={setOrbRef(2)} className="pointer-events-none absolute inset-0 z-0">
+            <div className="app-orb-wrap-3 absolute inset-0">
+              <div className="app-orb-3 absolute" />
+            </div>
+          </div>
+        </>
+      )}
 
-      {/* Floating orbs — outer div: parallax JS offset; inner div: CSS ambient animation */}
-      <div ref={setOrbRef(0)} className="pointer-events-none absolute inset-0 z-0">
-        <div className="app-orb-wrap-1 absolute inset-0">
-          <div className="app-orb-1 absolute" />
-        </div>
-      </div>
-      <div ref={setOrbRef(1)} className="pointer-events-none absolute inset-0 z-0">
-        <div className="app-orb-wrap-2 absolute inset-0">
-          <div className="app-orb-2 absolute" />
-        </div>
-      </div>
-      <div ref={setOrbRef(2)} className="pointer-events-none absolute inset-0 z-0">
-        <div className="app-orb-wrap-3 absolute inset-0">
-          <div className="app-orb-3 absolute" />
-        </div>
-      </div>
-
-      {/* App content */}
       <div className="relative z-10 flex h-full w-full overflow-hidden">
         <Sidebar />
         {selectedProjectId === "tags" ? <TagManager /> : <TaskList />}
