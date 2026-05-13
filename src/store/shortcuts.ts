@@ -10,6 +10,7 @@ interface ShortcutsStore {
   sortProject: SortShortcut;
   loadShortcuts(repo: TodoRepository): Promise<void>;
   setShortcut(repo: TodoRepository, action: ShortcutAction, shortcut: SortShortcut): Promise<void>;
+  resetShortcuts(repo: TodoRepository): Promise<void>;
 }
 
 export const useShortcutsStore = create<ShortcutsStore>((set) => ({
@@ -43,6 +44,18 @@ export const useShortcutsStore = create<ShortcutsStore>((set) => ({
         urgency: s.sortUrgency,
         dueDate: s.sortDueDate,
         project: s.sortProject,
+      })
+    );
+  },
+
+  async resetShortcuts(repo) {
+    set({ ...DEFAULT_SHORTCUTS });
+    await repo.setSetting(
+      "sort_shortcuts",
+      JSON.stringify({
+        urgency: DEFAULT_SHORTCUTS.sortUrgency,
+        dueDate: DEFAULT_SHORTCUTS.sortDueDate,
+        project: DEFAULT_SHORTCUTS.sortProject,
       })
     );
   },

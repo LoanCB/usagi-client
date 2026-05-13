@@ -1,6 +1,6 @@
 import { type ReactElement, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Trash2, Plus, ChevronUp, ChevronDown, Sun, Moon, Monitor, X } from "lucide-react";
+import { Trash2, Plus, ChevronUp, ChevronDown, Sun, Moon, Monitor, X, RotateCcw } from "lucide-react";
 import { useShortcutsStore, type ShortcutAction } from "@/store/shortcuts";
 import { formatShortcut, type SortShortcut } from "@/lib/shortcuts";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -251,6 +251,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
   const sortDueDate = useShortcutsStore((s) => s.sortDueDate);
   const sortProject = useShortcutsStore((s) => s.sortProject);
   const setShortcut = useShortcutsStore((s) => s.setShortcut);
+  const resetShortcuts = useShortcutsStore((s) => s.resetShortcuts);
 
   function handleShortcut(action: ShortcutAction, s: SortShortcut) {
     setShortcut(getRepository(), action, s);
@@ -403,9 +404,21 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 
             {/* Section: Shortcuts */}
             <div className="flex flex-col gap-3 pt-4">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {t("settings.shortcuts")}
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {t("settings.shortcuts")}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground -my-1"
+                  onClick={() => resetShortcuts(getRepository())}
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  {t("settings.shortcutsReset")}
+                </Button>
+              </div>
               <div className="flex flex-col gap-2">
                 <div className="flex items-start justify-between gap-4">
                   <span className="text-sm pt-1 min-w-0 shrink">{t("settings.shortcutUrgency")}</span>

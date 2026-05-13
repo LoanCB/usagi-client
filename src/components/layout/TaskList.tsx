@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { fr, enUS } from "date-fns/locale";
@@ -8,6 +8,8 @@ import {
   useSensor,
   useSensors,
   closestCenter,
+  type DragStartEvent,
+  type DragOverEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
@@ -25,6 +27,15 @@ import { TaskForm } from "@/components/tasks/TaskForm";
 import { FilterBar } from "@/components/tasks/FilterBar";
 import { QuickAddTask } from "@/components/tasks/QuickAddTask";
 import type { Task } from "@/types";
+
+function DropLine() {
+  return (
+    <div className="flex items-center mx-3 my-0.5 pointer-events-none">
+      <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
+      <div className="flex-1 h-0.5 bg-primary" />
+    </div>
+  );
+}
 
 const PRIORITY_WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1, none: 0 };
 
@@ -63,6 +74,8 @@ export function TaskList() {
 
   const currentProject = projects.find((p) => p.id === selectedProjectId);
   const [search, setSearch] = useState("");
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc" | null>(null);
   const [sortDateDir, setSortDateDir] = useState<"asc" | "desc" | null>(null);
   const [sortProjectDir, setSortProjectDir] = useState<"asc" | "desc" | null>(null);
@@ -148,7 +161,17 @@ export function TaskList() {
     return () => globalThis.removeEventListener("keydown", handleKeyDown);
   }, [reorderTasks, selectedTaskId, setSelectedTask, sortByUrgency, sortByDueDate, sortByProject, selectedProjectId]);
 
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(event.active.id as string);
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    setOverId(event.over?.id as string ?? null);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null);
+    setOverId(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -277,24 +300,50 @@ export function TaskList() {
             );
           }
 
-          const items = filteredTasks.map((task) => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              project={selectedProjectId === undefined ? projects.find((p) => p.id === task.projectId) : undefined}
-            />
-          ));
+          if (search.trim()) {
+            return (
+              <div>
+                {filteredTasks.map((task) => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    project={selectedProjectId === undefined ? projects.find((p) => p.id === task.projectId) : undefined}
+                  />
+                ))}
+              </div>
+            );
+          }
 
-          return search.trim() ? (
-            <div>{items}</div>
-          ) : (
+          const ai = filteredTasks.findIndex((t) => t.id === activeId);
+          const oi = filteredTasks.findIndex((t) => t.id === overId);
+          let insertBefore: number | null = null;
+          if (activeId && overId && activeId !== overId && ai !== -1 && oi !== -1) {
+            insertBefore = ai < oi ? oi + 1 : oi;
+          }
+
+          const sortableItems: ReactNode[] = [];
+          filteredTasks.forEach((task, i) => {
+            if (insertBefore === i) sortableItems.push(<DropLine key="drop-line" />);
+            sortableItems.push(
+              <TaskItem
+                key={task.id}
+                task={task}
+                project={selectedProjectId === undefined ? projects.find((p) => p.id === task.projectId) : undefined}
+              />
+            );
+          });
+          if (insertBefore === filteredTasks.length) sortableItems.push(<DropLine key="drop-line" />);
+
+          return (
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
               onDragEnd={handleDragEnd}
             >
               <SortableContext items={filteredTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                {items}
+                {sortableItems}
               </SortableContext>
             </DndContext>
           );

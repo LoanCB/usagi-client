@@ -71,3 +71,28 @@ describe("setShortcut", () => {
     );
   });
 });
+
+describe("resetShortcuts", () => {
+  it("restores all shortcuts to defaults and calls setSetting", async () => {
+    const repo = makeRepo();
+    const { result } = renderHook(() => useShortcutsStore());
+
+    const custom: SortShortcut = { key: "x", meta: false, ctrl: true, alt: false, shift: false };
+    await act(() => result.current.setShortcut(repo, "sortUrgency", custom));
+    expect(result.current.sortUrgency).toEqual(custom);
+
+    await act(() => result.current.resetShortcuts(repo));
+
+    expect(result.current.sortUrgency).toEqual(DEFAULT_SHORTCUTS.sortUrgency);
+    expect(result.current.sortDueDate).toEqual(DEFAULT_SHORTCUTS.sortDueDate);
+    expect(result.current.sortProject).toEqual(DEFAULT_SHORTCUTS.sortProject);
+    expect(repo.setSetting).toHaveBeenLastCalledWith(
+      "sort_shortcuts",
+      JSON.stringify({
+        urgency: DEFAULT_SHORTCUTS.sortUrgency,
+        dueDate: DEFAULT_SHORTCUTS.sortDueDate,
+        project: DEFAULT_SHORTCUTS.sortProject,
+      })
+    );
+  });
+});

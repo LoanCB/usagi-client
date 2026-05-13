@@ -35,7 +35,9 @@ export function TaskItem({ task, project }: TaskItemProps) {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : undefined,
+    opacity: isDragging ? 0.45 : undefined,
+    borderStyle: isDragging ? ("dashed" as const) : undefined,
+    background: isDragging ? "transparent" : undefined,
     borderLeftColor: PRIORITY_BORDER_COLORS[task.priority],
   };
 

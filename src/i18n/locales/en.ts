@@ -111,6 +111,7 @@ const en = {
     shortcutRecording: "Press a key…",
     shortcutConflict: "Already used by another shortcut",
     shortcutClear: "Clear shortcut",
+    shortcutsReset: "Reset to defaults",
     parallax: "Background animation",
     glassmorphism: "Glassmorphism",
   },

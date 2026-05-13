@@ -113,6 +113,7 @@ const fr: typeof en = {
     shortcutRecording: "Appuyez sur une touche…",
     shortcutConflict: "Déjà utilisé par un autre raccourci",
     shortcutClear: "Effacer le raccourci",
+    shortcutsReset: "Réinitialiser",
     parallax: "Animation du fond",
     glassmorphism: "Glassmorphisme",
   },

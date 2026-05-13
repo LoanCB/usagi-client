@@ -47,7 +47,7 @@ export function QuickAddTask({ projectId }: QuickAddTaskProps) {
         onKeyDown={handleKeyDown}
         placeholder={t("task.titlePlaceholder")}
         aria-label={t("task.titlePlaceholder")}
-        className="flex-1 bg-transparent text-sm text-muted-foreground placeholder:text-muted-foreground/50 outline-none"
+        className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
       />
       <TagSelector selectedTagIds={tagIds} onChange={setTagIds} triggerClassName="text-muted-foreground" />
     </div>
