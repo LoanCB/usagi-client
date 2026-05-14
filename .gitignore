@@ -25,3 +25,9 @@ dist-ssr
 
 .superpowers/
 .worktrees/
+
+docs/superpowers
+
+# Playwright
+test-results/
+playwright-report/

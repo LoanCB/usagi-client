@@ -7,10 +7,11 @@ import type { TodoRepository } from "@/db/repository";
 let _repository: TodoRepository | null = null;
 
 export function setRepository(repo: TodoRepository) {
-  _repository = repo;
+	_repository = repo;
 }
 
 export function getRepository(): TodoRepository {
-  if (!_repository) throw new Error("Repository not initialized. Call setRepository() first.");
-  return _repository;
+	if (!_repository)
+		throw new Error("Repository not initialized. Call setRepository() first.");
+	return _repository;
 }

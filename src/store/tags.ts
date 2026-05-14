@@ -1,36 +1,40 @@
 import { create } from "zustand";
-import type { Tag, CreateTagInput } from "@/types";
 import type { TodoRepository } from "@/db/repository";
+import type { CreateTagInput, Tag } from "@/types";
 
 interface TagStore {
-  tags: Tag[];
-  loadTags(repo: TodoRepository): Promise<void>;
-  createTag(repo: TodoRepository, input: CreateTagInput): Promise<Tag>;
-  updateTag(repo: TodoRepository, id: string, patch: Partial<CreateTagInput>): Promise<void>;
-  deleteTag(repo: TodoRepository, id: string): Promise<void>;
+	tags: Tag[];
+	loadTags(repo: TodoRepository): Promise<void>;
+	createTag(repo: TodoRepository, input: CreateTagInput): Promise<Tag>;
+	updateTag(
+		repo: TodoRepository,
+		id: string,
+		patch: Partial<CreateTagInput>,
+	): Promise<void>;
+	deleteTag(repo: TodoRepository, id: string): Promise<void>;
 }
 
 export const useTagStore = create<TagStore>((set) => ({
-  tags: [],
+	tags: [],
 
-  async loadTags(repo) {
-    const tags = await repo.getTags();
-    set({ tags });
-  },
+	async loadTags(repo) {
+		const tags = await repo.getTags();
+		set({ tags });
+	},
 
-  async createTag(repo, input) {
-    const tag = await repo.createTag(input);
-    set((s) => ({ tags: [...s.tags, tag] }));
-    return tag;
-  },
+	async createTag(repo, input) {
+		const tag = await repo.createTag(input);
+		set((s) => ({ tags: [...s.tags, tag] }));
+		return tag;
+	},
 
-  async updateTag(repo, id, patch) {
-    const updated = await repo.updateTag(id, patch);
-    set((s) => ({ tags: s.tags.map((t) => (t.id === id ? updated : t)) }));
-  },
+	async updateTag(repo, id, patch) {
+		const updated = await repo.updateTag(id, patch);
+		set((s) => ({ tags: s.tags.map((t) => (t.id === id ? updated : t)) }));
+	},
 
-  async deleteTag(repo, id) {
-    await repo.deleteTag(id);
-    set((s) => ({ tags: s.tags.filter((t) => t.id !== id) }));
-  },
+	async deleteTag(repo, id) {
+		await repo.deleteTag(id);
+		set((s) => ({ tags: s.tags.filter((t) => t.id !== id) }));
+	},
 }));
