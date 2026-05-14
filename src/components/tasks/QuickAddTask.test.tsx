@@ -41,6 +41,7 @@ describe("QuickAddTask", () => {
 		expect(mockCreateTask).toHaveBeenCalledWith(expect.anything(), {
 			title: "Buy milk",
 			projectId: null,
+			tagIds: [],
 		});
 	});
 
@@ -79,6 +80,7 @@ describe("QuickAddTask", () => {
 		expect(mockCreateTask).toHaveBeenCalledWith(expect.anything(), {
 			title: "New task",
 			projectId: "proj-1",
+			tagIds: [],
 		});
 	});
 

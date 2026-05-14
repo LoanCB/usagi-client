@@ -92,4 +92,61 @@ describe("useTaskStore", () => {
 		});
 		expect(result.current.tasks[0].completedAt).not.toBeNull();
 	});
+
+	it("updateTask replaces the updated task in state", async () => {
+		useTaskStore.setState({ tasks: [baseTask], loading: false });
+		const updated: Task = { ...baseTask, title: "Updated title" };
+		const repo = makeRepo({ updateTask: vi.fn().mockResolvedValue(updated) });
+		const { result } = renderHook(() => useTaskStore());
+		await act(async () => {
+			await result.current.updateTask(repo, "t1", { title: "Updated title" });
+		});
+		expect(result.current.tasks[0].title).toBe("Updated title");
+	});
+
+	it("uncompleteTask sets completedAt back to null", async () => {
+		const completed: Task = {
+			...baseTask,
+			completedAt: "2026-04-10T11:00:00.000Z",
+		};
+		useTaskStore.setState({ tasks: [completed], loading: false });
+		const repo = makeRepo({ uncompleteTask: vi.fn().mockResolvedValue(baseTask) });
+		const { result } = renderHook(() => useTaskStore());
+		await act(async () => {
+			await result.current.uncompleteTask(repo, "t1");
+		});
+		expect(result.current.tasks[0].completedAt).toBeNull();
+	});
+
+	it("reorderTasks applies optimistic in-memory reorder immediately", async () => {
+		const t1: Task = { ...baseTask, id: "t1", sortOrder: 0 };
+		const t2: Task = { ...baseTask, id: "t2", sortOrder: 1 };
+		useTaskStore.setState({ tasks: [t1, t2], loading: false });
+		const repo = makeRepo({ reorderTasks: vi.fn().mockResolvedValue(undefined) });
+		const { result } = renderHook(() => useTaskStore());
+		await act(async () => {
+			await result.current.reorderTasks(repo, ["t2", "t1"]);
+		});
+		expect(result.current.tasks[0].id).toBe("t2");
+		expect(result.current.tasks[0].sortOrder).toBe(0);
+		expect(result.current.tasks[1].id).toBe("t1");
+		expect(result.current.tasks[1].sortOrder).toBe(1);
+	});
+
+	it("reorderTasks rolls back to previous state when repo throws", async () => {
+		const t1: Task = { ...baseTask, id: "t1", sortOrder: 0 };
+		const t2: Task = { ...baseTask, id: "t2", sortOrder: 1 };
+		useTaskStore.setState({ tasks: [t1, t2], loading: false });
+		const repo = makeRepo({
+			reorderTasks: vi.fn().mockRejectedValue(new Error("DB error")),
+		});
+		const { result } = renderHook(() => useTaskStore());
+		await act(async () => {
+			await expect(
+				result.current.reorderTasks(repo, ["t2", "t1"]),
+			).rejects.toThrow("DB error");
+		});
+		expect(result.current.tasks[0].id).toBe("t1");
+		expect(result.current.tasks[1].id).toBe("t2");
+	});
 });

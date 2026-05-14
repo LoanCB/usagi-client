@@ -27,10 +27,10 @@ describe("ThemeToggle (expanded)", () => {
 	it("highlights the active mode", () => {
 		renderWithTheme(<ThemeToggle collapsed={false} />, "dark");
 		expect(screen.getByRole("button", { name: /dark/i })).toHaveClass(
-			"bg-accent",
+			"bg-primary",
 		);
 		expect(screen.getByRole("button", { name: /light/i })).not.toHaveClass(
-			"bg-accent",
+			"bg-primary",
 		);
 	});
 

@@ -37,3 +37,94 @@ describe("useSettingsStore glassmorphism", () => {
 		expect(useSettingsStore.getState().glassmorphismEnabled).toBe(true);
 	});
 });
+
+describe("useSettingsStore notifications and parallax", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		useSettingsStore.setState({
+			notificationsEnabled: true,
+			notificationTimes: [
+				{ hour: 10, minute: 0 },
+				{ hour: 14, minute: 0 },
+			],
+			parallaxEnabled: true,
+			glassmorphismEnabled: false,
+		});
+	});
+
+	it("loadSettings sets notificationsEnabled to false when stored as 'false'", async () => {
+		mockRepo.getSettings.mockResolvedValueOnce({ notification_enabled: "false" });
+		// biome-ignore lint/suspicious/noExplicitAny: partial mock
+		await useSettingsStore.getState().loadSettings(mockRepo as any);
+		expect(useSettingsStore.getState().notificationsEnabled).toBe(false);
+	});
+
+	it("loadSettings defaults notificationsEnabled to true when key is absent", async () => {
+		mockRepo.getSettings.mockResolvedValueOnce({});
+		// biome-ignore lint/suspicious/noExplicitAny: partial mock
+		await useSettingsStore.getState().loadSettings(mockRepo as any);
+		expect(useSettingsStore.getState().notificationsEnabled).toBe(true);
+	});
+
+	it("loadSettings restores notificationTimes from JSON", async () => {
+		const times = [{ hour: 9, minute: 30 }];
+		mockRepo.getSettings.mockResolvedValueOnce({
+			notification_times: JSON.stringify(times),
+		});
+		// biome-ignore lint/suspicious/noExplicitAny: partial mock
+		await useSettingsStore.getState().loadSettings(mockRepo as any);
+		expect(useSettingsStore.getState().notificationTimes).toEqual(times);
+	});
+
+	it("loadSettings uses default notificationTimes when key is absent", async () => {
+		mockRepo.getSettings.mockResolvedValueOnce({});
+		// biome-ignore lint/suspicious/noExplicitAny: partial mock
+		await useSettingsStore.getState().loadSettings(mockRepo as any);
+		expect(useSettingsStore.getState().notificationTimes).toEqual([
+			{ hour: 10, minute: 0 },
+			{ hour: 14, minute: 0 },
+		]);
+	});
+
+	it("loadSettings sets parallaxEnabled to false when stored as 'false'", async () => {
+		mockRepo.getSettings.mockResolvedValueOnce({ parallax_enabled: "false" });
+		// biome-ignore lint/suspicious/noExplicitAny: partial mock
+		await useSettingsStore.getState().loadSettings(mockRepo as any);
+		expect(useSettingsStore.getState().parallaxEnabled).toBe(false);
+	});
+
+	it("loadSettings defaults parallaxEnabled to true when key is absent", async () => {
+		mockRepo.getSettings.mockResolvedValueOnce({});
+		// biome-ignore lint/suspicious/noExplicitAny: partial mock
+		await useSettingsStore.getState().loadSettings(mockRepo as any);
+		expect(useSettingsStore.getState().parallaxEnabled).toBe(true);
+	});
+
+	it("setNotificationsEnabled updates state and calls setSetting", async () => {
+		// biome-ignore lint/suspicious/noExplicitAny: partial mock
+		await useSettingsStore.getState().setNotificationsEnabled(mockRepo as any, false);
+		expect(useSettingsStore.getState().notificationsEnabled).toBe(false);
+		expect(mockRepo.setSetting).toHaveBeenCalledWith(
+			"notification_enabled",
+			"false",
+		);
+	});
+
+	it("setNotificationTimes updates state and serialises times to JSON", async () => {
+		const times = [{ hour: 8, minute: 0, enabled: true }];
+		// biome-ignore lint/suspicious/noExplicitAny: partial mock
+		await useSettingsStore.getState().setNotificationTimes(mockRepo as any, times);
+		expect(useSettingsStore.getState().notificationTimes).toEqual(times);
+		expect(mockRepo.setSetting).toHaveBeenCalledWith(
+			"notification_times",
+			JSON.stringify(times),
+		);
+	});
+
+	it("setParallaxEnabled updates state and calls setSetting", async () => {
+		// biome-ignore lint/suspicious/noExplicitAny: partial mock
+		await useSettingsStore.getState().setParallaxEnabled(mockRepo as any, false);
+		expect(useSettingsStore.getState().parallaxEnabled).toBe(false);
+		expect(mockRepo.setSetting).toHaveBeenCalledWith("parallax_enabled", "false");
+	});
+});

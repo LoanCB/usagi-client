@@ -80,10 +80,10 @@ describe("TaskList header progress", () => {
 		expect(screen.getByRole("progressbar")).toBeInTheDocument();
 	});
 
-	it("does not show progress bar when no tasks", () => {
+	it("shows progress bar in today view even when no tasks", () => {
 		useTaskStore.setState((s) => ({ ...s, tasks: [] }));
 		render(<TaskList />);
-		expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+		expect(screen.getByRole("progressbar")).toBeInTheDocument();
 	});
 
 	it("shows remaining count badge in today view", () => {

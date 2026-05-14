@@ -20,10 +20,10 @@ describe("LanguageToggle (expanded)", () => {
 	it("highlights the active language", () => {
 		render(<LanguageToggle collapsed={false} />);
 		expect(screen.getByRole("button", { name: "Français" })).toHaveClass(
-			"bg-accent",
+			"bg-primary",
 		);
 		expect(screen.getByRole("button", { name: "English" })).not.toHaveClass(
-			"bg-accent",
+			"bg-primary",
 		);
 	});
 
