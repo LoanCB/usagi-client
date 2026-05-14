@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { fr, enUS } from "date-fns/locale";
@@ -101,36 +101,48 @@ export function TaskList() {
     }
   }, [selectedProjectId, activeFilters, loadTasks]);
 
+  const displayedTasks = useMemo(() => {
+    if (sortDir !== null) {
+      const sorted = [...tasks].sort(byUrgency);
+      return sortDir === "desc" ? sorted.reverse() : sorted;
+    }
+    if (sortDateDir !== null) {
+      const sorted = [...tasks].sort(byDueDate);
+      return sortDateDir === "desc" ? sorted.reverse() : sorted;
+    }
+    if (sortProjectDir !== null) {
+      const projectMap = new Map(projects.map((p) => [p.id, p.name]));
+      const sorted = [...tasks].sort(byProjectName(projectMap));
+      return sortProjectDir === "desc" ? sorted.reverse() : sorted;
+    }
+    return tasks;
+  }, [tasks, sortDir, sortDateDir, sortProjectDir, projects]);
+
+  const hasSortActive = sortDir !== null || sortDateDir !== null || sortProjectDir !== null;
+
+  function resetSort() {
+    setSortDir(null);
+    setSortDateDir(null);
+    setSortProjectDir(null);
+  }
+
   function sortByUrgency() {
-    if (sortDir === "desc") { setSortDir(null); loadTasks(getRepository(), { ...activeFilters, projectId: selectedProjectId }); return; }
-    const nextDir = sortDir === null ? "asc" : "desc";
-    const sorted = [...useTaskStore.getState().tasks].sort(byUrgency);
-    if (nextDir === "desc") sorted.reverse();
-    reorderTasks(getRepository(), sorted.map((t) => t.id));
-    setSortDir(nextDir);
+    if (sortDir === "desc") { setSortDir(null); return; }
+    setSortDir(sortDir === null ? "asc" : "desc");
     setSortDateDir(null);
     setSortProjectDir(null);
   }
 
   function sortByDueDate() {
-    if (sortDateDir === "desc") { setSortDateDir(null); loadTasks(getRepository(), { ...activeFilters, projectId: selectedProjectId }); return; }
-    const nextDir = sortDateDir === null ? "asc" : "desc";
-    const sorted = [...useTaskStore.getState().tasks].sort(byDueDate);
-    if (nextDir === "desc") sorted.reverse();
-    reorderTasks(getRepository(), sorted.map((t) => t.id));
-    setSortDateDir(nextDir);
+    if (sortDateDir === "desc") { setSortDateDir(null); return; }
+    setSortDateDir(sortDateDir === null ? "asc" : "desc");
     setSortDir(null);
     setSortProjectDir(null);
   }
 
   function sortByProject() {
-    if (sortProjectDir === "desc") { setSortProjectDir(null); loadTasks(getRepository(), { ...activeFilters, projectId: selectedProjectId }); return; }
-    const nextDir = sortProjectDir === null ? "asc" : "desc";
-    const projectMap = new Map(projects.map((p) => [p.id, p.name]));
-    const sorted = [...useTaskStore.getState().tasks].sort(byProjectName(projectMap));
-    if (nextDir === "desc") sorted.reverse();
-    reorderTasks(getRepository(), sorted.map((t) => t.id));
-    setSortProjectDir(nextDir);
+    if (sortProjectDir === "desc") { setSortProjectDir(null); return; }
+    setSortProjectDir(sortProjectDir === null ? "asc" : "desc");
     setSortDir(null);
     setSortDateDir(null);
   }
@@ -175,11 +187,11 @@ export function TaskList() {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const current = useTaskStore.getState().tasks;
-    const oldIndex = current.findIndex((t) => t.id === active.id);
-    const newIndex = current.findIndex((t) => t.id === over.id);
+    const oldIndex = displayedTasks.findIndex((t) => t.id === active.id);
+    const newIndex = displayedTasks.findIndex((t) => t.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
-    const reordered = arrayMove(current, oldIndex, newIndex);
+    const reordered = arrayMove(displayedTasks, oldIndex, newIndex);
+    resetSort();
     reorderTasks(getRepository(), reordered.map((t) => t.id));
   }
 
@@ -279,18 +291,18 @@ export function TaskList() {
         sortDir={sortDir}
         sortDateDir={sortDateDir}
         sortProjectDir={sortProjectDir}
+        hasSortActive={hasSortActive}
         onSortByUrgency={sortByUrgency}
         onSortByDueDate={sortByDueDate}
         onSortByProject={selectedProjectId === undefined ? sortByProject : undefined}
-        searchQuery={search}
-        onSearchChange={setSearch}
+        onResetSort={resetSort}
       />
 
       <ScrollArea className="flex-1 min-h-0">
         {(() => {
           const filteredTasks = search.trim()
-            ? tasks.filter((t) => t.title.toLowerCase().includes(search.toLowerCase()))
-            : tasks;
+            ? displayedTasks.filter((t) => t.title.toLowerCase().includes(search.toLowerCase()))
+            : displayedTasks;
 
           if (filteredTasks.length === 0) {
             return (

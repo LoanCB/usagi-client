@@ -16,18 +16,20 @@ import { useShortcutsStore } from "@/store/shortcuts";
 import { formatShortcut } from "@/lib/shortcuts";
 import type { Priority } from "@/types";
 
+type Sort = "asc" | "desc" | null
+
 interface FilterBarProps {
-  readonly sortDir?: "asc" | "desc" | null;
-  readonly sortDateDir?: "asc" | "desc" | null;
-  readonly sortProjectDir?: "asc" | "desc" | null;
+  readonly sortDir?: Sort;
+  readonly sortDateDir?: Sort;
+  readonly sortProjectDir?: Sort;
+  readonly hasSortActive?: boolean;
   readonly onSortByUrgency?: () => void;
   readonly onSortByDueDate?: () => void;
   readonly onSortByProject?: () => void;
-  readonly searchQuery?: string;
-  readonly onSearchChange?: (v: string) => void;
+  readonly onResetSort?: () => void;
 }
 
-export function FilterBar({ sortDir, sortDateDir, sortProjectDir, onSortByUrgency, onSortByDueDate, onSortByProject, searchQuery = "", onSearchChange }: FilterBarProps) {
+export function FilterBar({ sortDir, sortDateDir, sortProjectDir, hasSortActive, onSortByUrgency, onSortByDueDate, onSortByProject, onResetSort }: FilterBarProps) {
   const { t } = useTranslation();
   const { activeFilters, setFilters } = useUIStore();
   const { tags } = useTagStore();
@@ -56,7 +58,7 @@ export function FilterBar({ sortDir, sortDateDir, sortProjectDir, onSortByUrgenc
     !!activeFilters.priority ||
     selectedTagIds.length > 0 ||
     !!activeFilters.completed ||
-    !!searchQuery;
+    !!hasSortActive;
 
   return (
     <div className="flex items-center gap-2 px-5 py-2 glass-header shrink-0 flex-wrap">
@@ -149,7 +151,7 @@ export function FilterBar({ sortDir, sortDateDir, sortProjectDir, onSortByUrgenc
             className="h-7 text-xs text-muted-foreground"
             onClick={() => {
               setFilters({ priority: undefined, tagIds: [], completed: undefined });
-              onSearchChange?.("");
+              onResetSort?.();
             }}
           >
             {t('filter.reset')}

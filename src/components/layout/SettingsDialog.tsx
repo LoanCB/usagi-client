@@ -350,16 +350,6 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                   </button>
                 ))}
               </div>
-              <div className={cn("flex items-center justify-between", !glassmorphismEnabled && "pointer-events-none opacity-40")}>
-                <label className="text-sm text-foreground cursor-pointer select-none" htmlFor="parallax-toggle">
-                  {t("settings.parallax")}
-                </label>
-                <Checkbox
-                  id="parallax-toggle"
-                  checked={parallaxEnabled}
-                  onCheckedChange={(v) => setParallaxEnabled(getRepository(), v === true)}
-                />
-              </div>
               <div className="flex items-center justify-between">
                 <label className="text-sm text-foreground cursor-pointer select-none" htmlFor="glass-toggle">
                   {t("settings.glassmorphism")}
@@ -368,6 +358,16 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                   id="glass-toggle"
                   checked={glassmorphismEnabled}
                   onCheckedChange={(v) => setGlassmorphismEnabled(getRepository(), v === true)}
+                />
+              </div>
+              <div className={cn("flex items-center justify-between", !glassmorphismEnabled && "pointer-events-none opacity-40")}>
+                <label className="text-sm text-foreground cursor-pointer select-none" htmlFor="parallax-toggle">
+                  {t("settings.parallax")}
+                </label>
+                <Checkbox
+                  id="parallax-toggle"
+                  checked={parallaxEnabled}
+                  onCheckedChange={(v) => setParallaxEnabled(getRepository(), v === true)}
                 />
               </div>
             </div>
