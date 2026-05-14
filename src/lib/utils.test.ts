@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	formatDate,
 	hasModifier,
-	isOverdue,
 	isMac,
+	isOverdue,
 	modifierLabel,
 	todayIso,
 } from "./utils";
@@ -118,7 +118,9 @@ describe("hasModifier", () => {
 			userAgentData: { platform: "macOS" },
 			userAgent: "",
 		});
-		expect(hasModifier({ metaKey: true, ctrlKey: false } as KeyboardEvent)).toBe(true);
+		expect(
+			hasModifier({ metaKey: true, ctrlKey: false } as KeyboardEvent),
+		).toBe(true);
 	});
 
 	it("returns false when ctrlKey is pressed on Mac (wrong modifier)", () => {
@@ -126,7 +128,9 @@ describe("hasModifier", () => {
 			userAgentData: { platform: "macOS" },
 			userAgent: "",
 		});
-		expect(hasModifier({ metaKey: false, ctrlKey: true } as KeyboardEvent)).toBe(false);
+		expect(
+			hasModifier({ metaKey: false, ctrlKey: true } as KeyboardEvent),
+		).toBe(false);
 	});
 
 	it("returns true when ctrlKey is pressed on non-Mac", () => {
@@ -134,7 +138,9 @@ describe("hasModifier", () => {
 			userAgentData: { platform: "Win32" },
 			userAgent: "",
 		});
-		expect(hasModifier({ metaKey: false, ctrlKey: true } as KeyboardEvent)).toBe(true);
+		expect(
+			hasModifier({ metaKey: false, ctrlKey: true } as KeyboardEvent),
+		).toBe(true);
 	});
 
 	it("returns false when metaKey is pressed on non-Mac (wrong modifier)", () => {
@@ -142,6 +148,8 @@ describe("hasModifier", () => {
 			userAgentData: { platform: "Win32" },
 			userAgent: "",
 		});
-		expect(hasModifier({ metaKey: true, ctrlKey: false } as KeyboardEvent)).toBe(false);
+		expect(
+			hasModifier({ metaKey: true, ctrlKey: false } as KeyboardEvent),
+		).toBe(false);
 	});
 });

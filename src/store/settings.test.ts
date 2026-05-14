@@ -53,7 +53,9 @@ describe("useSettingsStore notifications and parallax", () => {
 	});
 
 	it("loadSettings sets notificationsEnabled to false when stored as 'false'", async () => {
-		mockRepo.getSettings.mockResolvedValueOnce({ notification_enabled: "false" });
+		mockRepo.getSettings.mockResolvedValueOnce({
+			notification_enabled: "false",
+		});
 		// biome-ignore lint/suspicious/noExplicitAny: partial mock
 		await useSettingsStore.getState().loadSettings(mockRepo as any);
 		expect(useSettingsStore.getState().notificationsEnabled).toBe(false);
@@ -101,8 +103,10 @@ describe("useSettingsStore notifications and parallax", () => {
 	});
 
 	it("setNotificationsEnabled updates state and calls setSetting", async () => {
-		// biome-ignore lint/suspicious/noExplicitAny: partial mock
-		await useSettingsStore.getState().setNotificationsEnabled(mockRepo as any, false);
+		await useSettingsStore
+			.getState()
+			// biome-ignore lint/suspicious/noExplicitAny: partial mock
+			.setNotificationsEnabled(mockRepo as any, false);
 		expect(useSettingsStore.getState().notificationsEnabled).toBe(false);
 		expect(mockRepo.setSetting).toHaveBeenCalledWith(
 			"notification_enabled",
@@ -112,8 +116,10 @@ describe("useSettingsStore notifications and parallax", () => {
 
 	it("setNotificationTimes updates state and serialises times to JSON", async () => {
 		const times = [{ hour: 8, minute: 0, enabled: true }];
-		// biome-ignore lint/suspicious/noExplicitAny: partial mock
-		await useSettingsStore.getState().setNotificationTimes(mockRepo as any, times);
+		await useSettingsStore
+			.getState()
+			// biome-ignore lint/suspicious/noExplicitAny: partial mock
+			.setNotificationTimes(mockRepo as any, times);
 		expect(useSettingsStore.getState().notificationTimes).toEqual(times);
 		expect(mockRepo.setSetting).toHaveBeenCalledWith(
 			"notification_times",
@@ -122,9 +128,14 @@ describe("useSettingsStore notifications and parallax", () => {
 	});
 
 	it("setParallaxEnabled updates state and calls setSetting", async () => {
-		// biome-ignore lint/suspicious/noExplicitAny: partial mock
-		await useSettingsStore.getState().setParallaxEnabled(mockRepo as any, false);
+		await useSettingsStore
+			.getState()
+			// biome-ignore lint/suspicious/noExplicitAny: partial mock
+			.setParallaxEnabled(mockRepo as any, false);
 		expect(useSettingsStore.getState().parallaxEnabled).toBe(false);
-		expect(mockRepo.setSetting).toHaveBeenCalledWith("parallax_enabled", "false");
+		expect(mockRepo.setSetting).toHaveBeenCalledWith(
+			"parallax_enabled",
+			"false",
+		);
 	});
 });

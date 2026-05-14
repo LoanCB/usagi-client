@@ -48,7 +48,14 @@ interface NavItemProps {
 	readonly count?: number;
 }
 
-function NavItem({ icon, label, active, collapsed, onClick, count }: NavItemProps) {
+function NavItem({
+	icon,
+	label,
+	active,
+	collapsed,
+	onClick,
+	count,
+}: NavItemProps) {
 	const inner = (
 		<button
 			type="button"

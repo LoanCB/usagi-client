@@ -110,7 +110,9 @@ describe("useTaskStore", () => {
 			completedAt: "2026-04-10T11:00:00.000Z",
 		};
 		useTaskStore.setState({ tasks: [completed], loading: false });
-		const repo = makeRepo({ uncompleteTask: vi.fn().mockResolvedValue(baseTask) });
+		const repo = makeRepo({
+			uncompleteTask: vi.fn().mockResolvedValue(baseTask),
+		});
 		const { result } = renderHook(() => useTaskStore());
 		await act(async () => {
 			await result.current.uncompleteTask(repo, "t1");
@@ -122,7 +124,9 @@ describe("useTaskStore", () => {
 		const t1: Task = { ...baseTask, id: "t1", sortOrder: 0 };
 		const t2: Task = { ...baseTask, id: "t2", sortOrder: 1 };
 		useTaskStore.setState({ tasks: [t1, t2], loading: false });
-		const repo = makeRepo({ reorderTasks: vi.fn().mockResolvedValue(undefined) });
+		const repo = makeRepo({
+			reorderTasks: vi.fn().mockResolvedValue(undefined),
+		});
 		const { result } = renderHook(() => useTaskStore());
 		await act(async () => {
 			await result.current.reorderTasks(repo, ["t2", "t1"]);

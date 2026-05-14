@@ -65,7 +65,9 @@ describe("useProjectStore", () => {
 		const repo = makeRepo({
 			updateProject: vi.fn().mockResolvedValue(updated),
 		});
-		await useProjectStore.getState().updateProject(repo, "p1", { name: "Updated" });
+		await useProjectStore
+			.getState()
+			.updateProject(repo, "p1", { name: "Updated" });
 		expect(useProjectStore.getState().projects[0].name).toBe("Updated");
 	});
 
