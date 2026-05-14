@@ -101,78 +101,63 @@ function ProjectNavItem({ project, active, collapsed, onClick, count }: ProjectN
     />
   );
 
-  const inner = (
-    <button
-      className={cn(
-        "group flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm text-left transition-colors",
-        "border-l-2 border-transparent",
-        "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-primary/50",
-        active && "bg-sidebar-primary/20 text-sidebar-foreground font-medium border-sidebar-primary"
-      )}
-      onClick={onClick}
-    >
-      {icon}
-      {!collapsed && (
-        <>
-          <span className="truncate flex-1">{project.name}</span>
-          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-            <DropdownMenuTrigger
-              className="opacity-0 group-hover:opacity-100 focus:opacity-100 h-5 w-5 flex items-center justify-center rounded hover:bg-sidebar-foreground/10 transition-opacity shrink-0"
-              onClick={(e) => e.stopPropagation()}
-              aria-label={t('project.options')}
-            >
-              <MoreVertical className="h-3.5 w-3.5" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="start">
-              <DropdownMenuItem
-                render={
-                  <button className="w-full flex items-center gap-2" onClick={() => { setMenuOpen(false); setEditOpen(true); }}>
-                    <Pencil className="h-4 w-4" />
-                    {t('common.edit')}
-                  </button>
-                }
-              />
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={handleDelete}
-              >
-                <Trash2 className="h-4 w-4" />
-                {t('common.delete')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {count !== undefined && (
-            <span className="text-xs text-muted-foreground/70 bg-foreground/[0.06] rounded-full min-w-[1.25rem] text-center px-1.5 py-0.5 leading-none shrink-0">
-              {count}
-            </span>
-          )}
-        </>
-      )}
-    </button>
-  );
-
-  const editDialog = (
-    <ProjectForm project={project} open={editOpen} onOpenChange={setEditOpen} />
-  );
-
-  if (collapsed) {
-    return (
-      <>
-        <TooltipProvider delay={300}>
-          <Tooltip>
-            <TooltipTrigger>{inner}</TooltipTrigger>
-            <TooltipContent side="right">{project.name}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        {editDialog}
-      </>
-    );
-  }
   return (
     <>
-      {inner}
-      {editDialog}
+      <TooltipProvider delay={collapsed ? 300 : 600}>
+        <Tooltip>
+          <TooltipTrigger
+            render={<button />}
+            className={cn(
+              "group flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm transition-colors",
+              "border-l-2 border-transparent",
+              "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-primary/50",
+              active && "bg-sidebar-primary/20 text-sidebar-foreground font-medium border-sidebar-primary"
+            )}
+            onClick={onClick}
+          >
+            {icon}
+            {!collapsed && (
+              <>
+                <span className="truncate flex-1 text-left">{project.name}</span>
+                <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                  <DropdownMenuTrigger
+                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 h-5 w-5 flex items-center justify-center rounded hover:bg-sidebar-foreground/10 transition-opacity shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={t('project.options')}
+                  >
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="right" align="start">
+                    <DropdownMenuItem
+                      render={
+                        <button className="w-full flex items-center gap-2" onClick={() => { setMenuOpen(false); setEditOpen(true); }}>
+                          <Pencil className="h-4 w-4" />
+                          {t('common.edit')}
+                        </button>
+                      }
+                    />
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onClick={handleDelete}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {t('common.delete')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {count !== undefined && (
+                  <span className="text-xs text-muted-foreground/70 bg-foreground/[0.06] rounded-full min-w-[1.25rem] text-center px-1.5 py-0.5 leading-none shrink-0">
+                    {count}
+                  </span>
+                )}
+              </>
+            )}
+          </TooltipTrigger>
+          <TooltipContent side="right">{project.name}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <ProjectForm project={project} open={editOpen} onOpenChange={setEditOpen} />
     </>
   );
 }
