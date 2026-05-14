@@ -16,7 +16,7 @@ import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 
-function AppContent() {
+export function AppContent() {
 	const loadTasks = useTaskStore((s) => s.loadTasks);
 	const loadProjects = useProjectStore((s) => s.loadProjects);
 	const loadTags = useTagStore((s) => s.loadTags);

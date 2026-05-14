@@ -263,48 +263,49 @@ export function TaskList() {
         const locale = i18n.language === "fr" ? fr : enUS;
         const dateLabel = format(new Date(), "EEEE d MMMM", { locale });
 
-        return (
-          <div className="glass-header px-5 pt-5 pb-3 shrink-0">
-            <div className="flex items-center justify-between mb-1">
-              <div>
-                <h2 className="font-bold text-xl tracking-tight">
-                  {getTitle()}
-                </h2>
-                {showProgress && (
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-muted-foreground capitalize">
-                      {dateLabel}
-                    </span>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-primary/15 text-primary font-semibold border border-primary/30">
-                      {t("taskList.remaining", { count: remainingCount })}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {/* Search */}
-                <div className="glass-stat flex items-center gap-2 rounded-xl px-3 py-1.5">
-                  <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder={t("task.search")}
-                    aria-label={t("task.search")}
-                    className="w-28 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
-                  />
-                </div>
-                {/* New task */}
-                <TaskForm projectId={formProjectId}>
-                  <button
-                    type="button"
-                    className="glass-stat flex h-[35px] w-[35px] shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </TaskForm>
-              </div>
-            </div>
+				return (
+					<div className="glass-header px-5 pt-5 pb-3 shrink-0">
+						<div className="flex items-center justify-between mb-1">
+							<div>
+								<h2 className="font-bold text-xl tracking-tight">
+									{getTitle()}
+								</h2>
+								{showProgress && (
+									<div className="flex items-center gap-2 mt-1">
+										<span className="text-xs text-muted-foreground capitalize">
+											{dateLabel}
+										</span>
+										<span className="text-xs px-2.5 py-0.5 rounded-full bg-primary/15 text-primary font-semibold border border-primary/30">
+											{t("taskList.remaining", { count: remainingCount })}
+										</span>
+									</div>
+								)}
+							</div>
+							<div className="flex items-center gap-2">
+								{/* Search */}
+								<div className="glass-stat flex items-center gap-2 rounded-xl px-3 py-1.5">
+									<Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+									<input
+										type="text"
+										value={search}
+										onChange={(e) => setSearch(e.target.value)}
+										placeholder={t("task.search")}
+										aria-label={t("task.search")}
+										className="w-28 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
+									/>
+								</div>
+								{/* New task */}
+								<TaskForm projectId={formProjectId}>
+									<button
+										type="button"
+										aria-label={t("task.new")}
+										className="glass-stat flex h-[35px] w-[35px] shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:text-foreground"
+									>
+										<Plus className="h-4 w-4" />
+									</button>
+								</TaskForm>
+							</div>
+						</div>
 
             {/* Stats cards */}
             {showProgress && (
