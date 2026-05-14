@@ -16,6 +16,7 @@ export default defineConfig({
 	},
 	test: {
 		globals: true,
+		include: ["src/**/*.{test,spec}.{ts,tsx}"],
 		// happy-dom: jsdom@29 has ESM compat issue with @exodus/bytes via html-encoding-sniffer
 		environment: "happy-dom",
 		setupFiles: ["./src/test/setup.ts"],

@@ -20,9 +20,9 @@
 		"noUnusedParameters": true,
 		"noFallthroughCasesInSwitch": true,
 
-		"types": ["vitest/globals"]
+		"types": ["vitest/globals"],
+		"paths": { "@/*": ["./src/*"] }
 	},
 	"include": ["src"],
-	"references": [{ "path": "./tsconfig.node.json" }],
-	"paths": { "@/*": ["./src/*"] }
+	"references": [{ "path": "./tsconfig.node.json" }]
 }

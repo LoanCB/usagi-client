@@ -49,8 +49,9 @@ export class MemoryRepository implements TodoRepository {
 		}
 
 		if (filters.dueBefore) {
+			const dueBefore = filters.dueBefore;
 			results = results.filter(
-				(t) => t.dueDate !== null && t.dueDate <= filters.dueBefore,
+				(t) => t.dueDate !== null && t.dueDate <= dueBefore,
 			);
 		}
 
