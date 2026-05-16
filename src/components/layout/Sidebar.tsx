@@ -32,7 +32,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { PRESET_ICONS } from "@/lib/icons";
-import { cn, todayIso } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import { useTaskStore } from "@/store/tasks";
@@ -96,7 +96,6 @@ interface ProjectNavItemProps {
 	readonly active: boolean;
 	readonly collapsed: boolean;
 	readonly onClick: () => void;
-	readonly count?: number;
 }
 
 function ProjectNavItem({
@@ -104,7 +103,6 @@ function ProjectNavItem({
 	active,
 	collapsed,
 	onClick,
-	count,
 }: ProjectNavItemProps) {
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [editOpen, setEditOpen] = useState(false);
@@ -142,6 +140,12 @@ function ProjectNavItem({
 								"bg-sidebar-primary/20 text-sidebar-foreground font-medium border-sidebar-primary",
 						)}
 						onClick={onClick}
+						onContextMenu={(e) => {
+							if (collapsed) return;
+							e.preventDefault();
+							e.stopPropagation();
+							setMenuOpen(true);
+						}}
 					>
 						{icon}
 						{!collapsed && (
@@ -183,11 +187,6 @@ function ProjectNavItem({
 										</DropdownMenuItem>
 									</DropdownMenuContent>
 								</DropdownMenu>
-								{count !== undefined && (
-									<span className="text-xs text-muted-foreground/70 bg-foreground/[0.06] rounded-full min-w-[1.25rem] text-center px-1.5 py-0.5 leading-none shrink-0">
-										{count}
-									</span>
-								)}
 							</>
 						)}
 					</TooltipTrigger>
@@ -212,12 +211,8 @@ export function Sidebar() {
 		setSelectedProject,
 	} = useUIStore();
 	const projects = useProjectStore((s) => s.projects);
-	const tasks = useTaskStore((s) => s.tasks);
-	const today = todayIso();
-	const allCount = tasks.filter((t) => !t.completedAt).length;
-	const todayCount = tasks.filter(
-		(t) => !t.completedAt && t.dueDate !== null && t.dueDate <= today,
-	).length;
+	const allCount = useTaskStore((s) => s.allCount);
+	const todayCount = useTaskStore((s) => s.todayCount);
 
 	return (
 		<div
@@ -320,11 +315,6 @@ export function Sidebar() {
 							active={selectedProjectId === project.id}
 							collapsed={sidebarCollapsed}
 							onClick={() => setSelectedProject(project.id)}
-							count={
-								tasks.filter(
-									(t) => !t.completedAt && t.projectId === project.id,
-								).length
-							}
 						/>
 					))}
 					{sidebarCollapsed && (
