@@ -1,11 +1,15 @@
 import { create } from "zustand";
 import type { TodoRepository } from "@/db/repository";
+import { todayIso } from "@/lib/utils";
 import type { CreateTaskInput, Task, TaskFilters } from "@/types";
 
 interface TaskStore {
 	tasks: Task[];
 	loading: boolean;
+	allCount: number;
+	todayCount: number;
 	loadTasks(repo: TodoRepository, filters?: TaskFilters): Promise<void>;
+	refreshCounts(repo: TodoRepository): Promise<void>;
 	createTask(repo: TodoRepository, input: CreateTaskInput): Promise<Task>;
 	updateTask(
 		repo: TodoRepository,
@@ -21,37 +25,55 @@ interface TaskStore {
 export const useTaskStore = create<TaskStore>((set, get) => ({
 	tasks: [],
 	loading: false,
+	allCount: 0,
+	todayCount: 0,
+
+	async refreshCounts(repo) {
+		const [all, today] = await Promise.all([
+			repo.getTasks(),
+			repo.getTasks({ dueBefore: todayIso() }),
+		]);
+		set({ allCount: all.length, todayCount: today.length });
+	},
 
 	async loadTasks(repo, filters) {
 		set({ loading: true });
-		const tasks = await repo.getTasks(filters);
+		const [tasks] = await Promise.all([
+			repo.getTasks(filters),
+			get().refreshCounts(repo),
+		]);
 		set({ tasks, loading: false });
 	},
 
 	async createTask(repo, input) {
 		const task = await repo.createTask(input);
 		set((s) => ({ tasks: [task, ...s.tasks] }));
+		get().refreshCounts(repo);
 		return task;
 	},
 
 	async updateTask(repo, id, patch) {
 		const updated = await repo.updateTask(id, patch);
 		set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? updated : t)) }));
+		get().refreshCounts(repo);
 	},
 
 	async completeTask(repo, id) {
 		const updated = await repo.completeTask(id);
 		set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? updated : t)) }));
+		get().refreshCounts(repo);
 	},
 
 	async uncompleteTask(repo, id) {
 		const updated = await repo.uncompleteTask(id);
 		set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? updated : t)) }));
+		get().refreshCounts(repo);
 	},
 
 	async deleteTask(repo, id) {
 		await repo.deleteTask(id);
 		set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+		get().refreshCounts(repo);
 	},
 
 	async reorderTasks(repo, orderedIds) {
