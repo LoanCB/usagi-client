@@ -1,6 +1,8 @@
 "use client";
 
 import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu";
+import { Check } from "lucide-react";
+import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
 function ContextMenu(props: Readonly<ContextMenuPrimitive.Root.Props>) {
@@ -69,4 +71,54 @@ function ContextMenuItem({
   );
 }
 
-export { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger };
+function ContextMenuSeparator({ className, ...props }: ComponentProps<"hr">) {
+  return (
+    <hr
+      className={cn("-mx-1 my-1 h-px bg-border border-none", className)}
+      {...props}
+    />
+  );
+}
+
+function ContextMenuGroupLabel({ className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      className={cn("px-1.5 py-1 text-xs font-medium text-muted-foreground", className)}
+      {...props}
+    />
+  );
+}
+
+function ContextMenuCheckboxItem({
+  className,
+  children,
+  ...props
+}: Readonly<ContextMenuPrimitive.CheckboxItem.Props>) {
+  return (
+    <ContextMenuPrimitive.CheckboxItem
+      data-slot="context-menu-checkbox-item"
+      className={cn(
+        "relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
+        className,
+      )}
+      {...props}
+    >
+      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+        <ContextMenuPrimitive.CheckboxItemIndicator>
+          <Check className="h-3 w-3" />
+        </ContextMenuPrimitive.CheckboxItemIndicator>
+      </span>
+      {children}
+    </ContextMenuPrimitive.CheckboxItem>
+  );
+}
+
+export {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  ContextMenuSeparator,
+  ContextMenuGroupLabel,
+  ContextMenuCheckboxItem,
+};

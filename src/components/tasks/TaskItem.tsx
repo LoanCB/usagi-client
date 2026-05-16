@@ -6,13 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
 	ContextMenu,
+	ContextMenuCheckboxItem,
 	ContextMenuContent,
 	ContextMenuItem,
+	ContextMenuGroupLabel,
+	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { PRESET_ICONS } from "@/lib/icons";
 import { cn, formatDate, isOverdue } from "@/lib/utils";
 import { getRepository } from "@/store/repository";
+import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
 import type { Project, Task } from "@/types";
@@ -30,9 +34,15 @@ interface TaskItemProps {
 }
 
 export function TaskItem({ task, project }: TaskItemProps) {
-	const { completeTask, uncompleteTask, deleteTask } = useTaskStore();
+	const { completeTask, uncompleteTask, deleteTask, updateTask } = useTaskStore();
 	const { selectedTaskId, setSelectedTask } = useUIStore();
+	const { tags } = useTagStore();
 	const { t, i18n } = useTranslation();
+
+	const visibleTags = tags.filter((tag) => {
+		if (task.projectId === null) return tag.projectId === null;
+		return tag.projectId === null || tag.projectId === task.projectId;
+	});
 	const isSelected = selectedTaskId === task.id;
 
 	const {
@@ -61,6 +71,14 @@ export function TaskItem({ task, project }: TaskItemProps) {
 
 	async function handleDelete() {
 		await deleteTask(getRepository(), task.id);
+	}
+
+	async function handleTagToggle(tagId: string, checked: boolean) {
+		const currentIds = task.tags.map((t) => t.id);
+		const newIds = checked
+			? [...currentIds, tagId]
+			: currentIds.filter((id) => id !== tagId);
+		await updateTask(getRepository(), task.id, { tagIds: newIds });
 	}
 
 	return (
@@ -165,6 +183,27 @@ export function TaskItem({ task, project }: TaskItemProps) {
 					<Trash2 className="h-4 w-4" />
 					{t("common.delete")}
 				</ContextMenuItem>
+				<ContextMenuSeparator />
+				<ContextMenuGroupLabel>{t("tag.tags")}</ContextMenuGroupLabel>
+				{visibleTags.length === 0 ? (
+					<p className="px-1.5 py-1 text-xs text-muted-foreground">
+						{t("tag.noTags")}
+					</p>
+				) : (
+					visibleTags.map((tag) => (
+						<ContextMenuCheckboxItem
+							key={tag.id}
+							checked={task.tags.some((t) => t.id === tag.id)}
+							onCheckedChange={(checked) => handleTagToggle(tag.id, checked)}
+						>
+							<span
+								className="h-2 w-2 rounded-full shrink-0"
+								style={{ background: tag.color ?? "var(--muted-foreground)" }}
+							/>
+							<span className="truncate">{tag.name}</span>
+						</ContextMenuCheckboxItem>
+					))
+				)}
 			</ContextMenuContent>
 		</ContextMenu>
 	);
