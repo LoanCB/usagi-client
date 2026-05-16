@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/sortable";
 import { format } from "date-fns";
 import { enUS, fr } from "date-fns/locale";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FilterBar } from "@/components/tasks/FilterBar";
@@ -291,8 +291,17 @@ export function TaskList() {
 										onChange={(e) => setSearch(e.target.value)}
 										placeholder={t("task.search")}
 										aria-label={t("task.search")}
-										className="w-28 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
+										className="w-48 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
 									/>
+									<button
+										type="button"
+										onClick={() => setSearch("")}
+										className={`shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors ${search ? "visible" : "invisible"}`}
+										aria-label="Clear search"
+										tabIndex={search ? 0 : -1}
+									>
+										<X className="h-3.5 w-3.5" />
+									</button>
 								</div>
 								{/* New task */}
 								<TaskForm projectId={formProjectId}>
