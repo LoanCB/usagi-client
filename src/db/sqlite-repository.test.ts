@@ -85,10 +85,24 @@ describe("SqliteRepository — projects", () => {
 		const db = makeDb();
 		const repo = new SqliteRepository(db);
 		await repo.deleteProject("proj-1");
-		const [sql, params] = (db.execute as ReturnType<typeof vi.fn>).mock
-			.calls[0];
+		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls;
+		const [sql, params] = calls[2]; // third call: UPDATE projects SET deleted_at
 		expect(sql).toContain("deleted_at");
 		expect(params).toContain("proj-1");
+	});
+
+	it("deleteProject cascades: removes task_tags, soft-deletes tags, then soft-deletes project", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.deleteProject("proj-1");
+		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls;
+		expect(calls).toHaveLength(3);
+		expect(calls[0][0]).toContain("DELETE FROM task_tags");
+		expect(calls[0][1]).toContain("proj-1");
+		expect(calls[1][0]).toContain("UPDATE tags SET deleted_at");
+		expect(calls[1][1]).toContain("proj-1");
+		expect(calls[2][0]).toContain("UPDATE projects SET deleted_at");
+		expect(calls[2][1]).toContain("proj-1");
 	});
 
 	it("updateProject updates specified fields and sets updated_at", async () => {
@@ -116,27 +130,72 @@ describe("SqliteRepository — projects", () => {
 describe("SqliteRepository — tags", () => {
 	it("createTag inserts a row and returns a Tag", async () => {
 		const db = makeDb({
-			select: vi.fn().mockResolvedValueOnce([
-				{
-					id: "tag-1",
-					name: "urgent",
-					color: "#f00",
-					created_at: "2026-04-10T10:00:00.000Z",
-					updated_at: "2026-04-10T10:00:00.000Z",
-				},
-			]),
+			select: vi
+				.fn()
+				.mockResolvedValueOnce([
+					{ id: "tag-1", name: "urgent", color: "#f00", project_id: null },
+				]),
 		});
 		const repo = new SqliteRepository(db);
 		const tag = await repo.createTag({ name: "urgent", color: "#f00" });
 		expect(tag.name).toBe("urgent");
 		expect(tag.color).toBe("#f00");
+		expect(tag.projectId).toBeNull();
+	});
+
+	it("createTag with projectId persists project_id", async () => {
+		const db = makeDb({
+			select: vi
+				.fn()
+				.mockResolvedValueOnce([
+					{ id: "tag-2", name: "work-tag", color: null, project_id: "proj-1" },
+				]),
+		});
+		const repo = new SqliteRepository(db);
+		await repo.createTag({ name: "work-tag", projectId: "proj-1" });
+		const [, params] = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(params).toContain("proj-1");
+	});
+
+	it("getTags without argument returns all tags", async () => {
+		const db = makeDb({
+			select: vi
+				.fn()
+				.mockResolvedValueOnce([{ id: "t1", name: "work", color: null, project_id: null }]),
+		});
+		const repo = new SqliteRepository(db);
+		const tags = await repo.getTags();
+		expect(tags).toHaveLength(1);
+		expect(tags[0].projectId).toBeNull();
+		const [sql] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(sql).toContain("deleted_at IS NULL");
+		expect(sql).not.toContain("AND project_id");
+	});
+
+	it("getTags(null) returns only generic tags", async () => {
+		const db = makeDb({ select: vi.fn().mockResolvedValueOnce([]) });
+		const repo = new SqliteRepository(db);
+		await repo.getTags(null);
+		const [sql] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(sql).toContain("project_id IS NULL");
+		expect(sql).not.toContain("OR project_id IS NULL");
+	});
+
+	it("getTags('proj-1') returns project tags and generic tags", async () => {
+		const db = makeDb({ select: vi.fn().mockResolvedValueOnce([]) });
+		const repo = new SqliteRepository(db);
+		await repo.getTags("proj-1");
+		const [sql, params] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(sql).toContain("project_id = ?");
+		expect(sql).toContain("OR project_id IS NULL");
+		expect(params).toContain("proj-1");
 	});
 
 	it("getTags returns only non-deleted rows", async () => {
 		const db = makeDb({
 			select: vi
 				.fn()
-				.mockResolvedValueOnce([{ id: "t1", name: "work", color: null }]),
+				.mockResolvedValueOnce([{ id: "t1", name: "work", color: null, project_id: null }]),
 		});
 		const repo = new SqliteRepository(db);
 		const tags = await repo.getTags();
@@ -149,8 +208,7 @@ describe("SqliteRepository — tags", () => {
 		const db = makeDb();
 		const repo = new SqliteRepository(db);
 		await repo.deleteTag("tag-1");
-		const [sql, params] = (db.execute as ReturnType<typeof vi.fn>).mock
-			.calls[0];
+		const [sql, params] = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
 		expect(sql).toContain("deleted_at");
 		expect(params).toContain("tag-1");
 	});
@@ -159,13 +217,48 @@ describe("SqliteRepository — tags", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
-				.mockResolvedValueOnce([{ id: "t1", name: "urgent", color: "#f00" }]),
+				.mockResolvedValueOnce([{ id: "t1", name: "urgent", color: "#f00", project_id: null }]),
 		});
 		const repo = new SqliteRepository(db);
 		await repo.updateTag("t1", { color: "#f00" });
 		const [sql] = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
 		expect(sql).toContain("color = ?");
 		expect(sql).toContain("updated_at = ?");
+	});
+
+	it("updateTag with projectId updates project_id field", async () => {
+		const db = makeDb({
+			select: vi
+				.fn()
+				.mockResolvedValueOnce([{ id: "t1", name: "urgent", color: null, project_id: "proj-1" }]),
+		});
+		const repo = new SqliteRepository(db);
+		await repo.updateTag("t1", { projectId: "proj-1" });
+		const [sql, params] = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(sql).toContain("project_id = ?");
+		expect(params).toContain("proj-1");
+	});
+
+	it("isTagUsedInProjectTasks returns true when tag is used by a task in a project", async () => {
+		const db = makeDb({
+			select: vi.fn().mockResolvedValueOnce([{ count: 2 }]),
+		});
+		const repo = new SqliteRepository(db);
+		const result = await repo.isTagUsedInProjectTasks("tag-1");
+		expect(result).toBe(true);
+		const [sql, params] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(sql).toContain("task_tags");
+		expect(sql).toContain("project_id IS NOT NULL");
+		expect(params).toContain("tag-1");
+	});
+
+	it("isTagUsedInProjectTasks returns false when tag has no project tasks", async () => {
+		const db = makeDb({
+			select: vi.fn().mockResolvedValueOnce([{ count: 0 }]),
+		});
+		const repo = new SqliteRepository(db);
+		const result = await repo.isTagUsedInProjectTasks("tag-1");
+		expect(result).toBe(false);
 	});
 });
 

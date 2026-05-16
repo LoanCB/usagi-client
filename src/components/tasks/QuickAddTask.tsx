@@ -53,6 +53,7 @@ export function QuickAddTask({ projectId }: QuickAddTaskProps) {
 				selectedTagIds={tagIds}
 				onChange={setTagIds}
 				triggerClassName="text-muted-foreground"
+				projectId={projectId}
 			/>
 		</div>
 	);

@@ -29,10 +29,11 @@ export interface TodoRepository {
 	deleteProject(id: string): Promise<void>;
 
 	// Tags
-	getTags(): Promise<Tag[]>;
+	getTags(projectId?: string | null): Promise<Tag[]>;
 	createTag(input: CreateTagInput): Promise<Tag>;
 	updateTag(id: string, patch: Partial<CreateTagInput>): Promise<Tag>;
 	deleteTag(id: string): Promise<void>;
+	isTagUsedInProjectTasks(tagId: string): Promise<boolean>;
 
 	// Settings
 	getSettings(): Promise<Record<string, string>>;

@@ -71,6 +71,8 @@ const en = {
 		namePlaceholder: "Tag name",
 		delete: "Delete tag",
 		edit: "Edit tag",
+		generic: "Generic",
+		projectConstraint: "This tag is used by tasks in a project and cannot be reassigned.",
 	},
 	app: {
 		loading: "Loading…",

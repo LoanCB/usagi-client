@@ -4,6 +4,7 @@ export interface Tag {
 	id: string;
 	name: string;
 	color: string | null;
+	projectId: string | null;
 }
 
 export interface Task {
@@ -56,4 +57,5 @@ export interface CreateProjectInput {
 export interface CreateTagInput {
 	name: string;
 	color?: string;
+	projectId?: string | null;
 }

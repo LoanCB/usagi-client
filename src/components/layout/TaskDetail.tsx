@@ -142,6 +142,7 @@ export function TaskDetail({ width }: TaskDetailProps) {
 				<TagSelector
 					selectedTagIds={task.tags.map((t) => t.id)}
 					onChange={handleTagsChange}
+					projectId={task.projectId}
 				/>
 			</div>
 

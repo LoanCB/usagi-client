@@ -181,16 +181,24 @@ export class MemoryRepository implements TodoRepository {
 	}
 
 	async deleteProject(id: string): Promise<void> {
-		this.projects.delete(id);
-		for (const [tid, task] of this.tasks) {
-			if (task.projectId === id) {
-				this.tasks.set(tid, { ...task, projectId: null });
-			}
+		const projectTagIds = Array.from(this.tags.values())
+			.filter((t) => t.projectId === id)
+			.map((t) => t.id);
+		for (const tagId of projectTagIds) {
+			this.tags.delete(tagId);
 		}
+		for (const [tid, task] of this.tasks) {
+			const filteredTags = task.tags.filter((t) => !projectTagIds.includes(t.id));
+			this.tasks.set(tid, { ...task, tags: filteredTags });
+		}
+		this.projects.delete(id);
 	}
 
-	async getTags(): Promise<Tag[]> {
-		return Array.from(this.tags.values());
+	async getTags(projectId?: string | null): Promise<Tag[]> {
+		const all = Array.from(this.tags.values());
+		if (projectId === undefined) return all;
+		if (projectId === null) return all.filter((t) => t.projectId === null);
+		return all.filter((t) => t.projectId === null || t.projectId === projectId);
 	}
 
 	async createTag(input: CreateTagInput): Promise<Tag> {
@@ -198,6 +206,7 @@ export class MemoryRepository implements TodoRepository {
 			id: uuid(),
 			name: input.name,
 			color: input.color ?? null,
+			projectId: input.projectId ?? null,
 		};
 		this.tags.set(tag.id, tag);
 		return tag;
@@ -213,6 +222,12 @@ export class MemoryRepository implements TodoRepository {
 
 	async deleteTag(id: string): Promise<void> {
 		this.tags.delete(id);
+	}
+
+	async isTagUsedInProjectTasks(tagId: string): Promise<boolean> {
+		return Array.from(this.tasks.values()).some(
+			(task) => task.projectId !== null && task.tags.some((t) => t.id === tagId),
+		);
 	}
 
 	async getSettings(): Promise<Record<string, string>> {

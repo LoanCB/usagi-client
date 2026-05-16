@@ -73,6 +73,8 @@ const fr: typeof en = {
 		namePlaceholder: "Nom du tag",
 		delete: "Supprimer le tag",
 		edit: "Modifier le tag",
+		generic: "Générique",
+		projectConstraint: "Ce tag est utilisé par des tâches dans un projet et ne peut pas être réaffecté.",
 	},
 	app: {
 		loading: "Chargement…",
