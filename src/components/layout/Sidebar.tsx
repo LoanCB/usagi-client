@@ -61,7 +61,7 @@ function NavItem({
 			type="button"
 			onClick={onClick}
 			className={cn(
-				"flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm transition-colors",
+				"flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm transition-colors text-left",
 				"border-l-2 border-transparent",
 				"text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-primary/50",
 				active &&
