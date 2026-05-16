@@ -13,7 +13,7 @@ export function AppShell() {
 	const { selectedTaskId, selectedProjectId } = useUIStore();
 	const parallaxEnabled = useSettingsStore((s) => s.parallaxEnabled);
 	const glassmorphismEnabled = useSettingsStore((s) => s.glassmorphismEnabled);
-	const { width, isDragging, onMouseDown } = useResizable({
+	const { width, isDragging, onMouseDown, onDoubleClick } = useResizable({
 		storageKey: "task-detail-width",
 		defaultWidth: 320,
 		minWidth: 240,
@@ -64,7 +64,7 @@ export function AppShell() {
 				{selectedProjectId === "tags" ? <TagManager /> : <TaskList />}
 				{showDetail && (
 					<>
-						<ResizeHandle onMouseDown={onMouseDown} isDragging={isDragging} />
+						<ResizeHandle onMouseDown={onMouseDown} onDoubleClick={onDoubleClick} isDragging={isDragging} />
 						<TaskDetail width={width} />
 					</>
 				)}

@@ -11,6 +11,7 @@ interface UseResizableResult {
 	width: number;
 	isDragging: boolean;
 	onMouseDown: (e: React.MouseEvent) => void;
+	onDoubleClick: () => void;
 }
 
 function readStoredWidth(storageKey: string, defaultWidth: number): number {
@@ -77,5 +78,10 @@ export function useResizable({
 		};
 	}, [isDragging, minWidth, maxWidth, storageKey]);
 
-	return { width, isDragging, onMouseDown };
+	const onDoubleClick = useCallback(() => {
+		setWidth(defaultWidth);
+		localStorage.setItem(storageKey, String(defaultWidth));
+	}, [defaultWidth, storageKey]);
+
+	return { width, isDragging, onMouseDown, onDoubleClick };
 }
