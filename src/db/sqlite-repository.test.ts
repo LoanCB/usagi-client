@@ -231,12 +231,13 @@ describe("SqliteRepository — tasks", () => {
 		expect(params).toContain("proj-1");
 	});
 
-	it("getTasks with no filters excludes completed tasks", async () => {
+	it("getTasks with no filters hides old completed tasks but shows today's", async () => {
 		const db = makeDb({ select: vi.fn().mockResolvedValue([]) });
 		const repo = new SqliteRepository(db);
 		await repo.getTasks();
 		const [sql] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
 		expect(sql).toContain("completed_at IS NULL");
+		expect(sql).toContain("date('now', 'localtime')");
 	});
 
 	it("completeTask sets completed_at", async () => {

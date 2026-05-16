@@ -31,7 +31,14 @@ export class MemoryRepository implements TodoRepository {
 		let results = Array.from(this.tasks.values());
 
 		if (filters.completed !== true) {
-			results = results.filter((t) => t.completedAt === null);
+			const now = new Date();
+			const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+			results = results.filter((t) => {
+				if (t.completedAt === null) return true;
+				const d = new Date(t.completedAt);
+				const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+				return localDate >= todayStr;
+			});
 		}
 
 		if (filters.projectId !== undefined) {

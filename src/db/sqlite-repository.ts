@@ -233,7 +233,9 @@ export class SqliteRepository implements TodoRepository {
 		if (filters?.completed === true) {
 			conditions.push("t.completed_at IS NOT NULL");
 		} else {
-			conditions.push("t.completed_at IS NULL");
+			conditions.push(
+				"(t.completed_at IS NULL OR date(t.completed_at, 'localtime') >= date('now', 'localtime'))",
+			);
 		}
 
 		if (filters?.dueBefore) {
