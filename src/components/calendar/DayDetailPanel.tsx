@@ -12,6 +12,7 @@ interface DayDetailPanelProps {
   readonly onClose: () => void;
   readonly onTaskClick: (task: Task) => void;
   readonly focusTrigger?: number;
+  readonly projectFilter?: string | null;
 }
 
 export function DayDetailPanel({
@@ -21,6 +22,7 @@ export function DayDetailPanel({
   onClose,
   onTaskClick,
   focusTrigger,
+  projectFilter,
 }: DayDetailPanelProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language === "fr" ? fr : enUS;
@@ -80,7 +82,7 @@ export function DayDetailPanel({
       </div>
 
       <div className="shrink-0 border-t border-border/40 py-1">
-        <QuickAddTask projectId={null} dueDate={day} focusTrigger={focusTrigger} />
+        <QuickAddTask projectId={projectFilter ?? null} dueDate={day} focusTrigger={focusTrigger} />
       </div>
     </div>
   );

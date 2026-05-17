@@ -30,6 +30,10 @@ const fr: typeof en = {
 		noTasks: "Aucune tâche pour ce jour",
 		newTask: "Nouvelle tâche pour ce jour",
 		closeDay: "Fermer le détail du jour",
+		filter: {
+			allProjects: "Tous les projets",
+			trigger: "Filtre projet",
+		},
 	},
 	sort: {
 		urgency: "Trier par urgence",

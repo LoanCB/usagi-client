@@ -22,6 +22,10 @@ export function CalendarView() {
   const tasks = useTaskStore((s) => s.tasks);
   const { setSelectedTask } = useUIStore();
 
+  const [calendarProjectFilter, setCalendarProjectFilter] = useState<
+    string | null | undefined
+  >(undefined);
+
   const { width, isDragging, onMouseDown, onDoubleClick } = useResizable({
     storageKey: "calendar-day-panel-width",
     defaultWidth: 280,
@@ -33,7 +37,18 @@ export function CalendarView() {
     loadTasks(getRepository(), { allTasks: true });
   }, [loadTasks]);
 
-  const grouped = useMemo(() => groupTasksByDate(tasks), [tasks]);
+  const filteredTasks = useMemo(
+    () =>
+      calendarProjectFilter === undefined
+        ? tasks
+        : tasks.filter((t) => t.projectId === calendarProjectFilter),
+    [tasks, calendarProjectFilter],
+  );
+
+  const grouped = useMemo(
+    () => groupTasksByDate(filteredTasks),
+    [filteredTasks],
+  );
 
   function handlePrev() {
     setCurrentDate((d) =>
@@ -79,6 +94,8 @@ export function CalendarView() {
         onPrev={handlePrev}
         onNext={handleNext}
         onDateChange={handleDateChange}
+        projectFilter={calendarProjectFilter}
+        onProjectFilterChange={setCalendarProjectFilter}
       />
 
       <div className="flex flex-1 overflow-hidden min-w-0">
@@ -117,6 +134,7 @@ export function CalendarView() {
               onClose={() => setSelectedDay(null)}
               onTaskClick={handleTaskClick}
               focusTrigger={quickAddFocusTrigger}
+              projectFilter={calendarProjectFilter}
             />
           </>
         )}

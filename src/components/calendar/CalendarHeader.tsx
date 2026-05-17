@@ -11,6 +11,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { CalendarProjectFilter } from "./CalendarProjectFilter";
 
 export type CalendarViewMode = "month" | "week";
 
@@ -21,6 +22,8 @@ interface CalendarHeaderProps {
   readonly onPrev: () => void;
   readonly onNext: () => void;
   readonly onDateChange: (date: Date) => void;
+  readonly projectFilter: string | null | undefined;
+  readonly onProjectFilterChange: (value: string | null | undefined) => void;
 }
 
 export function CalendarHeader({
@@ -30,6 +33,8 @@ export function CalendarHeader({
   onPrev,
   onNext,
   onDateChange,
+  projectFilter,
+  onProjectFilterChange,
 }: CalendarHeaderProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language === "fr" ? fr : enUS;
@@ -74,6 +79,10 @@ export function CalendarHeader({
         </Popover>
       </div>
       <div className="flex items-center gap-2">
+        <CalendarProjectFilter
+          value={projectFilter}
+          onChange={onProjectFilterChange}
+        />
         <div className="flex rounded-lg overflow-hidden border border-border/40">
           <button
             type="button"

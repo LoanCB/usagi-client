@@ -28,6 +28,10 @@ const en = {
 		noTasks: "No tasks for this day",
 		newTask: "New task for this day",
 		closeDay: "Close day detail",
+		filter: {
+			allProjects: "All projects",
+			trigger: "Project filter",
+		},
 	},
 	sort: {
 		urgency: "Sort by urgency",
