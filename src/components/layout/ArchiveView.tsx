@@ -1,8 +1,8 @@
 import { RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDate } from "@/lib/utils";
 import { useProjectStore } from "@/store/projects";
@@ -19,7 +19,7 @@ export function ArchiveView() {
 
 	useEffect(() => {
 		loadArchivedTasks(repo);
-	}, []);
+	}, [loadArchivedTasks, repo]);
 
 	return (
 		<div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">

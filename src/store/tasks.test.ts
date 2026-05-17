@@ -76,7 +76,11 @@ describe("useTaskStore", () => {
 	});
 
 	it("deleteTask hard-deletes task from tasks state", async () => {
-		useTaskStore.setState({ tasks: [baseTask], archivedTasks: [], loading: false });
+		useTaskStore.setState({
+			tasks: [baseTask],
+			archivedTasks: [],
+			loading: false,
+		});
 		const repo = makeRepo({ deleteTask: vi.fn().mockResolvedValue(undefined) });
 		const { result } = renderHook(() => useTaskStore());
 		await act(async () => {
@@ -126,8 +130,14 @@ describe("useTaskStore", () => {
 	});
 
 	it("archiveTask removes task from tasks array", async () => {
-		useTaskStore.setState({ tasks: [baseTask], archivedTasks: [], loading: false });
-		const repo = makeRepo({ archiveTask: vi.fn().mockResolvedValue(undefined) });
+		useTaskStore.setState({
+			tasks: [baseTask],
+			archivedTasks: [],
+			loading: false,
+		});
+		const repo = makeRepo({
+			archiveTask: vi.fn().mockResolvedValue(undefined),
+		});
 		const { result } = renderHook(() => useTaskStore());
 		await act(async () => {
 			await result.current.archiveTask(repo, "t1");
@@ -163,7 +173,9 @@ describe("useTaskStore", () => {
 			archivedTasks: [archivedTask],
 			loading: false,
 		});
-		const repo = makeRepo({ unarchiveTask: vi.fn().mockResolvedValue(undefined) });
+		const repo = makeRepo({
+			unarchiveTask: vi.fn().mockResolvedValue(undefined),
+		});
 		const { result } = renderHook(() => useTaskStore());
 		await act(async () => {
 			await result.current.unarchiveTask(repo, "t2");

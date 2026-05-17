@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { ArchiveView } from "@/components/layout/ArchiveView";
 import { CalendarView } from "@/components/calendar/CalendarView";
+import { ArchiveView } from "@/components/layout/ArchiveView";
 import { TagManager } from "@/components/tags/TagManager";
 import { useOrbParallax } from "@/hooks/useOrbParallax";
 import { useResizable } from "@/hooks/useResizable";
@@ -76,7 +76,11 @@ export function AppShell() {
 				{renderMainPanel()}
 				{showDetail && (
 					<>
-						<ResizeHandle onMouseDown={onMouseDown} onDoubleClick={onDoubleClick} isDragging={isDragging} />
+						<ResizeHandle
+							onMouseDown={onMouseDown}
+							onDoubleClick={onDoubleClick}
+							isDragging={isDragging}
+						/>
 						<TaskDetail width={width} />
 					</>
 				)}

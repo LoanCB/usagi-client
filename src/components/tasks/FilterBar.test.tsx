@@ -6,8 +6,8 @@ import { useTagStore } from "@/store/tags";
 import { useUIStore } from "@/store/ui";
 
 const mockTags = [
-	{ id: "tag1", name: "Work", color: "#e11d48" },
-	{ id: "tag2", name: "Personal", color: "#16a34a" },
+	{ id: "tag1", name: "Work", color: "#e11d48", projectId: null },
+	{ id: "tag2", name: "Personal", color: "#16a34a", projectId: null },
 ];
 
 beforeEach(() => {

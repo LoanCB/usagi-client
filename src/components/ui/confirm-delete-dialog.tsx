@@ -22,7 +22,11 @@ export function ConfirmDeleteDialog({
 }: ConfirmDeleteDialogProps) {
 	const { t } = useTranslation();
 	return (
-		<Dialog open={open} onOpenChange={(v) => !v && onCancel()} disablePointerDismissal>
+		<Dialog
+			open={open}
+			onOpenChange={(v) => !v && onCancel()}
+			disablePointerDismissal
+		>
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>{t("common.deleteConfirmTitle")}</DialogTitle>

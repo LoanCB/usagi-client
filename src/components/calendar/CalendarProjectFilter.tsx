@@ -72,7 +72,9 @@ export function CalendarProjectFilter({
 				style={triggerStyle}
 			>
 				{value === undefined && (
-					<span className="truncate min-w-0">{t("calendar.filter.allProjects")}</span>
+					<span className="truncate min-w-0">
+						{t("calendar.filter.allProjects")}
+					</span>
 				)}
 				{value === null && (
 					<>
@@ -90,7 +92,9 @@ export function CalendarProjectFilter({
 					</>
 				)}
 				{typeof value === "string" && !selectedProject && (
-					<span className="truncate min-w-0 opacity-60">{t("calendar.filter.allProjects")}</span>
+					<span className="truncate min-w-0 opacity-60">
+						{t("calendar.filter.allProjects")}
+					</span>
 				)}
 				<span className="opacity-40 text-[10px]">▾</span>
 			</PopoverTrigger>
@@ -98,7 +102,10 @@ export function CalendarProjectFilter({
 				<div className="space-y-0.5">
 					<button
 						type="button"
-						onClick={() => { onChange(undefined); setOpen(false); }}
+						onClick={() => {
+							onChange(undefined);
+							setOpen(false);
+						}}
 						className={cn(
 							"flex items-center gap-2 w-full px-2 py-1.5 rounded-sm text-sm hover:bg-accent transition-colors",
 							value === undefined && "bg-accent",
@@ -107,13 +114,14 @@ export function CalendarProjectFilter({
 						<span className="flex-1 text-left truncate">
 							{t("calendar.filter.allProjects")}
 						</span>
-						{value === undefined && (
-							<Check className="h-3.5 w-3.5 shrink-0" />
-						)}
+						{value === undefined && <Check className="h-3.5 w-3.5 shrink-0" />}
 					</button>
 					<button
 						type="button"
-						onClick={() => { onChange(null); setOpen(false); }}
+						onClick={() => {
+							onChange(null);
+							setOpen(false);
+						}}
 						className={cn(
 							"flex items-center gap-2 w-full px-2 py-1.5 rounded-sm text-sm hover:bg-accent transition-colors",
 							value === null && "bg-accent",
@@ -130,7 +138,10 @@ export function CalendarProjectFilter({
 							<button
 								type="button"
 								key={project.id}
-								onClick={() => { onChange(project.id); setOpen(false); }}
+								onClick={() => {
+									onChange(project.id);
+									setOpen(false);
+								}}
 								className={cn(
 									"flex items-center gap-2 w-full px-2 py-1.5 rounded-sm text-sm hover:bg-accent transition-colors",
 									selected && "bg-accent",

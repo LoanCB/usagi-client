@@ -19,8 +19,14 @@ interface TaskDetailProps {
 }
 
 export function TaskDetail({ width }: TaskDetailProps) {
-	const { tasks, updateTask, completeTask, uncompleteTask, deleteTask, archiveTask } =
-		useTaskStore();
+	const {
+		tasks,
+		updateTask,
+		completeTask,
+		uncompleteTask,
+		deleteTask,
+		archiveTask,
+	} = useTaskStore();
 	const { selectedTaskId, setSelectedTask } = useUIStore();
 	const { t } = useTranslation();
 

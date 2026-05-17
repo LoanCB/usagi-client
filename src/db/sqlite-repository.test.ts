@@ -163,7 +163,9 @@ describe("SqliteRepository — tags", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
-				.mockResolvedValueOnce([{ id: "t1", name: "work", color: null, project_id: null }]),
+				.mockResolvedValueOnce([
+					{ id: "t1", name: "work", color: null, project_id: null },
+				]),
 		});
 		const repo = new SqliteRepository(db);
 		const tags = await repo.getTags();
@@ -197,7 +199,9 @@ describe("SqliteRepository — tags", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
-				.mockResolvedValueOnce([{ id: "t1", name: "work", color: null, project_id: null }]),
+				.mockResolvedValueOnce([
+					{ id: "t1", name: "work", color: null, project_id: null },
+				]),
 		});
 		const repo = new SqliteRepository(db);
 		const tags = await repo.getTags();
@@ -210,7 +214,8 @@ describe("SqliteRepository — tags", () => {
 		const db = makeDb();
 		const repo = new SqliteRepository(db);
 		await repo.deleteTag("tag-1");
-		const [sql, params] = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
+		const [sql, params] = (db.execute as ReturnType<typeof vi.fn>).mock
+			.calls[0];
 		expect(sql).toContain("deleted_at");
 		expect(params).toContain("tag-1");
 	});
@@ -219,7 +224,9 @@ describe("SqliteRepository — tags", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
-				.mockResolvedValueOnce([{ id: "t1", name: "urgent", color: "#f00", project_id: null }]),
+				.mockResolvedValueOnce([
+					{ id: "t1", name: "urgent", color: "#f00", project_id: null },
+				]),
 		});
 		const repo = new SqliteRepository(db);
 		await repo.updateTag("t1", { color: "#f00" });
@@ -232,11 +239,14 @@ describe("SqliteRepository — tags", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
-				.mockResolvedValueOnce([{ id: "t1", name: "urgent", color: null, project_id: "proj-1" }]),
+				.mockResolvedValueOnce([
+					{ id: "t1", name: "urgent", color: null, project_id: "proj-1" },
+				]),
 		});
 		const repo = new SqliteRepository(db);
 		await repo.updateTag("t1", { projectId: "proj-1" });
-		const [sql, params] = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
+		const [sql, params] = (db.execute as ReturnType<typeof vi.fn>).mock
+			.calls[0];
 		expect(sql).toContain("project_id = ?");
 		expect(params).toContain("proj-1");
 	});
@@ -360,15 +370,20 @@ describe("SqliteRepository — tasks", () => {
 		const repo = new SqliteRepository(db);
 		await repo.deleteTask("task-1");
 		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls;
-		expect(calls.some(([sql]: [string]) => sql.includes("DELETE FROM tasks"))).toBe(true);
-		expect(calls.some(([_sql, params]: [string, unknown[]]) => params?.includes("task-1"))).toBe(true);
+		expect(
+			calls.some((call) => (call[0] as string).includes("DELETE FROM tasks")),
+		).toBe(true);
+		expect(
+			calls.some((call) => (call[1] as unknown[])?.includes("task-1")),
+		).toBe(true);
 	});
 
 	it("archiveTask sets deleted_at (soft delete)", async () => {
 		const db = makeDb();
 		const repo = new SqliteRepository(db);
 		await repo.archiveTask("task-1");
-		const [sql, params] = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
+		const [sql, params] = (db.execute as ReturnType<typeof vi.fn>).mock
+			.calls[0];
 		expect(sql).toContain("deleted_at");
 		expect(params).toContain("task-1");
 	});

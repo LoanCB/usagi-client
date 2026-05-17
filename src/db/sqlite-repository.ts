@@ -66,7 +66,12 @@ function mapProject(row: ProjectRow): Project {
 }
 
 function mapTag(row: TagRow): Tag {
-	return { id: row.id, name: row.name, color: row.color, projectId: row.project_id };
+	return {
+		id: row.id,
+		name: row.name,
+		color: row.color,
+		projectId: row.project_id,
+	};
 }
 
 function mapTask(row: TaskRow, tags: Tag[]): Task {
@@ -467,9 +472,12 @@ export class SqliteRepository implements TodoRepository {
 		const byTaskId = new Map<string, Tag[]>();
 		for (const row of tagRows) {
 			if (!byTaskId.has(row.task_id)) byTaskId.set(row.task_id, []);
-			byTaskId
-				.get(row.task_id)
-				?.push({ id: row.tag_id, name: row.name, color: row.color, projectId: row.project_id });
+			byTaskId.get(row.task_id)?.push({
+				id: row.tag_id,
+				name: row.name,
+				color: row.color,
+				projectId: row.project_id,
+			});
 		}
 		return taskRows.map((row) => mapTask(row, byTaskId.get(row.id) ?? []));
 	}

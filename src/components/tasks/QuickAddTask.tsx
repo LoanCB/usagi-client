@@ -10,7 +10,11 @@ interface QuickAddTaskProps {
 	readonly focusTrigger?: number;
 }
 
-export function QuickAddTask({ projectId, dueDate, focusTrigger }: QuickAddTaskProps) {
+export function QuickAddTask({
+	projectId,
+	dueDate,
+	focusTrigger,
+}: QuickAddTaskProps) {
 	const [title, setTitle] = useState("");
 	const [tagIds, setTagIds] = useState<string[]>([]);
 	const inputRef = useRef<HTMLInputElement>(null);

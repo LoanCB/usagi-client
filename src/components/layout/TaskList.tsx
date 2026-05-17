@@ -481,7 +481,8 @@ export function TaskList() {
 			<ConfirmDeleteDialog
 				open={confirmDeleteId !== null}
 				onConfirm={async () => {
-					if (confirmDeleteId) await deleteTask(getRepository(), confirmDeleteId);
+					if (confirmDeleteId)
+						await deleteTask(getRepository(), confirmDeleteId);
 					setConfirmDeleteId(null);
 				}}
 				onCancel={() => setConfirmDeleteId(null)}

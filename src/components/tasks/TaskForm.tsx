@@ -91,7 +91,11 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
 							placeholder={t("task.descriptionPlaceholder")}
 						/>
 					</div>
-					<TagSelector selectedTagIds={tagIds} onChange={setTagIds} projectId={projectId} />
+					<TagSelector
+						selectedTagIds={tagIds}
+						onChange={setTagIds}
+						projectId={projectId}
+					/>
 					<div className="flex gap-3">
 						<Select
 							value={priority}

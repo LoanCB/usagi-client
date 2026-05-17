@@ -47,7 +47,12 @@ describe("useTagStore", () => {
 	});
 
 	it("createTag appends new tag to list", async () => {
-		const newTag: Tag = { id: "tag-2", name: "work", color: "#3b82f6", projectId: null };
+		const newTag: Tag = {
+			id: "tag-2",
+			name: "work",
+			color: "#3b82f6",
+			projectId: null,
+		};
 		const repo = makeRepo({
 			createTag: vi.fn().mockResolvedValue(newTag),
 		});

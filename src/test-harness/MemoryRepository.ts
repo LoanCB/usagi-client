@@ -166,7 +166,7 @@ export class MemoryRepository implements TodoRepository {
 	async getArchivedTasks(): Promise<Task[]> {
 		return Array.from(this.tasks.values())
 			.filter((t) => t.deletedAt !== null)
-			.sort((a, b) => (b.deletedAt! > a.deletedAt! ? 1 : -1));
+			.sort((a, b) => ((b.deletedAt ?? "") > (a.deletedAt ?? "") ? 1 : -1));
 	}
 
 	async reorderTasks(orderedIds: string[]): Promise<void> {
@@ -215,7 +215,9 @@ export class MemoryRepository implements TodoRepository {
 			this.tags.delete(tagId);
 		}
 		for (const [tid, task] of this.tasks) {
-			const filteredTags = task.tags.filter((t) => !projectTagIds.includes(t.id));
+			const filteredTags = task.tags.filter(
+				(t) => !projectTagIds.includes(t.id),
+			);
 			this.tasks.set(tid, { ...task, tags: filteredTags });
 		}
 		this.projects.delete(id);
@@ -253,7 +255,8 @@ export class MemoryRepository implements TodoRepository {
 
 	async isTagUsedInProjectTasks(tagId: string): Promise<boolean> {
 		return Array.from(this.tasks.values()).some(
-			(task) => task.projectId !== null && task.tags.some((t) => t.id === tagId),
+			(task) =>
+				task.projectId !== null && task.tags.some((t) => t.id === tagId),
 		);
 	}
 

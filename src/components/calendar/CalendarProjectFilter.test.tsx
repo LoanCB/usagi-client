@@ -5,8 +5,24 @@ import { CalendarProjectFilter } from "@/components/calendar/CalendarProjectFilt
 import { useProjectStore } from "@/store/projects";
 
 const mockProjects = [
-	{ id: "p1", name: "Dev", color: "#6ee7b7", icon: "folder", sortOrder: 0 },
-	{ id: "p2", name: "Perso", color: "#60a5fa", icon: "star", sortOrder: 1 },
+	{
+		id: "p1",
+		name: "Dev",
+		color: "#6ee7b7",
+		icon: "folder",
+		sortOrder: 0,
+		createdAt: "2026-01-01T00:00:00.000Z",
+		updatedAt: "2026-01-01T00:00:00.000Z",
+	},
+	{
+		id: "p2",
+		name: "Perso",
+		color: "#60a5fa",
+		icon: "star",
+		sortOrder: 1,
+		createdAt: "2026-01-01T00:00:00.000Z",
+		updatedAt: "2026-01-01T00:00:00.000Z",
+	},
 ];
 
 beforeEach(() => {

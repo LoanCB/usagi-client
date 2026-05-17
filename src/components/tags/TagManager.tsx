@@ -2,17 +2,17 @@ import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { Input } from "@/components/ui/input";
 import { PRESET_COLORS } from "@/lib/colors";
 import { PRESET_ICONS } from "@/lib/icons";
-import { getRepository } from "@/store/repository";
 import { useProjectStore } from "@/store/projects";
+import { getRepository } from "@/store/repository";
 import { useTagStore } from "@/store/tags";
 import type { Tag } from "@/types";
 
@@ -121,13 +121,19 @@ export function TagManager() {
 
 	const genericTags = tags.filter((t) => t.projectId === null);
 	const projectGroups = projects
-		.map((p) => ({ project: p, tags: tags.filter((t) => t.projectId === p.id) }))
+		.map((p) => ({
+			project: p,
+			tags: tags.filter((t) => t.projectId === p.id),
+		}))
 		.filter((g) => g.tags.length > 0);
 
 	function renderTag(tag: Tag) {
 		if (editingId === tag.id) {
 			return (
-				<div key={tag.id} className="rounded-md border border-border p-3 space-y-1.5 mb-1">
+				<div
+					key={tag.id}
+					className="rounded-md border border-border p-3 space-y-1.5 mb-1"
+				>
 					<div className="flex items-center gap-2">
 						<span
 							className="h-2.5 w-2.5 rounded-full shrink-0"
@@ -167,14 +173,16 @@ export function TagManager() {
 						disabled={editConstrained}
 					/>
 					{editConstrained && (
-						<p className="text-xs text-muted-foreground">{t("tag.projectConstraint")}</p>
+						<p className="text-xs text-muted-foreground">
+							{t("tag.projectConstraint")}
+						</p>
 					)}
 				</div>
 			);
 		}
 		return (
 			<ContextMenu key={tag.id}>
-				<ContextMenuTrigger asChild>
+				<ContextMenuTrigger>
 					<div className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-accent/40 group">
 						<span
 							className="h-2.5 w-2.5 rounded-full shrink-0"
@@ -247,10 +255,18 @@ export function TagManager() {
 						<ColorPicker value={newColor} onChange={setNewColor} />
 						<TagProjectSelect value={newProjectId} onChange={setNewProjectId} />
 						<div className="flex gap-2 justify-end">
-							<Button size="sm" variant="outline" onClick={() => setShowNew(false)}>
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={() => setShowNew(false)}
+							>
 								<X className="h-3.5 w-3.5" />
 							</Button>
-							<Button size="sm" disabled={!newName.trim()} onClick={handleCreate}>
+							<Button
+								size="sm"
+								disabled={!newName.trim()}
+								onClick={handleCreate}
+							>
 								<Check className="h-3.5 w-3.5" />
 							</Button>
 						</div>
@@ -273,7 +289,9 @@ export function TagManager() {
 				)}
 
 				{projectGroups.map(({ project, tags: ptags }) => {
-					const iconDef = PRESET_ICONS.find((i) => i.name === project.icon) ?? PRESET_ICONS[0];
+					const iconDef =
+						PRESET_ICONS.find((i) => i.name === project.icon) ??
+						PRESET_ICONS[0];
 					const ProjectIcon = iconDef.icon;
 					return (
 						<div key={project.id} className="mt-2">

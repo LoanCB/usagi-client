@@ -51,7 +51,12 @@ export default function App() {
 			try {
 				const db = await Database.load("sqlite:usagi.db");
 				// Run migrations sequentially (idempotent)
-				for (const migration of [migrationSql, migration002, migration003, migration004]) {
+				for (const migration of [
+					migrationSql,
+					migration002,
+					migration003,
+					migration004,
+				]) {
 					for (const statement of migration
 						.split(";")
 						.map((s) => s.trim())

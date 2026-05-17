@@ -8,8 +8,8 @@ import {
 	ContextMenu,
 	ContextMenuCheckboxItem,
 	ContextMenuContent,
-	ContextMenuItem,
 	ContextMenuGroupLabel,
+	ContextMenuItem,
 	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
@@ -35,7 +35,8 @@ interface TaskItemProps {
 }
 
 export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
-	const { completeTask, uncompleteTask, archiveTask, updateTask } = useTaskStore();
+	const { completeTask, uncompleteTask, archiveTask, updateTask } =
+		useTaskStore();
 	const { selectedTaskId, setSelectedTask } = useUIStore();
 	const { tags } = useTagStore();
 	const { t, i18n } = useTranslation();
