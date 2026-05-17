@@ -4,6 +4,7 @@ import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { groupTasksByDate } from "@/lib/calendarUtils";
 import { useResizable } from "@/hooks/useResizable";
 import { getRepository } from "@/store/repository";
+import { useProjectStore } from "@/store/projects";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
 import type { Task } from "@/types";
@@ -21,6 +22,7 @@ export function CalendarView() {
   const { loadTasks } = useTaskStore();
   const tasks = useTaskStore((s) => s.tasks);
   const { setSelectedTask } = useUIStore();
+  const projects = useProjectStore((s) => s.projects);
 
   const [calendarProjectFilter, setCalendarProjectFilter] = useState<
     string | null | undefined
@@ -135,6 +137,7 @@ export function CalendarView() {
               onTaskClick={handleTaskClick}
               focusTrigger={quickAddFocusTrigger}
               projectFilter={calendarProjectFilter}
+              projects={projects}
             />
           </>
         )}

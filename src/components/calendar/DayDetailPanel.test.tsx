@@ -10,6 +10,8 @@ import type { Task } from "@/types";
 const mockRepository = {} as any;
 const mockCreateTask = vi.fn().mockResolvedValue({});
 
+const noProjects: [] = [];
+
 const base: Task = {
   id: "t1",
   title: "Design homepage",
@@ -49,6 +51,7 @@ describe("DayDetailPanel", () => {
         width={280}
         onClose={vi.fn()}
         onTaskClick={vi.fn()}
+        projects={noProjects}
       />,
     );
     expect(
@@ -64,6 +67,7 @@ describe("DayDetailPanel", () => {
         width={280}
         onClose={vi.fn()}
         onTaskClick={vi.fn()}
+        projects={noProjects}
       />,
     );
     expect(screen.getByText("Design homepage")).toBeInTheDocument();
@@ -81,6 +85,7 @@ describe("DayDetailPanel", () => {
         width={280}
         onClose={vi.fn()}
         onTaskClick={vi.fn()}
+        projects={noProjects}
       />,
     );
     expect(screen.getByText("Design homepage")).toHaveClass("line-through");
@@ -96,6 +101,7 @@ describe("DayDetailPanel", () => {
         width={280}
         onClose={vi.fn()}
         onTaskClick={onTaskClick}
+        projects={noProjects}
       />,
     );
     await user.click(screen.getByText("Design homepage"));
@@ -112,6 +118,7 @@ describe("DayDetailPanel", () => {
         width={280}
         onClose={onClose}
         onTaskClick={vi.fn()}
+        projects={noProjects}
       />,
     );
     await user.click(
