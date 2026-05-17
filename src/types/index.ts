@@ -37,6 +37,7 @@ export interface TaskFilters {
 	priority?: Priority;
 	completed?: boolean; // undefined = non-completed only (default)
 	dueBefore?: string; // ISO date, inclusive
+	allTasks?: boolean; // when true, returns all tasks regardless of completion status
 }
 
 export interface CreateTaskInput {

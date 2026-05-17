@@ -267,7 +267,9 @@ export class SqliteRepository implements TodoRepository {
 			params.push(filters.priority);
 		}
 
-		if (filters?.completed === true) {
+		if (filters?.allTasks) {
+			// no completion filter — return all tasks
+		} else if (filters?.completed === true) {
 			conditions.push("t.completed_at IS NOT NULL");
 		} else {
 			conditions.push(

@@ -14,7 +14,7 @@ interface UIStore {
 
 export const useUIStore = create<UIStore>((set) => ({
 	sidebarCollapsed: false,
-	selectedProjectId: undefined, // special sentinels: null=Inbox, "today"=Today, "tags"=TagManager, undefined=All
+	selectedProjectId: undefined, // special sentinels: null=Inbox, "today"=Today, "tags"=TagManager, "calendar"=CalendarView, undefined=All
 	selectedTaskId: null,
 	activeFilters: {},
 

@@ -16,10 +16,18 @@ const en = {
 		today: "Today",
 		allTasks: "All tasks",
 		tags: "Tags",
+		calendar: "Calendar",
 		projects: "Projects",
 		newProject: "New project",
 		expandSidebar: "Expand sidebar",
 		collapseSidebar: "Collapse sidebar",
+	},
+	calendar: {
+		month: "Month",
+		week: "Week",
+		noTasks: "No tasks for this day",
+		newTask: "New task for this day",
+		closeDay: "Close day detail",
 	},
 	sort: {
 		urgency: "Sort by urgency",

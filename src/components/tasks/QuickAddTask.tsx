@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TagSelector } from "@/components/tasks/TagSelector";
 import { getRepository } from "@/store/repository";
@@ -6,12 +6,18 @@ import { useTaskStore } from "@/store/tasks";
 
 interface QuickAddTaskProps {
 	readonly projectId: string | null | undefined;
+	readonly dueDate?: string | null;
+	readonly focusTrigger?: number;
 }
 
-export function QuickAddTask({ projectId }: QuickAddTaskProps) {
+export function QuickAddTask({ projectId, dueDate, focusTrigger }: QuickAddTaskProps) {
 	const [title, setTitle] = useState("");
 	const [tagIds, setTagIds] = useState<string[]>([]);
 	const inputRef = useRef<HTMLInputElement>(null);
+
+	useEffect(() => {
+		if (focusTrigger) inputRef.current?.focus();
+	}, [focusTrigger]);
 	const createTask = useTaskStore((s) => s.createTask);
 	const { t } = useTranslation();
 
@@ -24,6 +30,7 @@ export function QuickAddTask({ projectId }: QuickAddTaskProps) {
 					title: trimmed,
 					projectId: projectId ?? null,
 					tagIds,
+					...(dueDate !== undefined && dueDate !== null ? { dueDate } : {}),
 				});
 				setTitle("");
 				setTagIds([]);
@@ -47,7 +54,7 @@ export function QuickAddTask({ projectId }: QuickAddTaskProps) {
 				onKeyDown={handleKeyDown}
 				placeholder={t("task.titlePlaceholder")}
 				aria-label={t("task.titlePlaceholder")}
-				className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
+				className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
 			/>
 			<TagSelector
 				selectedTagIds={tagIds}

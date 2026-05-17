@@ -18,10 +18,18 @@ const fr: typeof en = {
 		today: "Aujourd'hui",
 		allTasks: "Toutes les tâches",
 		tags: "Tags",
+		calendar: "Calendrier",
 		projects: "Projets",
 		newProject: "Nouveau projet",
 		expandSidebar: "Développer la sidebar",
 		collapseSidebar: "Réduire la sidebar",
+	},
+	calendar: {
+		month: "Mois",
+		week: "Semaine",
+		noTasks: "Aucune tâche pour ce jour",
+		newTask: "Nouvelle tâche pour ce jour",
+		closeDay: "Fermer le détail du jour",
 	},
 	sort: {
 		urgency: "Trier par urgence",

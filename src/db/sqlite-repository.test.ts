@@ -444,6 +444,26 @@ describe("SqliteRepository — tasks", () => {
 	});
 });
 
+describe("SqliteRepository — getTasks filters", () => {
+	it("allTasks: true omits the completed_at WHERE condition", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.getTasks({ allTasks: true });
+		const [sql] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
+		// completed_at must still appear in SELECT, but not in a WHERE condition
+		expect(sql).not.toContain("completed_at IS NULL");
+		expect(sql).not.toContain("completed_at IS NOT NULL");
+	});
+
+	it("allTasks absent applies default non-completed WHERE filter", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.getTasks({});
+		const [sql] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(sql).toContain("completed_at IS NULL");
+	});
+});
+
 describe("SqliteRepository — settings", () => {
 	it("getSettings returns all rows as a key-value record", async () => {
 		const db = makeDb({

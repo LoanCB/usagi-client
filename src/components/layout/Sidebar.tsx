@@ -1,5 +1,6 @@
 import {
 	Calendar,
+	CalendarDays,
 	ChevronLeft,
 	ChevronRight,
 	ListChecks,
@@ -285,6 +286,13 @@ export function Sidebar() {
 						active={selectedProjectId === "tags"}
 						collapsed={sidebarCollapsed}
 						onClick={() => setSelectedProject("tags")}
+					/>
+					<NavItem
+						icon={<CalendarDays className="h-4 w-4" />}
+						label={t("nav.calendar")}
+						active={selectedProjectId === "calendar"}
+						collapsed={sidebarCollapsed}
+						onClick={() => setSelectedProject("calendar")}
 					/>
 				</div>
 
