@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, TriangleAlert } from "lucide-react";
+import { Archive, GripVertical, Trash2, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -31,10 +31,11 @@ const PRIORITY_BORDER_COLORS: Record<string, string> = {
 interface TaskItemProps {
 	readonly task: Task;
 	readonly project?: Project;
+	readonly onDeleteRequest: (id: string) => void;
 }
 
-export function TaskItem({ task, project }: TaskItemProps) {
-	const { completeTask, uncompleteTask, deleteTask, updateTask } = useTaskStore();
+export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
+	const { completeTask, uncompleteTask, archiveTask, updateTask } = useTaskStore();
 	const { selectedTaskId, setSelectedTask } = useUIStore();
 	const { tags } = useTagStore();
 	const { t, i18n } = useTranslation();
@@ -69,8 +70,8 @@ export function TaskItem({ task, project }: TaskItemProps) {
 		else await uncompleteTask(repo, task.id);
 	}
 
-	async function handleDelete() {
-		await deleteTask(getRepository(), task.id);
+	async function handleArchive() {
+		await archiveTask(getRepository(), task.id);
 	}
 
 	async function handleTagToggle(tagId: string, checked: boolean) {
@@ -179,7 +180,15 @@ export function TaskItem({ task, project }: TaskItemProps) {
 				)}
 			</ContextMenuTrigger>
 			<ContextMenuContent>
-				<ContextMenuItem variant="destructive" onClick={handleDelete}>
+				<ContextMenuItem onClick={handleArchive}>
+					<Archive className="h-4 w-4" />
+					{t("task.archive")}
+				</ContextMenuItem>
+				<ContextMenuItem
+					variant="destructive"
+					closeOnClick={false}
+					onClick={() => onDeleteRequest(task.id)}
+				>
 					<Trash2 className="h-4 w-4" />
 					{t("common.delete")}
 				</ContextMenuItem>

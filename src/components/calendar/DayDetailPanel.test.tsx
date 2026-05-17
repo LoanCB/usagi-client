@@ -20,6 +20,7 @@ const base: Task = {
   priority: "none",
   dueDate: "2026-05-17",
   completedAt: null,
+  deletedAt: null,
   tags: [],
   sortOrder: 0,
   createdAt: "2026-05-01T10:00:00.000Z",

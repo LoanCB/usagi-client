@@ -5,6 +5,8 @@ const fr: typeof en = {
 		cancel: "Annuler",
 		save: "Enregistrer",
 		delete: "Supprimer",
+		deleteConfirmTitle: "Supprimer définitivement ?",
+		deleteConfirmMessage: "Cette action est irréversible.",
 		create: "Créer",
 		edit: "Modifier",
 		color: "Couleur",
@@ -19,6 +21,7 @@ const fr: typeof en = {
 		allTasks: "Toutes les tâches",
 		tags: "Tags",
 		calendar: "Calendrier",
+		archives: "Archives",
 		projects: "Projets",
 		newProject: "Nouveau projet",
 		expandSidebar: "Développer la sidebar",
@@ -46,6 +49,8 @@ const fr: typeof en = {
 		descriptionPlaceholder: "Ajouter une note…",
 		noTasks: "Aucune tâche",
 		delete: "Supprimer la tâche",
+		archive: "Archiver la tâche",
+		restore: "Restaurer",
 		close: "Fermer le détail",
 		markComplete: "Marquer comme terminée",
 		markIncomplete: "Marquer comme non terminée",
@@ -137,6 +142,10 @@ const fr: typeof en = {
 		statPending: "À faire",
 		statDone: "Terminées",
 		statTotal: "Total",
+	},
+	archive: {
+		empty: "Aucune tâche archivée",
+		archivedOn: "Archivée le {{date}}",
 	},
 } as const;
 

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { ArchiveView } from "@/components/layout/ArchiveView";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { TagManager } from "@/components/tags/TagManager";
 import { useOrbParallax } from "@/hooks/useOrbParallax";
@@ -28,11 +29,13 @@ export function AppShell() {
 
 	const showDetail =
 		selectedTaskId &&
-		selectedProjectId !== "tags";
+		selectedProjectId !== "tags" &&
+		selectedProjectId !== "archives";
 
 	function renderMainPanel() {
 		if (selectedProjectId === "tags") return <TagManager />;
 		if (selectedProjectId === "calendar") return <CalendarView />;
+		if (selectedProjectId === "archives") return <ArchiveView />;
 		return <TaskList />;
 	}
 

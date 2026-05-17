@@ -3,6 +3,8 @@ const en = {
 		cancel: "Cancel",
 		save: "Save",
 		delete: "Delete",
+		deleteConfirmTitle: "Delete permanently?",
+		deleteConfirmMessage: "This action is permanent and cannot be undone.",
 		create: "Create",
 		edit: "Edit",
 		color: "Color",
@@ -17,6 +19,7 @@ const en = {
 		allTasks: "All tasks",
 		tags: "Tags",
 		calendar: "Calendar",
+		archives: "Archives",
 		projects: "Projects",
 		newProject: "New project",
 		expandSidebar: "Expand sidebar",
@@ -44,6 +47,8 @@ const en = {
 		descriptionPlaceholder: "Add a note…",
 		noTasks: "No tasks",
 		delete: "Delete task",
+		archive: "Archive task",
+		restore: "Restore",
 		close: "Close detail",
 		markComplete: "Mark complete",
 		markIncomplete: "Mark incomplete",
@@ -135,6 +140,10 @@ const en = {
 		statPending: "Pending",
 		statDone: "Done",
 		statTotal: "Total",
+	},
+	archive: {
+		empty: "No archived tasks",
+		archivedOn: "Archived on {{date}}",
 	},
 };
 

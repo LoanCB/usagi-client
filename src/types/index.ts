@@ -15,6 +15,7 @@ export interface Task {
 	priority: Priority;
 	dueDate: string | null; // ISO 8601 date string
 	completedAt: string | null; // ISO 8601 datetime, null = not completed
+	deletedAt: string | null;
 	tags: Tag[];
 	sortOrder: number;
 	createdAt: string;

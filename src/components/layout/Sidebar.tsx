@@ -1,4 +1,5 @@
 import {
+	ArchiveX,
 	Calendar,
 	CalendarDays,
 	ChevronLeft,
@@ -293,6 +294,13 @@ export function Sidebar() {
 						active={selectedProjectId === "calendar"}
 						collapsed={sidebarCollapsed}
 						onClick={() => setSelectedProject("calendar")}
+					/>
+					<NavItem
+						icon={<ArchiveX className="h-4 w-4" />}
+						label={t("nav.archives")}
+						active={selectedProjectId === "archives"}
+						collapsed={sidebarCollapsed}
+						onClick={() => setSelectedProject("archives")}
 					/>
 				</div>
 

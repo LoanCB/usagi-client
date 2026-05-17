@@ -28,17 +28,23 @@ export class MemoryRepository implements TodoRepository {
 	private sortCounter = 0;
 
 	async getTasks(filters: TaskFilters = {}): Promise<Task[]> {
-		let results = Array.from(this.tasks.values());
+		let results = Array.from(this.tasks.values()).filter(
+			(t) => t.deletedAt === null,
+		);
 
-		if (filters.completed !== true) {
-			const now = new Date();
-			const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-			results = results.filter((t) => {
-				if (t.completedAt === null) return true;
-				const d = new Date(t.completedAt);
-				const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-				return localDate >= todayStr;
-			});
+		if (!filters.allTasks) {
+			if (filters.completed === true) {
+				results = results.filter((t) => t.completedAt !== null);
+			} else {
+				const now = new Date();
+				const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+				results = results.filter((t) => {
+					if (t.completedAt === null) return true;
+					const d = new Date(t.completedAt);
+					const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+					return localDate >= todayStr;
+				});
+			}
 		}
 
 		if (filters.projectId !== undefined) {
@@ -66,7 +72,9 @@ export class MemoryRepository implements TodoRepository {
 	}
 
 	async getTask(id: string): Promise<Task | null> {
-		return this.tasks.get(id) ?? null;
+		const task = this.tasks.get(id) ?? null;
+		if (task === null || task.deletedAt !== null) return null;
+		return task;
 	}
 
 	async createTask(input: CreateTaskInput): Promise<Task> {
@@ -82,6 +90,7 @@ export class MemoryRepository implements TodoRepository {
 			priority: (input.priority as Priority) ?? "none",
 			dueDate: input.dueDate ?? null,
 			completedAt: null,
+			deletedAt: null,
 			tags: tagObjects,
 			sortOrder: ++this.sortCounter,
 			createdAt: now(),
@@ -138,8 +147,26 @@ export class MemoryRepository implements TodoRepository {
 		return updated;
 	}
 
+	async archiveTask(id: string): Promise<void> {
+		const task = this.tasks.get(id);
+		if (!task) return;
+		this.tasks.set(id, { ...task, deletedAt: now(), updatedAt: now() });
+	}
+
 	async deleteTask(id: string): Promise<void> {
 		this.tasks.delete(id);
+	}
+
+	async unarchiveTask(id: string): Promise<void> {
+		const task = this.tasks.get(id);
+		if (!task) return;
+		this.tasks.set(id, { ...task, deletedAt: null, updatedAt: now() });
+	}
+
+	async getArchivedTasks(): Promise<Task[]> {
+		return Array.from(this.tasks.values())
+			.filter((t) => t.deletedAt !== null)
+			.sort((a, b) => (b.deletedAt! > a.deletedAt! ? 1 : -1));
 	}
 
 	async reorderTasks(orderedIds: string[]): Promise<void> {

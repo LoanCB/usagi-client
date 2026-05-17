@@ -6,10 +6,12 @@ import { SqliteRepository } from "./sqlite-repository";
 interface TaskRow {
 	id: string;
 	title: string;
+	description: string | null;
 	project_id: string | null;
 	priority: string;
 	due_date: string | null;
 	completed_at: string | null;
+	deleted_at: string | null;
 	sort_order: number;
 	created_at: string;
 	updated_at: string;
@@ -266,10 +268,12 @@ describe("SqliteRepository — tasks", () => {
 	const taskRow: TaskRow = {
 		id: "task-1",
 		title: "Préparer la démo",
+		description: null,
 		project_id: "proj-1",
 		priority: "high",
 		due_date: "2026-04-12",
 		completed_at: null,
+		deleted_at: null,
 		sort_order: 0,
 		created_at: "2026-04-10T10:00:00.000Z",
 		updated_at: "2026-04-10T10:00:00.000Z",
@@ -351,12 +355,20 @@ describe("SqliteRepository — tasks", () => {
 		expect(sql).toContain("completed_at");
 	});
 
-	it("deleteTask sets deleted_at (soft delete)", async () => {
+	it("deleteTask hard-deletes the task", async () => {
 		const db = makeDb();
 		const repo = new SqliteRepository(db);
 		await repo.deleteTask("task-1");
-		const [sql, params] = (db.execute as ReturnType<typeof vi.fn>).mock
-			.calls[0];
+		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls;
+		expect(calls.some(([sql]: [string]) => sql.includes("DELETE FROM tasks"))).toBe(true);
+		expect(calls.some(([_sql, params]: [string, unknown[]]) => params?.includes("task-1"))).toBe(true);
+	});
+
+	it("archiveTask sets deleted_at (soft delete)", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.archiveTask("task-1");
+		const [sql, params] = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
 		expect(sql).toContain("deleted_at");
 		expect(params).toContain("task-1");
 	});

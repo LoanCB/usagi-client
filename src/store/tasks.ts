@@ -5,10 +5,12 @@ import type { CreateTaskInput, Task, TaskFilters } from "@/types";
 
 interface TaskStore {
 	tasks: Task[];
+	archivedTasks: Task[];
 	loading: boolean;
 	allCount: number;
 	todayCount: number;
 	loadTasks(repo: TodoRepository, filters?: TaskFilters): Promise<void>;
+	loadArchivedTasks(repo: TodoRepository): Promise<void>;
 	refreshCounts(repo: TodoRepository): Promise<void>;
 	createTask(repo: TodoRepository, input: CreateTaskInput): Promise<Task>;
 	updateTask(
@@ -18,12 +20,15 @@ interface TaskStore {
 	): Promise<void>;
 	completeTask(repo: TodoRepository, id: string): Promise<void>;
 	uncompleteTask(repo: TodoRepository, id: string): Promise<void>;
+	archiveTask(repo: TodoRepository, id: string): Promise<void>;
 	deleteTask(repo: TodoRepository, id: string): Promise<void>;
+	unarchiveTask(repo: TodoRepository, id: string): Promise<void>;
 	reorderTasks(repo: TodoRepository, orderedIds: string[]): Promise<void>;
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
 	tasks: [],
+	archivedTasks: [],
 	loading: false,
 	allCount: 0,
 	todayCount: 0,
@@ -43,6 +48,11 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 			get().refreshCounts(repo),
 		]);
 		set({ tasks, loading: false });
+	},
+
+	async loadArchivedTasks(repo) {
+		const archivedTasks = await repo.getArchivedTasks();
+		set({ archivedTasks });
 	},
 
 	async createTask(repo, input) {
@@ -70,15 +80,34 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 		get().refreshCounts(repo);
 	},
 
-	async deleteTask(repo, id) {
-		await repo.deleteTask(id);
+	async archiveTask(repo, id) {
+		await repo.archiveTask(id);
 		set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
 		get().refreshCounts(repo);
 	},
 
+	async deleteTask(repo, id) {
+		await repo.deleteTask(id);
+		set((s) => ({
+			tasks: s.tasks.filter((t) => t.id !== id),
+			archivedTasks: s.archivedTasks.filter((t) => t.id !== id),
+		}));
+		get().refreshCounts(repo);
+	},
+
+	async unarchiveTask(repo, id) {
+		await repo.unarchiveTask(id);
+		set((s) => {
+			const task = s.archivedTasks.find((t) => t.id === id);
+			return {
+				archivedTasks: s.archivedTasks.filter((t) => t.id !== id),
+				tasks: task ? [...s.tasks, { ...task, deletedAt: null }] : s.tasks,
+			};
+		});
+	},
+
 	async reorderTasks(repo, orderedIds) {
 		const prev = get().tasks;
-		// Optimistic update: reorder in-memory immediately
 		set((s) => {
 			const byId = new Map(s.tasks.map((t) => [t.id, t]));
 			const reordered = orderedIds
@@ -93,7 +122,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 		try {
 			await repo.reorderTasks(orderedIds);
 		} catch (e) {
-			set({ tasks: prev }); // rollback on DB failure
+			set({ tasks: prev });
 			throw e;
 		}
 	},

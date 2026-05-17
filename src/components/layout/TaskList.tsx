@@ -22,6 +22,7 @@ import { FilterBar } from "@/components/tasks/FilterBar";
 import { QuickAddTask } from "@/components/tasks/QuickAddTask";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { TaskItem } from "@/components/tasks/TaskItem";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { matchesShortcut } from "@/lib/shortcuts";
 import { todayIso } from "@/lib/utils";
@@ -77,7 +78,8 @@ function byProjectName(projectMap: Map<string, string>) {
 
 export function TaskList() {
 	const { t, i18n } = useTranslation();
-	const { tasks, loadTasks, reorderTasks } = useTaskStore();
+	const { tasks, loadTasks, reorderTasks, deleteTask } = useTaskStore();
+	const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 	const projects = useProjectStore((s) => s.projects);
 	const { selectedProjectId, activeFilters, selectedTaskId, setSelectedTask } =
 		useUIStore();
@@ -417,6 +419,7 @@ export function TaskList() {
 												? projects.find((p) => p.id === task.projectId)
 												: undefined
 										}
+										onDeleteRequest={setConfirmDeleteId}
 									/>
 								))}
 							</div>
@@ -449,6 +452,7 @@ export function TaskList() {
 										? projects.find((p) => p.id === task.projectId)
 										: undefined
 								}
+								onDeleteRequest={setConfirmDeleteId}
 							/>,
 						);
 					});
@@ -474,6 +478,14 @@ export function TaskList() {
 				})()}
 			</ScrollArea>
 			<QuickAddTask projectId={formProjectId} />
+			<ConfirmDeleteDialog
+				open={confirmDeleteId !== null}
+				onConfirm={async () => {
+					if (confirmDeleteId) await deleteTask(getRepository(), confirmDeleteId);
+					setConfirmDeleteId(null);
+				}}
+				onCancel={() => setConfirmDeleteId(null)}
+			/>
 		</div>
 	);
 }
