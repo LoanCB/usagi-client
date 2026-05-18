@@ -13,6 +13,7 @@ import { type ReactElement, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
 	Dialog,
 	DialogContent,
@@ -459,41 +460,29 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 									</button>
 								))}
 							</div>
-							<div className="flex items-center justify-between">
-								<label
-									className="text-sm text-foreground cursor-pointer select-none"
-									htmlFor="glass-toggle"
-								>
-									{t("settings.glassmorphism")}
-								</label>
-								<Checkbox
-									id="glass-toggle"
+							<label className="flex items-center justify-between cursor-pointer select-none">
+								<span className="text-sm text-foreground">{t("settings.glassmorphism")}</span>
+								<Switch
 									checked={glassmorphismEnabled}
 									onCheckedChange={(v) =>
-										setGlassmorphismEnabled(getRepository(), v === true)
+										setGlassmorphismEnabled(getRepository(), v)
 									}
 								/>
-							</div>
-							<div
+							</label>
+							<label
 								className={cn(
-									"flex items-center justify-between",
+									"flex items-center justify-between cursor-pointer select-none",
 									!glassmorphismEnabled && "pointer-events-none opacity-40",
 								)}
 							>
-								<label
-									className="text-sm text-foreground cursor-pointer select-none"
-									htmlFor="parallax-toggle"
-								>
-									{t("settings.parallax")}
-								</label>
-								<Checkbox
-									id="parallax-toggle"
+								<span className="text-sm text-foreground">{t("settings.parallax")}</span>
+								<Switch
 									checked={parallaxEnabled}
 									onCheckedChange={(v) =>
-										setParallaxEnabled(getRepository(), v === true)
+										setParallaxEnabled(getRepository(), v)
 									}
 								/>
-							</div>
+							</label>
 						</div>
 
 						<div className="h-px bg-border" />
@@ -589,35 +578,32 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
 								{t("settings.sidebarViews")}
 							</p>
-							{/* biome-ignore lint/a11y/noLabelWithoutControl: label wraps Checkbox which renders a native input */}
-							<label className="flex items-center gap-3 cursor-pointer select-none">
-								<Checkbox
+							<label className="flex items-center justify-between cursor-pointer select-none">
+								<span className="text-sm">{t("nav.calendar")}</span>
+								<Switch
 									checked={calendarVisible}
 									onCheckedChange={(v) =>
-										setCalendarVisible(getRepository(), v === true)
+										setCalendarVisible(getRepository(), v)
 									}
 								/>
-								<span className="text-sm">{t("nav.calendar")}</span>
 							</label>
-							{/* biome-ignore lint/a11y/noLabelWithoutControl: label wraps Checkbox which renders a native input */}
-							<label className="flex items-center gap-3 cursor-pointer select-none">
-								<Checkbox
+							<label className="flex items-center justify-between cursor-pointer select-none">
+								<span className="text-sm">{t("nav.archives")}</span>
+								<Switch
 									checked={archivesVisible}
 									onCheckedChange={(v) =>
-										setArchivesVisible(getRepository(), v === true)
+										setArchivesVisible(getRepository(), v)
 									}
 								/>
-								<span className="text-sm">{t("nav.archives")}</span>
 							</label>
-							{/* biome-ignore lint/a11y/noLabelWithoutControl: label wraps Checkbox which renders a native input */}
-							<label className="flex items-center gap-3 cursor-pointer select-none">
-								<Checkbox
+							<label className="flex items-center justify-between cursor-pointer select-none">
+								<span className="text-sm">{t("nav.tags")}</span>
+								<Switch
 									checked={tagsVisible}
 									onCheckedChange={(v) =>
-										setTagsVisible(getRepository(), v === true)
+										setTagsVisible(getRepository(), v)
 									}
 								/>
-								<span className="text-sm">{t("nav.tags")}</span>
 							</label>
 						</div>
 

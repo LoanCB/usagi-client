@@ -149,6 +149,6 @@ const fr: typeof en = {
 		empty: "Aucune tâche archivée",
 		archivedOn: "Archivée le {{date}}",
 	},
-} as const;
+};
 
 export default fr;
