@@ -48,8 +48,8 @@ export function useOverdueNotifications(tasks: Task[]): void {
 			} else {
 				for (const task of overdue) {
 					await invoke("send_app_notification", {
-						title: task.title,
-						body: t("notifications.overdueTaskBody"),
+						title: t("notifications.overdueTaskBody"),
+						body: task.title,
 					});
 				}
 			}
