@@ -192,3 +192,17 @@ Les migrations sont appliquées automatiquement au démarrage.
 - **Phase 1 (actuelle)** — application locale, SQLite
 - **Phase 2** — synchronisation multi-device via [ElectricSQL](https://electric-sql.com) + PostgreSQL (swap de `SqliteRepository` → `ElectricRepository` sans toucher à l'UI)
 - **Phase 3** — widget mobile, comptes utilisateurs
+
+## License
+
+Licensed under PolyForm Noncommercial 1.0.0.
+
+- ✅ Personal use
+
+- ✅ Modification
+
+- ✅ Redistribution
+
+- ❌ Commercial use without permission
+
+Copyright © 2026 LoanCB
