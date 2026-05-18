@@ -340,6 +340,12 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	const setGlassmorphismEnabled = useSettingsStore(
 		(s) => s.setGlassmorphismEnabled,
 	);
+	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
+	const archivesVisible = useSettingsStore((s) => s.archivesVisible);
+	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
+	const setCalendarVisible = useSettingsStore((s) => s.setCalendarVisible);
+	const setArchivesVisible = useSettingsStore((s) => s.setArchivesVisible);
+	const setTagsVisible = useSettingsStore((s) => s.setTagsVisible);
 
 	const sortUrgency = useShortcutsStore((s) => s.sortUrgency);
 	const sortDueDate = useShortcutsStore((s) => s.sortDueDate);
@@ -578,7 +584,46 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 
 					{/* Right column: Notifications */}
 					<div className="flex-1 min-w-0 flex flex-col pt-4 sm:pt-0 sm:pl-4">
-						<div className="flex flex-col gap-3">
+						{/* Section: Sidebar views */}
+						<div className="flex flex-col gap-3 pb-4">
+							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+								{t("settings.sidebarViews")}
+							</p>
+							{/* biome-ignore lint/a11y/noLabelWithoutControl: label wraps Checkbox which renders a native input */}
+							<label className="flex items-center gap-3 cursor-pointer select-none">
+								<Checkbox
+									checked={calendarVisible}
+									onCheckedChange={(v) =>
+										setCalendarVisible(getRepository(), v === true)
+									}
+								/>
+								<span className="text-sm">{t("nav.calendar")}</span>
+							</label>
+							{/* biome-ignore lint/a11y/noLabelWithoutControl: label wraps Checkbox which renders a native input */}
+							<label className="flex items-center gap-3 cursor-pointer select-none">
+								<Checkbox
+									checked={archivesVisible}
+									onCheckedChange={(v) =>
+										setArchivesVisible(getRepository(), v === true)
+									}
+								/>
+								<span className="text-sm">{t("nav.archives")}</span>
+							</label>
+							{/* biome-ignore lint/a11y/noLabelWithoutControl: label wraps Checkbox which renders a native input */}
+							<label className="flex items-center gap-3 cursor-pointer select-none">
+								<Checkbox
+									checked={tagsVisible}
+									onCheckedChange={(v) =>
+										setTagsVisible(getRepository(), v === true)
+									}
+								/>
+								<span className="text-sm">{t("nav.tags")}</span>
+							</label>
+						</div>
+
+						<div className="h-px bg-border" />
+
+						<div className="flex flex-col gap-3 pt-4">
 							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
 								{t("settings.notifications")}
 							</p>

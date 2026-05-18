@@ -133,6 +133,7 @@ const en = {
 		shortcutsReset: "Reset to defaults",
 		parallax: "Background animation",
 		glassmorphism: "Glassmorphism",
+		sidebarViews: "Sidebar views",
 	},
 	taskList: {
 		remaining_one: "{{count}} remaining",

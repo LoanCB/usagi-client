@@ -135,6 +135,7 @@ const fr: typeof en = {
 		shortcutsReset: "Réinitialiser",
 		parallax: "Animation du fond",
 		glassmorphism: "Glassmorphisme",
+		sidebarViews: "Vues de la sidebar",
 	},
 	taskList: {
 		remaining_one: "{{count}} restante",

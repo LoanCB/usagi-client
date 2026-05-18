@@ -12,7 +12,7 @@ import {
 	Tags,
 	Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import logoUrl from "@/assets/logo.png";
 import { SettingsDialog } from "@/components/layout/SettingsDialog";
@@ -37,6 +37,7 @@ import { PRESET_ICONS } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
+import { useSettingsStore } from "@/store/settings";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
 import type { Project } from "@/types";
@@ -215,6 +216,19 @@ export function Sidebar() {
 	const projects = useProjectStore((s) => s.projects);
 	const allCount = useTaskStore((s) => s.allCount);
 	const todayCount = useTaskStore((s) => s.todayCount);
+	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
+	const archivesVisible = useSettingsStore((s) => s.archivesVisible);
+	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
+
+	useEffect(() => {
+		if (
+			(selectedProjectId === "calendar" && !calendarVisible) ||
+			(selectedProjectId === "archives" && !archivesVisible) ||
+			(selectedProjectId === "tags" && !tagsVisible)
+		) {
+			setSelectedProject(undefined);
+		}
+	}, [selectedProjectId, calendarVisible, archivesVisible, tagsVisible, setSelectedProject]);
 
 	return (
 		<div
@@ -281,27 +295,33 @@ export function Sidebar() {
 						onClick={() => setSelectedProject(undefined)}
 						count={allCount}
 					/>
-					<NavItem
-						icon={<Tags className="h-4 w-4" />}
-						label={t("nav.tags")}
-						active={selectedProjectId === "tags"}
-						collapsed={sidebarCollapsed}
-						onClick={() => setSelectedProject("tags")}
-					/>
-					<NavItem
-						icon={<CalendarDays className="h-4 w-4" />}
-						label={t("nav.calendar")}
-						active={selectedProjectId === "calendar"}
-						collapsed={sidebarCollapsed}
-						onClick={() => setSelectedProject("calendar")}
-					/>
-					<NavItem
-						icon={<ArchiveX className="h-4 w-4" />}
-						label={t("nav.archives")}
-						active={selectedProjectId === "archives"}
-						collapsed={sidebarCollapsed}
-						onClick={() => setSelectedProject("archives")}
-					/>
+					{tagsVisible && (
+						<NavItem
+							icon={<Tags className="h-4 w-4" />}
+							label={t("nav.tags")}
+							active={selectedProjectId === "tags"}
+							collapsed={sidebarCollapsed}
+							onClick={() => setSelectedProject("tags")}
+						/>
+					)}
+					{calendarVisible && (
+						<NavItem
+							icon={<CalendarDays className="h-4 w-4" />}
+							label={t("nav.calendar")}
+							active={selectedProjectId === "calendar"}
+							collapsed={sidebarCollapsed}
+							onClick={() => setSelectedProject("calendar")}
+						/>
+					)}
+					{archivesVisible && (
+						<NavItem
+							icon={<ArchiveX className="h-4 w-4" />}
+							label={t("nav.archives")}
+							active={selectedProjectId === "archives"}
+							collapsed={sidebarCollapsed}
+							onClick={() => setSelectedProject("archives")}
+						/>
+					)}
 				</div>
 
 				<Separator className="my-2 bg-sidebar-border" />

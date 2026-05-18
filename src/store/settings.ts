@@ -12,6 +12,9 @@ interface SettingsStore {
 	notificationTimes: NotificationTime[];
 	parallaxEnabled: boolean;
 	glassmorphismEnabled: boolean;
+	calendarVisible: boolean;
+	archivesVisible: boolean;
+	tagsVisible: boolean;
 	loadSettings(repo: TodoRepository): Promise<void>;
 	setNotificationsEnabled(
 		repo: TodoRepository,
@@ -26,6 +29,9 @@ interface SettingsStore {
 		repo: TodoRepository,
 		enabled: boolean,
 	): Promise<void>;
+	setCalendarVisible(repo: TodoRepository, visible: boolean): Promise<void>;
+	setArchivesVisible(repo: TodoRepository, visible: boolean): Promise<void>;
+	setTagsVisible(repo: TodoRepository, visible: boolean): Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -36,6 +42,9 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 	],
 	parallaxEnabled: true,
 	glassmorphismEnabled: false,
+	calendarVisible: true,
+	archivesVisible: true,
+	tagsVisible: true,
 
 	async loadSettings(repo) {
 		const raw = await repo.getSettings();
@@ -48,11 +57,17 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 				];
 		const parallaxEnabled = raw.parallax_enabled !== "false";
 		const glassmorphismEnabled = raw.glassmorphism_enabled === "true";
+		const calendarVisible = raw.calendar_visible !== "false";
+		const archivesVisible = raw.archives_visible !== "false";
+		const tagsVisible = raw.tags_visible !== "false";
 		set({
 			notificationsEnabled,
 			notificationTimes,
 			parallaxEnabled,
 			glassmorphismEnabled,
+			calendarVisible,
+			archivesVisible,
+			tagsVisible,
 		});
 	},
 
@@ -74,5 +89,20 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 	async setGlassmorphismEnabled(repo, enabled) {
 		await repo.setSetting("glassmorphism_enabled", String(enabled));
 		set({ glassmorphismEnabled: enabled });
+	},
+
+	async setCalendarVisible(repo, visible) {
+		await repo.setSetting("calendar_visible", String(visible));
+		set({ calendarVisible: visible });
+	},
+
+	async setArchivesVisible(repo, visible) {
+		await repo.setSetting("archives_visible", String(visible));
+		set({ archivesVisible: visible });
+	},
+
+	async setTagsVisible(repo, visible) {
+		await repo.setSetting("tags_visible", String(visible));
+		set({ tagsVisible: visible });
 	},
 }));
