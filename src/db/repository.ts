@@ -7,6 +7,7 @@ import type {
 	Task,
 	TaskFilters,
 } from "@/types";
+import type { ExportData } from "@/lib/dataTransfer";
 
 export interface TodoRepository {
 	// Tasks
@@ -21,6 +22,7 @@ export interface TodoRepository {
 	unarchiveTask(id: string): Promise<void>;
 	getArchivedTasks(): Promise<Task[]>;
 	reorderTasks(orderedIds: string[]): Promise<void>;
+	bulkImport(data: ExportData, strategy: "merge" | "replace"): Promise<void>;
 
 	// Projects
 	getProjects(): Promise<Project[]>;

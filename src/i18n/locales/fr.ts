@@ -136,6 +136,7 @@ const fr: typeof en = {
 		parallax: "Animation du fond",
 		glassmorphism: "Glassmorphisme",
 		sidebarViews: "Vues de la sidebar",
+		tabGeneral: "Général",
 	},
 	taskList: {
 		remaining_one: "{{count}} restante",
@@ -148,6 +149,28 @@ const fr: typeof en = {
 	archive: {
 		empty: "Aucune tâche archivée",
 		archivedOn: "Archivée le {{date}}",
+	},
+	data: {
+		title: "Données",
+		exportSection: "Exporter",
+		importSection: "Importer",
+		activeTasks: "Tâches actives",
+		completedTasks: "Tâches complétées",
+		archivedTasks: "Tâches archivées",
+		exportProjects: "Projets",
+		exportTags: "Tags",
+		allProjects: "Tous les projets",
+		export: "Exporter",
+		import: "Importer",
+		importConfirmTitle: "Importer les données",
+		importSummary: "{{tasks}} tâches, {{projects}} projets, {{tags}} tags",
+		merge: "Fusionner",
+		replace: "Remplacer",
+		replaceWarning: "Toutes vos données actuelles seront supprimées définitivement.",
+		exportError: "Échec de l'export",
+		importError: "Fichier invalide ou corrompu",
+		importDescription:
+			"Restaurer depuis un fichier JSON exporté depuis Usagi. Vous pouvez fusionner ou remplacer vos données existantes.",
 	},
 };
 

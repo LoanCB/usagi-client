@@ -134,6 +134,7 @@ const en = {
 		parallax: "Background animation",
 		glassmorphism: "Glassmorphism",
 		sidebarViews: "Sidebar views",
+		tabGeneral: "General",
 	},
 	taskList: {
 		remaining_one: "{{count}} remaining",
@@ -146,6 +147,28 @@ const en = {
 	archive: {
 		empty: "No archived tasks",
 		archivedOn: "Archived on {{date}}",
+	},
+	data: {
+		title: "Data",
+		exportSection: "Export",
+		importSection: "Import",
+		activeTasks: "Active tasks",
+		completedTasks: "Completed tasks",
+		archivedTasks: "Archived tasks",
+		exportProjects: "Projects",
+		exportTags: "Tags",
+		allProjects: "All projects",
+		export: "Export",
+		import: "Import",
+		importConfirmTitle: "Import data",
+		importSummary: "{{tasks}} tasks, {{projects}} projects, {{tags}} tags",
+		merge: "Merge",
+		replace: "Replace",
+		replaceWarning: "All your current data will be permanently deleted.",
+		exportError: "Export failed",
+		importError: "Invalid or corrupted file",
+		importDescription:
+			"Restore from a previously exported JSON file. You will choose to merge or replace your existing data.",
 	},
 };
 

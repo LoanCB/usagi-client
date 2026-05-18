@@ -9,6 +9,7 @@ import type {
 	Task,
 	TaskFilters,
 } from "@/types";
+import type { ExportData } from "@/lib/dataTransfer";
 
 function now(): string {
 	return new Date().toISOString();
@@ -174,6 +175,33 @@ export class MemoryRepository implements TodoRepository {
 			const task = this.tasks.get(id);
 			if (task) this.tasks.set(id, { ...task, sortOrder: index });
 		});
+	}
+
+	async bulkImport(
+		data: ExportData,
+		strategy: "merge" | "replace",
+	): Promise<void> {
+		if (strategy === "replace") {
+			this.tasks.clear();
+			this.tags.clear();
+			this.projects.clear();
+		}
+
+		for (const project of data.projects) {
+			this.projects.set(project.id, project);
+		}
+
+		for (const tag of data.tags) {
+			this.tags.set(tag.id, tag);
+		}
+
+		for (const task of data.tasks) {
+			// Resolve tag references from imported tags map
+			const resolvedTags = task.tags
+				.map((t) => this.tags.get(t.id) ?? t)
+				.filter(Boolean);
+			this.tasks.set(task.id, { ...task, tags: resolvedTags });
+		}
 	}
 
 	async getProjects(): Promise<Project[]> {
