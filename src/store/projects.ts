@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { TodoRepository } from "@/db/repository";
+import { useTagStore } from "@/store/tags";
 import type { CreateProjectInput, Project } from "@/types";
 
 interface ProjectStore {
@@ -41,5 +42,8 @@ export const useProjectStore = create<ProjectStore>((set) => ({
 	async deleteProject(repo, id) {
 		await repo.deleteProject(id);
 		set((s) => ({ projects: s.projects.filter((p) => p.id !== id) }));
+		useTagStore.setState((s) => ({
+			tags: s.tags.filter((t) => t.projectId !== id),
+		}));
 	},
 }));

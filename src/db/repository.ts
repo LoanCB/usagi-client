@@ -16,7 +16,10 @@ export interface TodoRepository {
 	updateTask(id: string, patch: Partial<CreateTaskInput>): Promise<Task>;
 	completeTask(id: string): Promise<Task>;
 	uncompleteTask(id: string): Promise<Task>;
+	archiveTask(id: string): Promise<void>;
 	deleteTask(id: string): Promise<void>;
+	unarchiveTask(id: string): Promise<void>;
+	getArchivedTasks(): Promise<Task[]>;
 	reorderTasks(orderedIds: string[]): Promise<void>;
 
 	// Projects
@@ -29,10 +32,11 @@ export interface TodoRepository {
 	deleteProject(id: string): Promise<void>;
 
 	// Tags
-	getTags(): Promise<Tag[]>;
+	getTags(projectId?: string | null): Promise<Tag[]>;
 	createTag(input: CreateTagInput): Promise<Tag>;
 	updateTag(id: string, patch: Partial<CreateTagInput>): Promise<Tag>;
 	deleteTag(id: string): Promise<void>;
+	isTagUsedInProjectTasks(tagId: string): Promise<boolean>;
 
 	// Settings
 	getSettings(): Promise<Record<string, string>>;

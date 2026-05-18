@@ -1,11 +1,17 @@
 import { create } from "zustand";
 import type { TodoRepository } from "@/db/repository";
+import { todayIso } from "@/lib/utils";
 import type { CreateTaskInput, Task, TaskFilters } from "@/types";
 
 interface TaskStore {
 	tasks: Task[];
+	archivedTasks: Task[];
 	loading: boolean;
+	allCount: number;
+	todayCount: number;
 	loadTasks(repo: TodoRepository, filters?: TaskFilters): Promise<void>;
+	loadArchivedTasks(repo: TodoRepository): Promise<void>;
+	refreshCounts(repo: TodoRepository): Promise<void>;
 	createTask(repo: TodoRepository, input: CreateTaskInput): Promise<Task>;
 	updateTask(
 		repo: TodoRepository,
@@ -14,49 +20,94 @@ interface TaskStore {
 	): Promise<void>;
 	completeTask(repo: TodoRepository, id: string): Promise<void>;
 	uncompleteTask(repo: TodoRepository, id: string): Promise<void>;
+	archiveTask(repo: TodoRepository, id: string): Promise<void>;
 	deleteTask(repo: TodoRepository, id: string): Promise<void>;
+	unarchiveTask(repo: TodoRepository, id: string): Promise<void>;
 	reorderTasks(repo: TodoRepository, orderedIds: string[]): Promise<void>;
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
 	tasks: [],
+	archivedTasks: [],
 	loading: false,
+	allCount: 0,
+	todayCount: 0,
+
+	async refreshCounts(repo) {
+		const [all, today] = await Promise.all([
+			repo.getTasks(),
+			repo.getTasks({ dueBefore: todayIso() }),
+		]);
+		set({ allCount: all.length, todayCount: today.length });
+	},
 
 	async loadTasks(repo, filters) {
 		set({ loading: true });
-		const tasks = await repo.getTasks(filters);
+		const [tasks] = await Promise.all([
+			repo.getTasks(filters),
+			get().refreshCounts(repo),
+		]);
 		set({ tasks, loading: false });
+	},
+
+	async loadArchivedTasks(repo) {
+		const archivedTasks = await repo.getArchivedTasks();
+		set({ archivedTasks });
 	},
 
 	async createTask(repo, input) {
 		const task = await repo.createTask(input);
 		set((s) => ({ tasks: [task, ...s.tasks] }));
+		get().refreshCounts(repo);
 		return task;
 	},
 
 	async updateTask(repo, id, patch) {
 		const updated = await repo.updateTask(id, patch);
 		set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? updated : t)) }));
+		get().refreshCounts(repo);
 	},
 
 	async completeTask(repo, id) {
 		const updated = await repo.completeTask(id);
 		set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? updated : t)) }));
+		get().refreshCounts(repo);
 	},
 
 	async uncompleteTask(repo, id) {
 		const updated = await repo.uncompleteTask(id);
 		set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? updated : t)) }));
+		get().refreshCounts(repo);
+	},
+
+	async archiveTask(repo, id) {
+		await repo.archiveTask(id);
+		set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+		get().refreshCounts(repo);
 	},
 
 	async deleteTask(repo, id) {
 		await repo.deleteTask(id);
-		set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+		set((s) => ({
+			tasks: s.tasks.filter((t) => t.id !== id),
+			archivedTasks: s.archivedTasks.filter((t) => t.id !== id),
+		}));
+		get().refreshCounts(repo);
+	},
+
+	async unarchiveTask(repo, id) {
+		await repo.unarchiveTask(id);
+		set((s) => {
+			const task = s.archivedTasks.find((t) => t.id === id);
+			return {
+				archivedTasks: s.archivedTasks.filter((t) => t.id !== id),
+				tasks: task ? [...s.tasks, { ...task, deletedAt: null }] : s.tasks,
+			};
+		});
 	},
 
 	async reorderTasks(repo, orderedIds) {
 		const prev = get().tasks;
-		// Optimistic update: reorder in-memory immediately
 		set((s) => {
 			const byId = new Map(s.tasks.map((t) => [t.id, t]));
 			const reordered = orderedIds
@@ -71,7 +122,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 		try {
 			await repo.reorderTasks(orderedIds);
 		} catch (e) {
-			set({ tasks: prev }); // rollback on DB failure
+			set({ tasks: prev });
 			throw e;
 		}
 	},

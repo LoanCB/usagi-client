@@ -1,3 +1,4 @@
+import { openUrl } from "@tauri-apps/plugin-opener";
 import Link from "@tiptap/extension-link";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
@@ -37,7 +38,7 @@ export function RichTextEditor({
 			}),
 			TaskList,
 			TaskItem.configure({ nested: true }),
-			Link.configure({ openOnClick: true, autolink: true }),
+			Link.configure({ openOnClick: false, autolink: true }),
 		],
 		content: value,
 		onUpdate({ editor }) {
@@ -51,6 +52,16 @@ export function RichTextEditor({
 				class:
 					"tiptap focus:outline-none text-sm text-muted-foreground focus:text-foreground min-h-[72px] grow px-4 py-3",
 				"data-placeholder": placeholder ?? "",
+			},
+			handleClick(_view, _pos, event) {
+				const target = event.target as HTMLElement;
+				const anchor = target.closest("a");
+				if (anchor?.href) {
+					event.preventDefault();
+					openUrl(anchor.href);
+					return true;
+				}
+				return false;
 			},
 		},
 	});

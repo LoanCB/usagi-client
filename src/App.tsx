@@ -7,6 +7,7 @@ import { createRepository } from "@/db";
 import migrationSql from "@/db/migrations/001_initial.sql?raw";
 import migration002 from "@/db/migrations/002_add_description.sql?raw";
 import migration003 from "@/db/migrations/003_settings.sql?raw";
+import migration004 from "@/db/migrations/004_tags_project_scope.sql?raw";
 import { useOverdueNotifications } from "@/hooks/useOverdueNotifications";
 import { useProjectStore } from "@/store/projects";
 import { getRepository, setRepository } from "@/store/repository";
@@ -50,7 +51,12 @@ export default function App() {
 			try {
 				const db = await Database.load("sqlite:usagi.db");
 				// Run migrations sequentially (idempotent)
-				for (const migration of [migrationSql, migration002, migration003]) {
+				for (const migration of [
+					migrationSql,
+					migration002,
+					migration003,
+					migration004,
+				]) {
 					for (const statement of migration
 						.split(";")
 						.map((s) => s.trim())

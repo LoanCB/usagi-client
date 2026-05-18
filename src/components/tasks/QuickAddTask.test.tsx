@@ -92,4 +92,31 @@ describe("QuickAddTask", () => {
 		await user.keyboard("{Enter}");
 		expect(input).toHaveFocus();
 	});
+
+	it("passes dueDate to createTask when provided", async () => {
+		const user = userEvent.setup();
+		render(<QuickAddTask projectId={null} dueDate="2026-05-20" />);
+		const input = screen.getByRole("textbox");
+		await user.type(input, "Plan meeting");
+		await user.keyboard("{Enter}");
+		expect(mockCreateTask).toHaveBeenCalledWith(expect.anything(), {
+			title: "Plan meeting",
+			projectId: null,
+			tagIds: [],
+			dueDate: "2026-05-20",
+		});
+	});
+
+	it("does not include dueDate in createTask when not provided", async () => {
+		const user = userEvent.setup();
+		render(<QuickAddTask projectId={null} />);
+		const input = screen.getByRole("textbox");
+		await user.type(input, "No date task");
+		await user.keyboard("{Enter}");
+		expect(mockCreateTask).toHaveBeenCalledWith(expect.anything(), {
+			title: "No date task",
+			projectId: null,
+			tagIds: [],
+		});
+	});
 });

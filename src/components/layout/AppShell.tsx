@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import { CalendarView } from "@/components/calendar/CalendarView";
+import { ArchiveView } from "@/components/layout/ArchiveView";
 import { TagManager } from "@/components/tags/TagManager";
 import { useOrbParallax } from "@/hooks/useOrbParallax";
 import { useResizable } from "@/hooks/useResizable";
@@ -13,7 +15,7 @@ export function AppShell() {
 	const { selectedTaskId, selectedProjectId } = useUIStore();
 	const parallaxEnabled = useSettingsStore((s) => s.parallaxEnabled);
 	const glassmorphismEnabled = useSettingsStore((s) => s.glassmorphismEnabled);
-	const { width, isDragging, onMouseDown } = useResizable({
+	const { width, isDragging, onMouseDown, onDoubleClick } = useResizable({
 		storageKey: "task-detail-width",
 		defaultWidth: 320,
 		minWidth: 240,
@@ -25,7 +27,17 @@ export function AppShell() {
 		document.documentElement.classList.toggle("glass", glassmorphismEnabled);
 	}, [glassmorphismEnabled]);
 
-	const showDetail = selectedTaskId && selectedProjectId !== "tags";
+	const showDetail =
+		selectedTaskId &&
+		selectedProjectId !== "tags" &&
+		selectedProjectId !== "archives";
+
+	function renderMainPanel() {
+		if (selectedProjectId === "tags") return <TagManager />;
+		if (selectedProjectId === "calendar") return <CalendarView />;
+		if (selectedProjectId === "archives") return <ArchiveView />;
+		return <TaskList />;
+	}
 
 	return (
 		<div className="app-shell relative flex h-screen overflow-hidden text-foreground">
@@ -61,10 +73,14 @@ export function AppShell() {
 
 			<div className="relative z-10 flex h-full w-full overflow-hidden">
 				<Sidebar />
-				{selectedProjectId === "tags" ? <TagManager /> : <TaskList />}
+				{renderMainPanel()}
 				{showDetail && (
 					<>
-						<ResizeHandle onMouseDown={onMouseDown} isDragging={isDragging} />
+						<ResizeHandle
+							onMouseDown={onMouseDown}
+							onDoubleClick={onDoubleClick}
+							isDragging={isDragging}
+						/>
 						<TaskDetail width={width} />
 					</>
 				)}

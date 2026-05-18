@@ -15,13 +15,14 @@ import {
 } from "@dnd-kit/sortable";
 import { format } from "date-fns";
 import { enUS, fr } from "date-fns/locale";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FilterBar } from "@/components/tasks/FilterBar";
 import { QuickAddTask } from "@/components/tasks/QuickAddTask";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { TaskItem } from "@/components/tasks/TaskItem";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { matchesShortcut } from "@/lib/shortcuts";
 import { todayIso } from "@/lib/utils";
@@ -77,7 +78,8 @@ function byProjectName(projectMap: Map<string, string>) {
 
 export function TaskList() {
 	const { t, i18n } = useTranslation();
-	const { tasks, loadTasks, reorderTasks } = useTaskStore();
+	const { tasks, loadTasks, reorderTasks, deleteTask } = useTaskStore();
+	const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 	const projects = useProjectStore((s) => s.projects);
 	const { selectedProjectId, activeFilters, selectedTaskId, setSelectedTask } =
 		useUIStore();
@@ -291,8 +293,17 @@ export function TaskList() {
 										onChange={(e) => setSearch(e.target.value)}
 										placeholder={t("task.search")}
 										aria-label={t("task.search")}
-										className="w-28 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
+										className="w-48 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
 									/>
+									<button
+										type="button"
+										onClick={() => setSearch("")}
+										className={`shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors ${search ? "visible" : "invisible"}`}
+										aria-label="Clear search"
+										tabIndex={search ? 0 : -1}
+									>
+										<X className="h-3.5 w-3.5" />
+									</button>
 								</div>
 								{/* New task */}
 								<TaskForm projectId={formProjectId}>
@@ -408,6 +419,7 @@ export function TaskList() {
 												? projects.find((p) => p.id === task.projectId)
 												: undefined
 										}
+										onDeleteRequest={setConfirmDeleteId}
 									/>
 								))}
 							</div>
@@ -440,6 +452,7 @@ export function TaskList() {
 										? projects.find((p) => p.id === task.projectId)
 										: undefined
 								}
+								onDeleteRequest={setConfirmDeleteId}
 							/>,
 						);
 					});
@@ -465,6 +478,15 @@ export function TaskList() {
 				})()}
 			</ScrollArea>
 			<QuickAddTask projectId={formProjectId} />
+			<ConfirmDeleteDialog
+				open={confirmDeleteId !== null}
+				onConfirm={async () => {
+					if (confirmDeleteId)
+						await deleteTask(getRepository(), confirmDeleteId);
+					setConfirmDeleteId(null);
+				}}
+				onCancel={() => setConfirmDeleteId(null)}
+			/>
 		</div>
 	);
 }

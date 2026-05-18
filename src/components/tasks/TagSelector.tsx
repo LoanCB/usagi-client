@@ -18,18 +18,26 @@ interface TagSelectorProps {
 	readonly selectedTagIds: string[];
 	readonly onChange: (tagIds: string[]) => void;
 	readonly triggerClassName?: string;
+	readonly projectId?: string | null;
 }
 
 export function TagSelector({
 	selectedTagIds,
 	onChange,
 	triggerClassName,
+	projectId,
 }: TagSelectorProps) {
 	const { t } = useTranslation();
 	const { tags, createTag } = useTagStore();
 	const [newName, setNewName] = useState("");
 	const [newColor, setNewColor] = useState<string>(PRESET_COLORS[5]);
 	const [showCreate, setShowCreate] = useState(false);
+
+	const visibleTags = tags.filter((tag) => {
+		if (projectId === undefined) return true;
+		if (projectId === null) return tag.projectId === null;
+		return tag.projectId === null || tag.projectId === projectId;
+	});
 
 	function toggle(tagId: string) {
 		if (selectedTagIds.includes(tagId)) {
@@ -44,6 +52,7 @@ export function TagSelector({
 		const tag = await createTag(getRepository(), {
 			name: newName.trim(),
 			color: newColor,
+			projectId: projectId ?? null,
 		});
 		onChange([...selectedTagIds, tag.id]);
 		setNewName("");
@@ -51,7 +60,7 @@ export function TagSelector({
 		setShowCreate(false);
 	}
 
-	const selectedTags = tags.filter((t) => selectedTagIds.includes(t.id));
+	const selectedTags = visibleTags.filter((t) => selectedTagIds.includes(t.id));
 
 	return (
 		<Popover>
@@ -88,12 +97,12 @@ export function TagSelector({
 			</PopoverTrigger>
 			<PopoverContent className="w-56 p-2" align="start">
 				<div className="space-y-1">
-					{tags.length === 0 && (
+					{visibleTags.length === 0 && (
 						<p className="px-2 py-1.5 text-xs text-muted-foreground">
 							{t("tag.noTags")}
 						</p>
 					)}
-					{tags.map((tag) => {
+					{visibleTags.map((tag) => {
 						const selected = selectedTagIds.includes(tag.id);
 						return (
 							<button

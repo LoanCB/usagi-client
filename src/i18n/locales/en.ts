@@ -3,6 +3,8 @@ const en = {
 		cancel: "Cancel",
 		save: "Save",
 		delete: "Delete",
+		deleteConfirmTitle: "Delete permanently?",
+		deleteConfirmMessage: "This action is permanent and cannot be undone.",
 		create: "Create",
 		edit: "Edit",
 		color: "Color",
@@ -16,10 +18,23 @@ const en = {
 		today: "Today",
 		allTasks: "All tasks",
 		tags: "Tags",
+		calendar: "Calendar",
+		archives: "Archives",
 		projects: "Projects",
 		newProject: "New project",
 		expandSidebar: "Expand sidebar",
 		collapseSidebar: "Collapse sidebar",
+	},
+	calendar: {
+		month: "Month",
+		week: "Week",
+		noTasks: "No tasks for this day",
+		newTask: "New task for this day",
+		closeDay: "Close day detail",
+		filter: {
+			allProjects: "All projects",
+			trigger: "Project filter",
+		},
 	},
 	sort: {
 		urgency: "Sort by urgency",
@@ -32,6 +47,8 @@ const en = {
 		descriptionPlaceholder: "Add a note…",
 		noTasks: "No tasks",
 		delete: "Delete task",
+		archive: "Archive task",
+		restore: "Restore",
 		close: "Close detail",
 		markComplete: "Mark complete",
 		markIncomplete: "Mark incomplete",
@@ -71,6 +88,9 @@ const en = {
 		namePlaceholder: "Tag name",
 		delete: "Delete tag",
 		edit: "Edit tag",
+		generic: "Generic",
+		projectConstraint:
+			"This tag is used by tasks in a project and cannot be reassigned.",
 	},
 	app: {
 		loading: "Loading…",
@@ -113,6 +133,7 @@ const en = {
 		shortcutsReset: "Reset to defaults",
 		parallax: "Background animation",
 		glassmorphism: "Glassmorphism",
+		sidebarViews: "Sidebar views",
 	},
 	taskList: {
 		remaining_one: "{{count}} remaining",
@@ -121,6 +142,10 @@ const en = {
 		statPending: "Pending",
 		statDone: "Done",
 		statTotal: "Total",
+	},
+	archive: {
+		empty: "No archived tasks",
+		archivedOn: "Archived on {{date}}",
 	},
 };
 

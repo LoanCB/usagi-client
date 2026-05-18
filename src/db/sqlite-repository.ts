@@ -26,6 +26,7 @@ interface TagRow {
 	id: string;
 	name: string;
 	color: string | null;
+	project_id: string | null;
 }
 
 interface TaskRow {
@@ -36,6 +37,7 @@ interface TaskRow {
 	priority: string;
 	due_date: string | null;
 	completed_at: string | null;
+	deleted_at: string | null;
 	sort_order: number;
 	created_at: string;
 	updated_at: string;
@@ -46,6 +48,7 @@ interface TaskTagRow {
 	tag_id: string;
 	name: string;
 	color: string | null;
+	project_id: string | null;
 }
 
 // ---- Mappers ----
@@ -63,7 +66,12 @@ function mapProject(row: ProjectRow): Project {
 }
 
 function mapTag(row: TagRow): Tag {
-	return { id: row.id, name: row.name, color: row.color };
+	return {
+		id: row.id,
+		name: row.name,
+		color: row.color,
+		projectId: row.project_id,
+	};
 }
 
 function mapTask(row: TaskRow, tags: Tag[]): Task {
@@ -75,6 +83,7 @@ function mapTask(row: TaskRow, tags: Tag[]): Task {
 		priority: row.priority as Task["priority"],
 		dueDate: row.due_date,
 		completedAt: row.completed_at,
+		deletedAt: row.deleted_at ?? null,
 		tags,
 		sortOrder: row.sort_order,
 		createdAt: row.created_at,
@@ -140,6 +149,14 @@ export class SqliteRepository implements TodoRepository {
 	async deleteProject(id: string): Promise<void> {
 		const now = new Date().toISOString();
 		await this.db.execute(
+			"DELETE FROM task_tags WHERE tag_id IN (SELECT id FROM tags WHERE project_id = ?)",
+			[id],
+		);
+		await this.db.execute(
+			"UPDATE tags SET deleted_at = ?, updated_at = ? WHERE project_id = ?",
+			[now, now, id],
+		);
+		await this.db.execute(
 			"UPDATE projects SET deleted_at = ?, updated_at = ? WHERE id = ?",
 			[now, now, id],
 		);
@@ -155,9 +172,22 @@ export class SqliteRepository implements TodoRepository {
 
 	// ---------- Tags ----------
 
-	async getTags(): Promise<Tag[]> {
+	async getTags(projectId?: string | null): Promise<Tag[]> {
+		if (projectId === null) {
+			const rows = await this.db.select<TagRow>(
+				"SELECT id, name, color, project_id FROM tags WHERE deleted_at IS NULL AND project_id IS NULL ORDER BY name",
+			);
+			return rows.map(mapTag);
+		}
+		if (projectId !== undefined) {
+			const rows = await this.db.select<TagRow>(
+				"SELECT id, name, color, project_id FROM tags WHERE deleted_at IS NULL AND (project_id = ? OR project_id IS NULL) ORDER BY name",
+				[projectId],
+			);
+			return rows.map(mapTag);
+		}
 		const rows = await this.db.select<TagRow>(
-			"SELECT id, name, color FROM tags WHERE deleted_at IS NULL ORDER BY name",
+			"SELECT id, name, color, project_id FROM tags WHERE deleted_at IS NULL ORDER BY name",
 		);
 		return rows.map(mapTag);
 	}
@@ -166,8 +196,8 @@ export class SqliteRepository implements TodoRepository {
 		const id = crypto.randomUUID();
 		const now = new Date().toISOString();
 		await this.db.execute(
-			"INSERT INTO tags (id, name, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-			[id, input.name, input.color ?? null, now, now],
+			"INSERT INTO tags (id, name, color, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+			[id, input.name, input.color ?? null, input.projectId ?? null, now, now],
 		);
 		const tag = await this._getTag(id);
 		if (!tag) throw new Error(`Tag not found after write: ${id}`);
@@ -185,6 +215,10 @@ export class SqliteRepository implements TodoRepository {
 		if ("color" in patch) {
 			sets.push("color = ?");
 			params.push(patch.color ?? null);
+		}
+		if ("projectId" in patch) {
+			sets.push("project_id = ?");
+			params.push(patch.projectId ?? null);
 		}
 		params.push(id);
 		await this.db.execute(
@@ -206,10 +240,20 @@ export class SqliteRepository implements TodoRepository {
 
 	private async _getTag(id: string): Promise<Tag | null> {
 		const rows = await this.db.select<TagRow>(
-			"SELECT id, name, color FROM tags WHERE id = ? AND deleted_at IS NULL",
+			"SELECT id, name, color, project_id FROM tags WHERE id = ? AND deleted_at IS NULL",
 			[id],
 		);
 		return rows[0] ? mapTag(rows[0]) : null;
+	}
+
+	async isTagUsedInProjectTasks(tagId: string): Promise<boolean> {
+		const rows = await this.db.select<{ count: number }>(
+			`SELECT COUNT(*) as count FROM task_tags tt
+			 JOIN tasks t ON t.id = tt.task_id
+			 WHERE tt.tag_id = ? AND t.project_id IS NOT NULL AND t.deleted_at IS NULL`,
+			[tagId],
+		);
+		return (rows[0]?.count ?? 0) > 0;
 	}
 
 	// ---------- Tasks ----------
@@ -230,10 +274,14 @@ export class SqliteRepository implements TodoRepository {
 			params.push(filters.priority);
 		}
 
-		if (filters?.completed === true) {
+		if (filters?.allTasks) {
+			// no completion filter — return all tasks
+		} else if (filters?.completed === true) {
 			conditions.push("t.completed_at IS NOT NULL");
 		} else {
-			conditions.push("t.completed_at IS NULL");
+			conditions.push(
+				"(t.completed_at IS NULL OR date(t.completed_at, 'localtime') >= date('now', 'localtime'))",
+			);
 		}
 
 		if (filters?.dueBefore) {
@@ -241,11 +289,11 @@ export class SqliteRepository implements TodoRepository {
 			params.push(filters.dueBefore);
 		}
 
-		let sql = `SELECT t.id, t.title, t.description, t.project_id, t.priority, t.due_date, t.completed_at, t.sort_order, t.created_at, t.updated_at FROM tasks t WHERE ${conditions.join(" AND ")} ORDER BY t.sort_order, t.created_at`;
+		let sql = `SELECT t.id, t.title, t.description, t.project_id, t.priority, t.due_date, t.completed_at, t.deleted_at, t.sort_order, t.created_at, t.updated_at FROM tasks t WHERE ${conditions.join(" AND ")} ORDER BY t.sort_order, t.created_at`;
 
 		if (filters?.tagIds && filters.tagIds.length > 0) {
 			const placeholders = filters.tagIds.map(() => "?").join(", ");
-			sql = `SELECT DISTINCT t.id, t.title, t.description, t.project_id, t.priority, t.due_date, t.completed_at, t.sort_order, t.created_at, t.updated_at FROM tasks t INNER JOIN task_tags tt ON tt.task_id = t.id WHERE ${conditions.join(" AND ")} AND tt.tag_id IN (${placeholders}) ORDER BY t.sort_order, t.created_at`;
+			sql = `SELECT DISTINCT t.id, t.title, t.description, t.project_id, t.priority, t.due_date, t.completed_at, t.deleted_at, t.sort_order, t.created_at, t.updated_at FROM tasks t INNER JOIN task_tags tt ON tt.task_id = t.id WHERE ${conditions.join(" AND ")} AND tt.tag_id IN (${placeholders}) ORDER BY t.sort_order, t.created_at`;
 			params.push(...filters.tagIds);
 		}
 
@@ -256,7 +304,7 @@ export class SqliteRepository implements TodoRepository {
 
 	async getTask(id: string): Promise<Task | null> {
 		const rows = await this.db.select<TaskRow>(
-			"SELECT id, title, description, project_id, priority, due_date, completed_at, sort_order, created_at, updated_at FROM tasks WHERE id = ? AND deleted_at IS NULL",
+			"SELECT id, title, description, project_id, priority, due_date, completed_at, deleted_at, sort_order, created_at, updated_at FROM tasks WHERE id = ? AND deleted_at IS NULL",
 			[id],
 		);
 		if (!rows[0]) return null;
@@ -358,12 +406,33 @@ export class SqliteRepository implements TodoRepository {
 		return uncompleted;
 	}
 
-	async deleteTask(id: string): Promise<void> {
+	async archiveTask(id: string): Promise<void> {
 		const now = new Date().toISOString();
 		await this.db.execute(
 			"UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?",
 			[now, now, id],
 		);
+	}
+
+	async deleteTask(id: string): Promise<void> {
+		await this.db.execute("DELETE FROM task_tags WHERE task_id = ?", [id]);
+		await this.db.execute("DELETE FROM tasks WHERE id = ?", [id]);
+	}
+
+	async unarchiveTask(id: string): Promise<void> {
+		const now = new Date().toISOString();
+		await this.db.execute(
+			"UPDATE tasks SET deleted_at = NULL, updated_at = ? WHERE id = ?",
+			[now, id],
+		);
+	}
+
+	async getArchivedTasks(): Promise<Task[]> {
+		const taskRows = await this.db.select<TaskRow>(
+			"SELECT id, title, description, project_id, priority, due_date, completed_at, sort_order, created_at, updated_at, deleted_at FROM tasks WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+		);
+		if (taskRows.length === 0) return [];
+		return this._attachTags(taskRows);
 	}
 
 	async reorderTasks(orderedIds: string[]): Promise<void> {
@@ -397,15 +466,18 @@ export class SqliteRepository implements TodoRepository {
 		const ids = taskRows.map((r) => r.id);
 		const placeholders = ids.map(() => "?").join(", ");
 		const tagRows = await this.db.select<TaskTagRow>(
-			`SELECT tt.task_id, t.id as tag_id, t.name, t.color FROM task_tags tt JOIN tags t ON t.id = tt.tag_id WHERE t.deleted_at IS NULL AND tt.task_id IN (${placeholders})`,
+			`SELECT tt.task_id, t.id as tag_id, t.name, t.color, t.project_id FROM task_tags tt JOIN tags t ON t.id = tt.tag_id WHERE t.deleted_at IS NULL AND tt.task_id IN (${placeholders})`,
 			ids,
 		);
 		const byTaskId = new Map<string, Tag[]>();
 		for (const row of tagRows) {
 			if (!byTaskId.has(row.task_id)) byTaskId.set(row.task_id, []);
-			byTaskId
-				.get(row.task_id)
-				?.push({ id: row.tag_id, name: row.name, color: row.color });
+			byTaskId.get(row.task_id)?.push({
+				id: row.tag_id,
+				name: row.name,
+				color: row.color,
+				projectId: row.project_id,
+			});
 		}
 		return taskRows.map((row) => mapTask(row, byTaskId.get(row.id) ?? []));
 	}

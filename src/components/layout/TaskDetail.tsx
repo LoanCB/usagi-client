@@ -1,4 +1,4 @@
-import { CheckCircle, Circle, Trash2, X } from "lucide-react";
+import { Archive, CheckCircle, Circle, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DueDatePicker } from "@/components/tasks/DueDatePicker";
@@ -7,6 +7,7 @@ import { ProjectSelector } from "@/components/tasks/ProjectSelector";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
 import { TagSelector } from "@/components/tasks/TagSelector";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { Input } from "@/components/ui/input";
 import { getRepository } from "@/store/repository";
 import { useTaskStore } from "@/store/tasks";
@@ -18,14 +19,21 @@ interface TaskDetailProps {
 }
 
 export function TaskDetail({ width }: TaskDetailProps) {
-	const { tasks, updateTask, completeTask, uncompleteTask, deleteTask } =
-		useTaskStore();
+	const {
+		tasks,
+		updateTask,
+		completeTask,
+		uncompleteTask,
+		deleteTask,
+		archiveTask,
+	} = useTaskStore();
 	const { selectedTaskId, setSelectedTask } = useUIStore();
 	const { t } = useTranslation();
 
 	const task = tasks.find((t) => t.id === selectedTaskId) ?? null;
 	const [title, setTitle] = useState(task?.title ?? "");
 	const [description, setDescription] = useState("");
+	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
 	useEffect(() => {
 		setTitle(task?.title ?? "");
@@ -75,6 +83,12 @@ export function TaskDetail({ width }: TaskDetailProps) {
 
 	async function handleDelete() {
 		await deleteTask(repo, taskId);
+		setConfirmDeleteOpen(false);
+		setSelectedTask(null);
+	}
+
+	async function handleArchive() {
+		await archiveTask(repo, taskId);
 		setSelectedTask(null);
 	}
 
@@ -142,21 +156,36 @@ export function TaskDetail({ width }: TaskDetailProps) {
 				<TagSelector
 					selectedTagIds={task.tags.map((t) => t.id)}
 					onChange={handleTagsChange}
+					projectId={task.projectId}
 				/>
 			</div>
 
 			{/* Actions */}
-			<div className="p-3 mt-auto">
+			<div className="p-3 mt-auto flex flex-col gap-1">
+				<Button
+					variant="ghost"
+					size="sm"
+					className="gap-2 w-full justify-start"
+					onClick={handleArchive}
+				>
+					<Archive className="h-4 w-4" />
+					{t("task.archive")}
+				</Button>
 				<Button
 					variant="ghost"
 					size="sm"
 					className="gap-2 text-destructive hover:text-destructive w-full justify-start"
-					onClick={handleDelete}
+					onClick={() => setConfirmDeleteOpen(true)}
 				>
 					<Trash2 className="h-4 w-4" />
 					{t("task.delete")}
 				</Button>
 			</div>
+			<ConfirmDeleteDialog
+				open={confirmDeleteOpen}
+				onConfirm={handleDelete}
+				onCancel={() => setConfirmDeleteOpen(false)}
+			/>
 		</div>
 	);
 }

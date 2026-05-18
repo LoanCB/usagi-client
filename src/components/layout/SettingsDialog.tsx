@@ -20,6 +20,7 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { formatShortcut, type SortShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { getRepository } from "@/store/repository";
@@ -340,6 +341,12 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	const setGlassmorphismEnabled = useSettingsStore(
 		(s) => s.setGlassmorphismEnabled,
 	);
+	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
+	const archivesVisible = useSettingsStore((s) => s.archivesVisible);
+	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
+	const setCalendarVisible = useSettingsStore((s) => s.setCalendarVisible);
+	const setArchivesVisible = useSettingsStore((s) => s.setArchivesVisible);
+	const setTagsVisible = useSettingsStore((s) => s.setTagsVisible);
 
 	const sortUrgency = useShortcutsStore((s) => s.sortUrgency);
 	const sortDueDate = useShortcutsStore((s) => s.sortDueDate);
@@ -395,14 +402,14 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	return (
 		<Dialog>
 			<DialogTrigger render={children} />
-			<DialogContent className="flex flex-col max-h-[85vh] sm:max-w-2xl">
+			<DialogContent className="flex flex-col max-h-[85vh] sm:max-w-[min(calc(100%-2rem),42rem)]">
 				<DialogHeader>
 					<DialogTitle>{t("settings.title")}</DialogTitle>
 				</DialogHeader>
 
-				<div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col sm:flex-row -mx-4">
+				<div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col sm:flex-row">
 					{/* Left column: Appearance, Language, Shortcuts */}
-					<div className="flex-1 min-w-0 flex flex-col px-4">
+					<div className="flex-1 min-w-0 flex flex-col sm:pr-4">
 						{/* Section: Appearance */}
 						<div className="flex flex-col gap-3 pb-4">
 							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -453,38 +460,30 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 									</button>
 								))}
 							</div>
-							<div className="flex items-center justify-between">
-								<label
-									className="text-sm text-foreground cursor-pointer select-none"
-									htmlFor="glass-toggle"
-								>
+							<div className="flex items-center justify-between cursor-pointer select-none">
+								<span className="text-sm text-foreground">
 									{t("settings.glassmorphism")}
-								</label>
-								<Checkbox
-									id="glass-toggle"
+								</span>
+								<Switch
 									checked={glassmorphismEnabled}
 									onCheckedChange={(v) =>
-										setGlassmorphismEnabled(getRepository(), v === true)
+										setGlassmorphismEnabled(getRepository(), v)
 									}
 								/>
 							</div>
 							<div
 								className={cn(
-									"flex items-center justify-between",
+									"flex items-center justify-between cursor-pointer select-none",
 									!glassmorphismEnabled && "pointer-events-none opacity-40",
 								)}
 							>
-								<label
-									className="text-sm text-foreground cursor-pointer select-none"
-									htmlFor="parallax-toggle"
-								>
+								<span className="text-sm text-foreground">
 									{t("settings.parallax")}
-								</label>
-								<Checkbox
-									id="parallax-toggle"
+								</span>
+								<Switch
 									checked={parallaxEnabled}
 									onCheckedChange={(v) =>
-										setParallaxEnabled(getRepository(), v === true)
+										setParallaxEnabled(getRepository(), v)
 									}
 								/>
 							</div>
@@ -573,12 +572,49 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 					</div>
 
 					{/* Divider: horizontal when stacked, vertical when side-by-side */}
-					<div className="h-px bg-border sm:hidden mx-4" />
+					<div className="h-px bg-border sm:hidden" />
 					<div className="hidden sm:block w-px bg-border flex-shrink-0" />
 
 					{/* Right column: Notifications */}
-					<div className="flex-1 min-w-0 flex flex-col px-4 pt-4 sm:pt-0">
-						<div className="flex flex-col gap-3">
+					<div className="flex-1 min-w-0 flex flex-col pt-4 sm:pt-0 sm:pl-4">
+						{/* Section: Sidebar views */}
+						<div className="flex flex-col gap-3 pb-4">
+							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+								{t("settings.sidebarViews")}
+							</p>
+							<div className="flex items-center justify-between cursor-pointer select-none">
+								<span className="text-sm">{t("nav.calendar")}</span>
+								<Switch
+									aria-label={t("nav.calendar")}
+									checked={calendarVisible}
+									onCheckedChange={(v) =>
+										setCalendarVisible(getRepository(), v)
+									}
+								/>
+							</div>
+							<div className="flex items-center justify-between cursor-pointer select-none">
+								<span className="text-sm">{t("nav.archives")}</span>
+								<Switch
+									aria-label={t("nav.archives")}
+									checked={archivesVisible}
+									onCheckedChange={(v) =>
+										setArchivesVisible(getRepository(), v)
+									}
+								/>
+							</div>
+							<div className="flex items-center justify-between cursor-pointer select-none">
+								<span className="text-sm">{t("nav.tags")}</span>
+								<Switch
+									aria-label={t("nav.tags")}
+									checked={tagsVisible}
+									onCheckedChange={(v) => setTagsVisible(getRepository(), v)}
+								/>
+							</div>
+						</div>
+
+						<div className="h-px bg-border" />
+
+						<div className="flex flex-col gap-3 pt-4">
 							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
 								{t("settings.notifications")}
 							</p>

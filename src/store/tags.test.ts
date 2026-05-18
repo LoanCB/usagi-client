@@ -7,6 +7,7 @@ const baseTag: Tag = {
 	id: "tag-1",
 	name: "urgent",
 	color: "#ef4444",
+	projectId: null,
 };
 
 function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
@@ -46,7 +47,12 @@ describe("useTagStore", () => {
 	});
 
 	it("createTag appends new tag to list", async () => {
-		const newTag: Tag = { id: "tag-2", name: "work", color: "#3b82f6" };
+		const newTag: Tag = {
+			id: "tag-2",
+			name: "work",
+			color: "#3b82f6",
+			projectId: null,
+		};
 		const repo = makeRepo({
 			createTag: vi.fn().mockResolvedValue(newTag),
 		});

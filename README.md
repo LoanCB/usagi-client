@@ -6,15 +6,36 @@ Données stockées localement dans SQLite. Architecture prête pour une synchron
 
 ---
 
+## Téléchargement
+
+Les installateurs compilés pour Linux, macOS et Windows sont disponibles dans les [**releases GitHub**](https://github.com/LoanCB/usagi-client/releases).
+
+| Plateforme | Formats disponibles   |
+| ---------- | --------------------- |
+| Linux      | `.deb`, `.AppImage`   |
+| macOS      | `.dmg`                |
+| Windows    | `.msi`, `.exe` (NSIS) |
+
+Téléchargez la dernière version, lancez l'installateur correspondant à votre OS et c'est prêt.
+
+---
+
 ## Fonctionnalités
 
 - **Projets** — organisez vos tâches par projet (couleur, icône)
 - **Smart lists** — Inbox, Aujourd'hui, Toutes les tâches
-- **Tâches** — titre, priorité (aucune / basse / moyenne / haute), date d'échéance, tags
+- **Calendrier** — vue mensuelle des tâches par échéance
+- **Archives** — accès aux tâches archivées
+- **Tags** — organisation transversale des tâches
+- **Tâches** — titre, priorité (aucune / basse / moyenne / haute), date d'échéance, tags, notes
 - **Filtre** — par priorité, par statut (complétées), réinitialisation en un clic
-- **Détail de tâche** — édition inline du titre, sélecteur de priorité, date, tags, suppression
-- **Thème** — clair / sombre / système, extensible via fichiers JSON
-- **Sidebar rétractable** — mode icônes pour maximiser l'espace
+- **Détail de tâche** — édition inline du titre, sélecteur de priorité, date, tags, suppression définitive
+- **Notifications** — rappels quotidiens avec créneaux horaires personnalisables
+- **Thèmes** — clair / sombre / système + 7 thèmes personnalisés (Luxury, Nature, Dracula, Retro, Ember, Deep Ocean, Ocean)
+- **Effets visuels** — glassmorphisme et parallaxe optionnels
+- **Raccourcis clavier** — tri par urgence, date d'échéance et projet, entièrement personnalisables
+- **Langues** — Français et Anglais
+- **Sidebar configurable** — mode icônes, visibilité des vues (Calendrier, Archives, Tags) personnalisable
 
 ---
 
@@ -31,9 +52,11 @@ Données stockées localement dans SQLite. Architecture prête pour une synchron
 
 ---
 
-## Prérequis
+## Développement
 
-### Rust
+### Prérequis
+
+#### Rust
 
 Tauri nécessite la toolchain Rust. Installez-la via [rustup](https://rustup.rs) :
 
@@ -41,7 +64,7 @@ Tauri nécessite la toolchain Rust. Installez-la via [rustup](https://rustup.rs)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-### Dépendances système
+#### Dépendances système
 
 **Linux (Debian / Ubuntu)**
 
@@ -67,7 +90,7 @@ xcode-select --install
 
 **Windows** — assurez-vous qu'[Edge WebView2](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) est installé (inclus par défaut sur Windows 10 1803+ et Windows 11).
 
-### Node.js et pnpm
+#### Node.js et pnpm
 
 - [Node.js](https://nodejs.org) ≥ 20
 - [pnpm](https://pnpm.io) ≥ 9
@@ -76,28 +99,23 @@ xcode-select --install
 npm install -g pnpm
 ```
 
----
-
-## Installation (développement)
+### Installation et lancement
 
 ```bash
 # Cloner le dépôt
-git clone <url-du-repo>
-cd usagi
+git clone https://github.com/LoanCB/usagi-client.git
+cd usagi-client
 
 # Installer les dépendances JavaScript
 pnpm install
-```
 
-### Lancer en mode développement
-
-```bash
+# Lancer en mode développement
 pnpm tauri dev
 ```
 
 Cela démarre le serveur Vite (`localhost:1420`) et ouvre la fenêtre Tauri avec rechargement à chaud.
 
-### Lancer les tests
+### Tests
 
 ```bash
 pnpm run test:run      # passage unique
@@ -110,11 +128,7 @@ pnpm run test          # mode watch
 pnpm run build         # tsc + vite build (sans la partie Rust)
 ```
 
----
-
-## Construire et installer le client lourd
-
-### Compiler l'application
+### Construire depuis les sources
 
 ```bash
 pnpm tauri build
@@ -124,39 +138,7 @@ Cette commande :
 
 1. compile le frontend React (`vite build`)
 2. compile le binaire Rust
-3. génère les installateurs natifs pour la plateforme courante
-
-Les artefacts sont produits dans `src-tauri/target/release/bundle/`.
-
-### Installateurs générés par plateforme
-
-| Plateforme | Format        | Emplacement        |
-| ---------- | ------------- | ------------------ |
-| Linux      | `.deb`        | `bundle/deb/`      |
-| Linux      | `.AppImage`   | `bundle/appimage/` |
-| macOS      | `.dmg`        | `bundle/dmg/`      |
-| macOS      | `.app`        | `bundle/macos/`    |
-| Windows    | `.msi`        | `bundle/msi/`      |
-| Windows    | `.exe` (NSIS) | `bundle/nsis/`     |
-
-### Installation
-
-**Linux — paquet Debian**
-
-```bash
-sudo dpkg -i src-tauri/target/release/bundle/deb/usagi_0.1.0_amd64.deb
-```
-
-**Linux — AppImage** (portable, aucune installation)
-
-```bash
-chmod +x src-tauri/target/release/bundle/appimage/usagi_0.1.0_amd64.AppImage
-./src-tauri/target/release/bundle/appimage/usagi_0.1.0_amd64.AppImage
-```
-
-**macOS** — ouvrez le `.dmg`, faites glisser `usagi.app` dans `/Applications`.
-
-**Windows** — exécutez le `.msi` ou le `.exe` NSIS et suivez l'assistant d'installation.
+3. génère les installateurs natifs pour la plateforme courante dans `src-tauri/target/release/bundle/`
 
 ---
 
@@ -175,8 +157,8 @@ usagi/
 │   │   ├── sqlite-repository.ts
 │   │   ├── index.ts            # Factories createRepository()
 │   │   └── migrations/
-│   ├── store/                  # Stores Zustand (tasks, projects, tags, ui)
-│   ├── theme/                  # Système de thèmes (tokens CSS, light, dark)
+│   ├── store/                  # Stores Zustand (tasks, projects, tags, ui, settings)
+│   ├── theme/                  # Système de thèmes (tokens CSS, light, dark, custom)
 │   ├── types/                  # Types partagés (Task, Project, Tag…)
 │   └── App.tsx                 # Initialisation DB + migration au démarrage
 ├── src-tauri/                  # Backend Rust (Tauri)
@@ -201,7 +183,7 @@ La base SQLite est stockée dans le répertoire de données applicatives de l'OS
 | macOS   | `~/Library/Application Support/usagi/usagi.db` |
 | Windows | `%APPDATA%\usagi\usagi.db`                     |
 
-Les migrations sont appliquées automatiquement au démarrage (`src/db/migrations/001_initial.sql`).
+Les migrations sont appliquées automatiquement au démarrage.
 
 ---
 
@@ -210,3 +192,17 @@ Les migrations sont appliquées automatiquement au démarrage (`src/db/migration
 - **Phase 1 (actuelle)** — application locale, SQLite
 - **Phase 2** — synchronisation multi-device via [ElectricSQL](https://electric-sql.com) + PostgreSQL (swap de `SqliteRepository` → `ElectricRepository` sans toucher à l'UI)
 - **Phase 3** — widget mobile, comptes utilisateurs
+
+## License
+
+Licensed under PolyForm Noncommercial 1.0.0.
+
+- ✅ Personal use
+
+- ✅ Modification
+
+- ✅ Redistribution
+
+- ❌ Commercial use without permission
+
+Copyright © 2026 LoanCB

@@ -4,6 +4,7 @@ export interface Tag {
 	id: string;
 	name: string;
 	color: string | null;
+	projectId: string | null;
 }
 
 export interface Task {
@@ -14,6 +15,7 @@ export interface Task {
 	priority: Priority;
 	dueDate: string | null; // ISO 8601 date string
 	completedAt: string | null; // ISO 8601 datetime, null = not completed
+	deletedAt: string | null;
 	tags: Tag[];
 	sortOrder: number;
 	createdAt: string;
@@ -36,6 +38,7 @@ export interface TaskFilters {
 	priority?: Priority;
 	completed?: boolean; // undefined = non-completed only (default)
 	dueBefore?: string; // ISO date, inclusive
+	allTasks?: boolean; // when true, returns all tasks regardless of completion status
 }
 
 export interface CreateTaskInput {
@@ -56,4 +59,5 @@ export interface CreateProjectInput {
 export interface CreateTagInput {
 	name: string;
 	color?: string;
+	projectId?: string | null;
 }

@@ -5,6 +5,8 @@ const fr: typeof en = {
 		cancel: "Annuler",
 		save: "Enregistrer",
 		delete: "Supprimer",
+		deleteConfirmTitle: "Supprimer définitivement ?",
+		deleteConfirmMessage: "Cette action est irréversible.",
 		create: "Créer",
 		edit: "Modifier",
 		color: "Couleur",
@@ -18,10 +20,23 @@ const fr: typeof en = {
 		today: "Aujourd'hui",
 		allTasks: "Toutes les tâches",
 		tags: "Tags",
+		calendar: "Calendrier",
+		archives: "Archives",
 		projects: "Projets",
 		newProject: "Nouveau projet",
 		expandSidebar: "Développer la sidebar",
 		collapseSidebar: "Réduire la sidebar",
+	},
+	calendar: {
+		month: "Mois",
+		week: "Semaine",
+		noTasks: "Aucune tâche pour ce jour",
+		newTask: "Nouvelle tâche pour ce jour",
+		closeDay: "Fermer le détail du jour",
+		filter: {
+			allProjects: "Tous les projets",
+			trigger: "Filtre projet",
+		},
 	},
 	sort: {
 		urgency: "Trier par urgence",
@@ -34,6 +49,8 @@ const fr: typeof en = {
 		descriptionPlaceholder: "Ajouter une note…",
 		noTasks: "Aucune tâche",
 		delete: "Supprimer la tâche",
+		archive: "Archiver la tâche",
+		restore: "Restaurer",
 		close: "Fermer le détail",
 		markComplete: "Marquer comme terminée",
 		markIncomplete: "Marquer comme non terminée",
@@ -73,6 +90,9 @@ const fr: typeof en = {
 		namePlaceholder: "Nom du tag",
 		delete: "Supprimer le tag",
 		edit: "Modifier le tag",
+		generic: "Générique",
+		projectConstraint:
+			"Ce tag est utilisé par des tâches dans un projet et ne peut pas être réaffecté.",
 	},
 	app: {
 		loading: "Chargement…",
@@ -115,6 +135,7 @@ const fr: typeof en = {
 		shortcutsReset: "Réinitialiser",
 		parallax: "Animation du fond",
 		glassmorphism: "Glassmorphisme",
+		sidebarViews: "Vues de la sidebar",
 	},
 	taskList: {
 		remaining_one: "{{count}} restante",
@@ -124,6 +145,10 @@ const fr: typeof en = {
 		statDone: "Terminées",
 		statTotal: "Total",
 	},
-} as const;
+	archive: {
+		empty: "Aucune tâche archivée",
+		archivedOn: "Archivée le {{date}}",
+	},
+};
 
 export default fr;

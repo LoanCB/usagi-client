@@ -28,10 +28,23 @@ export class MemoryRepository implements TodoRepository {
 	private sortCounter = 0;
 
 	async getTasks(filters: TaskFilters = {}): Promise<Task[]> {
-		let results = Array.from(this.tasks.values());
+		let results = Array.from(this.tasks.values()).filter(
+			(t) => t.deletedAt === null,
+		);
 
-		if (filters.completed !== true) {
-			results = results.filter((t) => t.completedAt === null);
+		if (!filters.allTasks) {
+			if (filters.completed === true) {
+				results = results.filter((t) => t.completedAt !== null);
+			} else {
+				const now = new Date();
+				const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+				results = results.filter((t) => {
+					if (t.completedAt === null) return true;
+					const d = new Date(t.completedAt);
+					const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+					return localDate >= todayStr;
+				});
+			}
 		}
 
 		if (filters.projectId !== undefined) {
@@ -59,7 +72,9 @@ export class MemoryRepository implements TodoRepository {
 	}
 
 	async getTask(id: string): Promise<Task | null> {
-		return this.tasks.get(id) ?? null;
+		const task = this.tasks.get(id) ?? null;
+		if (task === null || task.deletedAt !== null) return null;
+		return task;
 	}
 
 	async createTask(input: CreateTaskInput): Promise<Task> {
@@ -75,6 +90,7 @@ export class MemoryRepository implements TodoRepository {
 			priority: (input.priority as Priority) ?? "none",
 			dueDate: input.dueDate ?? null,
 			completedAt: null,
+			deletedAt: null,
 			tags: tagObjects,
 			sortOrder: ++this.sortCounter,
 			createdAt: now(),
@@ -131,8 +147,26 @@ export class MemoryRepository implements TodoRepository {
 		return updated;
 	}
 
+	async archiveTask(id: string): Promise<void> {
+		const task = this.tasks.get(id);
+		if (!task) return;
+		this.tasks.set(id, { ...task, deletedAt: now(), updatedAt: now() });
+	}
+
 	async deleteTask(id: string): Promise<void> {
 		this.tasks.delete(id);
+	}
+
+	async unarchiveTask(id: string): Promise<void> {
+		const task = this.tasks.get(id);
+		if (!task) return;
+		this.tasks.set(id, { ...task, deletedAt: null, updatedAt: now() });
+	}
+
+	async getArchivedTasks(): Promise<Task[]> {
+		return Array.from(this.tasks.values())
+			.filter((t) => t.deletedAt !== null)
+			.sort((a, b) => ((b.deletedAt ?? "") > (a.deletedAt ?? "") ? 1 : -1));
 	}
 
 	async reorderTasks(orderedIds: string[]): Promise<void> {
@@ -174,16 +208,26 @@ export class MemoryRepository implements TodoRepository {
 	}
 
 	async deleteProject(id: string): Promise<void> {
-		this.projects.delete(id);
-		for (const [tid, task] of this.tasks) {
-			if (task.projectId === id) {
-				this.tasks.set(tid, { ...task, projectId: null });
-			}
+		const projectTagIds = Array.from(this.tags.values())
+			.filter((t) => t.projectId === id)
+			.map((t) => t.id);
+		for (const tagId of projectTagIds) {
+			this.tags.delete(tagId);
 		}
+		for (const [tid, task] of this.tasks) {
+			const filteredTags = task.tags.filter(
+				(t) => !projectTagIds.includes(t.id),
+			);
+			this.tasks.set(tid, { ...task, tags: filteredTags });
+		}
+		this.projects.delete(id);
 	}
 
-	async getTags(): Promise<Tag[]> {
-		return Array.from(this.tags.values());
+	async getTags(projectId?: string | null): Promise<Tag[]> {
+		const all = Array.from(this.tags.values());
+		if (projectId === undefined) return all;
+		if (projectId === null) return all.filter((t) => t.projectId === null);
+		return all.filter((t) => t.projectId === null || t.projectId === projectId);
 	}
 
 	async createTag(input: CreateTagInput): Promise<Tag> {
@@ -191,6 +235,7 @@ export class MemoryRepository implements TodoRepository {
 			id: uuid(),
 			name: input.name,
 			color: input.color ?? null,
+			projectId: input.projectId ?? null,
 		};
 		this.tags.set(tag.id, tag);
 		return tag;
@@ -206,6 +251,13 @@ export class MemoryRepository implements TodoRepository {
 
 	async deleteTag(id: string): Promise<void> {
 		this.tags.delete(id);
+	}
+
+	async isTagUsedInProjectTasks(tagId: string): Promise<boolean> {
+		return Array.from(this.tasks.values()).some(
+			(task) =>
+				task.projectId !== null && task.tags.some((t) => t.id === tagId),
+		);
 	}
 
 	async getSettings(): Promise<Record<string, string>> {

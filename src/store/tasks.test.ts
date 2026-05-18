@@ -12,6 +12,7 @@ const baseTask: Task = {
 	priority: "none",
 	dueDate: null,
 	completedAt: null,
+	deletedAt: null,
 	tags: [],
 	sortOrder: 0,
 	createdAt: "2026-04-10T10:00:00.000Z",
@@ -29,7 +30,10 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 			completedAt: "2026-04-10T11:00:00.000Z",
 		}),
 		uncompleteTask: vi.fn().mockResolvedValue(baseTask),
+		archiveTask: vi.fn().mockResolvedValue(undefined),
 		deleteTask: vi.fn().mockResolvedValue(undefined),
+		unarchiveTask: vi.fn().mockResolvedValue(undefined),
+		getArchivedTasks: vi.fn().mockResolvedValue([]),
 		getProjects: vi.fn().mockResolvedValue([]),
 		createProject: vi.fn(),
 		updateProject: vi.fn(),
@@ -38,6 +42,7 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		createTag: vi.fn(),
 		updateTag: vi.fn(),
 		deleteTag: vi.fn(),
+		isTagUsedInProjectTasks: vi.fn().mockResolvedValue(false),
 		reorderTasks: vi.fn().mockResolvedValue(undefined),
 		getSettings: vi.fn().mockResolvedValue({}),
 		setSetting: vi.fn().mockResolvedValue(undefined),
@@ -47,7 +52,7 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 
 describe("useTaskStore", () => {
 	beforeEach(() => {
-		useTaskStore.setState({ tasks: [], loading: false });
+		useTaskStore.setState({ tasks: [], archivedTasks: [], loading: false });
 	});
 
 	it("loadTasks populates tasks from repository", async () => {
@@ -70,8 +75,12 @@ describe("useTaskStore", () => {
 		expect(result.current.tasks.some((t) => t.id === "t2")).toBe(true);
 	});
 
-	it("deleteTask removes task from state", async () => {
-		useTaskStore.setState({ tasks: [baseTask], loading: false });
+	it("deleteTask hard-deletes task from tasks state", async () => {
+		useTaskStore.setState({
+			tasks: [baseTask],
+			archivedTasks: [],
+			loading: false,
+		});
 		const repo = makeRepo({ deleteTask: vi.fn().mockResolvedValue(undefined) });
 		const { result } = renderHook(() => useTaskStore());
 		await act(async () => {
@@ -118,6 +127,60 @@ describe("useTaskStore", () => {
 			await result.current.uncompleteTask(repo, "t1");
 		});
 		expect(result.current.tasks[0].completedAt).toBeNull();
+	});
+
+	it("archiveTask removes task from tasks array", async () => {
+		useTaskStore.setState({
+			tasks: [baseTask],
+			archivedTasks: [],
+			loading: false,
+		});
+		const repo = makeRepo({
+			archiveTask: vi.fn().mockResolvedValue(undefined),
+		});
+		const { result } = renderHook(() => useTaskStore());
+		await act(async () => {
+			await result.current.archiveTask(repo, "t1");
+		});
+		expect(result.current.tasks).toHaveLength(0);
+	});
+
+	it("loadArchivedTasks populates archivedTasks from repository", async () => {
+		const archivedTask: Task = {
+			...baseTask,
+			id: "t2",
+			deletedAt: "2026-05-01T10:00:00.000Z",
+		};
+		const repo = makeRepo({
+			getArchivedTasks: vi.fn().mockResolvedValue([archivedTask]),
+		});
+		const { result } = renderHook(() => useTaskStore());
+		await act(async () => {
+			await result.current.loadArchivedTasks(repo);
+		});
+		expect(result.current.archivedTasks).toHaveLength(1);
+		expect(result.current.archivedTasks[0].id).toBe("t2");
+	});
+
+	it("unarchiveTask removes task from archivedTasks", async () => {
+		const archivedTask: Task = {
+			...baseTask,
+			id: "t2",
+			deletedAt: "2026-05-01T10:00:00.000Z",
+		};
+		useTaskStore.setState({
+			tasks: [],
+			archivedTasks: [archivedTask],
+			loading: false,
+		});
+		const repo = makeRepo({
+			unarchiveTask: vi.fn().mockResolvedValue(undefined),
+		});
+		const { result } = renderHook(() => useTaskStore());
+		await act(async () => {
+			await result.current.unarchiveTask(repo, "t2");
+		});
+		expect(result.current.archivedTasks).toHaveLength(0);
 	});
 
 	it("reorderTasks applies optimistic in-memory reorder immediately", async () => {
