@@ -55,6 +55,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Set version from git tag
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG#v}"
+          jq --arg version "$VERSION" '.version = $version' src-tauri/tauri.conf.json > tmp.json
+          mv tmp.json src-tauri/tauri.conf.json
+
       - name: Build Tauri app
         run: pnpm tauri build
 
