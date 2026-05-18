@@ -228,7 +228,13 @@ export function Sidebar() {
 		) {
 			setSelectedProject(undefined);
 		}
-	}, [selectedProjectId, calendarVisible, archivesVisible, tagsVisible, setSelectedProject]);
+	}, [
+		selectedProjectId,
+		calendarVisible,
+		archivesVisible,
+		tagsVisible,
+		setSelectedProject,
+	]);
 
 	return (
 		<div

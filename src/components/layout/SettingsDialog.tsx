@@ -13,7 +13,6 @@ import { type ReactElement, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
 import {
 	Dialog,
 	DialogContent,
@@ -21,6 +20,7 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { formatShortcut, type SortShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { getRepository } from "@/store/repository";
@@ -460,29 +460,33 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 									</button>
 								))}
 							</div>
-							<label className="flex items-center justify-between cursor-pointer select-none">
-								<span className="text-sm text-foreground">{t("settings.glassmorphism")}</span>
+							<div className="flex items-center justify-between cursor-pointer select-none">
+								<span className="text-sm text-foreground">
+									{t("settings.glassmorphism")}
+								</span>
 								<Switch
 									checked={glassmorphismEnabled}
 									onCheckedChange={(v) =>
 										setGlassmorphismEnabled(getRepository(), v)
 									}
 								/>
-							</label>
-							<label
+							</div>
+							<div
 								className={cn(
 									"flex items-center justify-between cursor-pointer select-none",
 									!glassmorphismEnabled && "pointer-events-none opacity-40",
 								)}
 							>
-								<span className="text-sm text-foreground">{t("settings.parallax")}</span>
+								<span className="text-sm text-foreground">
+									{t("settings.parallax")}
+								</span>
 								<Switch
 									checked={parallaxEnabled}
 									onCheckedChange={(v) =>
 										setParallaxEnabled(getRepository(), v)
 									}
 								/>
-							</label>
+							</div>
 						</div>
 
 						<div className="h-px bg-border" />
@@ -578,33 +582,34 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
 								{t("settings.sidebarViews")}
 							</p>
-							<label className="flex items-center justify-between cursor-pointer select-none">
+							<div className="flex items-center justify-between cursor-pointer select-none">
 								<span className="text-sm">{t("nav.calendar")}</span>
 								<Switch
+									aria-label={t("nav.calendar")}
 									checked={calendarVisible}
 									onCheckedChange={(v) =>
 										setCalendarVisible(getRepository(), v)
 									}
 								/>
-							</label>
-							<label className="flex items-center justify-between cursor-pointer select-none">
+							</div>
+							<div className="flex items-center justify-between cursor-pointer select-none">
 								<span className="text-sm">{t("nav.archives")}</span>
 								<Switch
+									aria-label={t("nav.archives")}
 									checked={archivesVisible}
 									onCheckedChange={(v) =>
 										setArchivesVisible(getRepository(), v)
 									}
 								/>
-							</label>
-							<label className="flex items-center justify-between cursor-pointer select-none">
+							</div>
+							<div className="flex items-center justify-between cursor-pointer select-none">
 								<span className="text-sm">{t("nav.tags")}</span>
 								<Switch
+									aria-label={t("nav.tags")}
 									checked={tagsVisible}
-									onCheckedChange={(v) =>
-										setTagsVisible(getRepository(), v)
-									}
+									onCheckedChange={(v) => setTagsVisible(getRepository(), v)}
 								/>
-							</label>
+							</div>
 						</div>
 
 						<div className="h-px bg-border" />
