@@ -6,10 +6,9 @@ import {
 	useState,
 } from "react";
 import { contrastTheme } from "./themes/contrast";
+import { cosmicGoldTheme } from "./themes/cosmicGold";
 import { darkTheme } from "./themes/dark";
 import { deepOceanTheme } from "./themes/deepOcean";
-import { cosmicGoldTheme } from "./themes/cosmicGold";
-import { roseNoirTheme } from "./themes/roseNoir";
 import { draculaTheme } from "./themes/dracula";
 import { emberTheme } from "./themes/ember";
 import { lightTheme } from "./themes/light";
@@ -17,6 +16,7 @@ import { luxuryTheme } from "./themes/luxury";
 import { natureTheme } from "./themes/nature";
 import { oceanTheme } from "./themes/ocean";
 import { retroTheme } from "./themes/retro";
+import { roseNoirTheme } from "./themes/roseNoir";
 import type { Theme, ThemeMode } from "./types";
 
 interface ThemeContextValue {

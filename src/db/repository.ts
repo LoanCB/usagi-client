@@ -1,3 +1,4 @@
+import type { ExportData } from "@/lib/dataTransfer";
 import type {
 	CreateProjectInput,
 	CreateTagInput,
@@ -7,7 +8,6 @@ import type {
 	Task,
 	TaskFilters,
 } from "@/types";
-import type { ExportData } from "@/lib/dataTransfer";
 
 export interface TodoRepository {
 	// Tasks

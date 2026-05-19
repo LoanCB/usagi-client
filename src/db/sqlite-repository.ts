@@ -1,3 +1,4 @@
+import type { ExportData } from "@/lib/dataTransfer";
 import type {
 	CreateProjectInput,
 	CreateTagInput,
@@ -8,7 +9,6 @@ import type {
 	TaskFilters,
 } from "@/types";
 import type { DbDriver } from "./driver";
-import type { ExportData } from "@/lib/dataTransfer";
 import type { TodoRepository } from "./repository";
 
 // ---- Row types returned by SQLite (snake_case) ----
@@ -518,7 +518,9 @@ export class SqliteRepository implements TodoRepository {
 					task.updatedAt,
 				],
 			);
-			await this.db.execute("DELETE FROM task_tags WHERE task_id = ?", [task.id]);
+			await this.db.execute("DELETE FROM task_tags WHERE task_id = ?", [
+				task.id,
+			]);
 			for (const tag of task.tags) {
 				if (strategy === "replace" && !exportedTagIds.has(tag.id)) continue;
 				await this.db.execute(

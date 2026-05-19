@@ -209,7 +209,11 @@ export function RichTextToolbar({ editor }: RichTextToolbarProps) {
 							placeholder="Texte du lien (facultatif)"
 							className="h-7 text-sm"
 						/>
-						<Button type="submit" size="sm" className="h-7 px-2 text-xs self-end">
+						<Button
+							type="submit"
+							size="sm"
+							className="h-7 px-2 text-xs self-end"
+						>
 							OK
 						</Button>
 					</form>

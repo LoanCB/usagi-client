@@ -1,6 +1,12 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, GripVertical, Trash2, TriangleAlert } from "lucide-react";
+import {
+	Archive,
+	Copy,
+	GripVertical,
+	Trash2,
+	TriangleAlert,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -73,6 +79,14 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 
 	async function handleArchive() {
 		await archiveTask(getRepository(), task.id);
+	}
+
+	async function handleCopyTitle() {
+		try {
+			await navigator.clipboard.writeText(task.title);
+		} catch {
+			// clipboard unavailable (e.g. window not focused)
+		}
 	}
 
 	async function handleTagToggle(tagId: string, checked: boolean) {
@@ -181,6 +195,11 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 				)}
 			</ContextMenuTrigger>
 			<ContextMenuContent>
+				<ContextMenuItem onClick={handleCopyTitle}>
+					<Copy className="h-4 w-4" />
+					{t("task.copyTitle")}
+				</ContextMenuItem>
+				<ContextMenuSeparator />
 				<ContextMenuItem onClick={handleArchive}>
 					<Archive className="h-4 w-4" />
 					{t("task.archive")}

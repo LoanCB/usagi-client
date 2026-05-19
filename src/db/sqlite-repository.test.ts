@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import type { DbDriver } from "./driver";
-import { SqliteRepository } from "./sqlite-repository";
 import type { ExportData } from "@/lib/dataTransfer";
 import type { Task } from "@/types";
+import type { DbDriver } from "./driver";
+import { SqliteRepository } from "./sqlite-repository";
 
 // Internal row shape — mirrors what SQLite returns
 interface TaskRow {
@@ -564,14 +564,28 @@ describe("SqliteRepository — bulkImport", () => {
 		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls.map(
 			(c: unknown[]) => (c[0] as string).trim().toUpperCase(),
 		);
-		expect(calls.some((s: string) => s.startsWith("DELETE FROM PROJECTS"))).toBe(false);
-		expect(calls.some((s: string) => s.startsWith("DELETE FROM TASKS"))).toBe(false);
-		expect(calls.some((s: string) => s.includes("INSERT OR REPLACE INTO PROJECTS"))).toBe(true);
+		expect(
+			calls.some((s: string) => s.startsWith("DELETE FROM PROJECTS")),
+		).toBe(false);
+		expect(calls.some((s: string) => s.startsWith("DELETE FROM TASKS"))).toBe(
+			false,
+		);
+		expect(
+			calls.some((s: string) => s.includes("INSERT OR REPLACE INTO PROJECTS")),
+		).toBe(true);
 		// Tags use OR IGNORE in merge mode to avoid deleting existing tags with conflicting names
-		expect(calls.some((s: string) => s.includes("INSERT OR IGNORE INTO TAGS"))).toBe(true);
-		expect(calls.some((s: string) => s.includes("INSERT OR REPLACE INTO TAGS"))).toBe(false);
-		expect(calls.some((s: string) => s.includes("INSERT OR REPLACE INTO TASKS"))).toBe(true);
-		expect(calls.some((s: string) => s.includes("INSERT OR REPLACE INTO TASK_TAGS"))).toBe(true);
+		expect(
+			calls.some((s: string) => s.includes("INSERT OR IGNORE INTO TAGS")),
+		).toBe(true);
+		expect(
+			calls.some((s: string) => s.includes("INSERT OR REPLACE INTO TAGS")),
+		).toBe(false);
+		expect(
+			calls.some((s: string) => s.includes("INSERT OR REPLACE INTO TASKS")),
+		).toBe(true);
+		expect(
+			calls.some((s: string) => s.includes("INSERT OR REPLACE INTO TASK_TAGS")),
+		).toBe(true);
 	});
 
 	it("replace: uses OR REPLACE for tags (no name conflict possible after full DELETE)", async () => {
@@ -582,7 +596,9 @@ describe("SqliteRepository — bulkImport", () => {
 		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls.map(
 			(c: unknown[]) => (c[0] as string).trim().toUpperCase(),
 		);
-		expect(calls.some((s: string) => s.includes("INSERT OR REPLACE INTO TAGS"))).toBe(true);
+		expect(
+			calls.some((s: string) => s.includes("INSERT OR REPLACE INTO TAGS")),
+		).toBe(true);
 	});
 
 	it("replace: skips task_tags for tags not in export data", async () => {
@@ -590,22 +606,35 @@ describe("SqliteRepository — bulkImport", () => {
 			...sampleExportData.tasks[0],
 			tags: [
 				{ id: "tag-1", name: "urgent", color: "#ef4444", projectId: null },
-				{ id: "tag-outside-export", name: "other", color: "#000", projectId: null },
+				{
+					id: "tag-outside-export",
+					name: "other",
+					color: "#000",
+					projectId: null,
+				},
 			],
 		};
 		const dataWithExtraTag: ExportData = {
 			...sampleExportData,
-			tags: [{ id: "tag-1", name: "urgent", color: "#ef4444", projectId: null }],
+			tags: [
+				{ id: "tag-1", name: "urgent", color: "#ef4444", projectId: null },
+			],
 			tasks: [taskWithExtraTag],
 		};
 		const db = makeDb();
 		const repo = new SqliteRepository(db);
 		await repo.bulkImport(dataWithExtraTag, "replace");
 
-		const taskTagInserts = (db.execute as ReturnType<typeof vi.fn>).mock.calls.filter(
-			(c: unknown[]) => (c[0] as string).toUpperCase().includes("INSERT OR REPLACE INTO TASK_TAGS"),
+		const taskTagInserts = (
+			db.execute as ReturnType<typeof vi.fn>
+		).mock.calls.filter((c: unknown[]) =>
+			(c[0] as string)
+				.toUpperCase()
+				.includes("INSERT OR REPLACE INTO TASK_TAGS"),
 		);
-		const insertedTagIds = taskTagInserts.map((c: unknown[]) => (c[1] as unknown[])[1]);
+		const insertedTagIds = taskTagInserts.map(
+			(c: unknown[]) => (c[1] as unknown[])[1],
+		);
 		expect(insertedTagIds).toContain("tag-1");
 		expect(insertedTagIds).not.toContain("tag-outside-export");
 	});
@@ -619,7 +648,9 @@ describe("SqliteRepository — bulkImport", () => {
 			(c: unknown[]) => (c[0] as string).trim().toUpperCase(),
 		);
 		expect(
-			calls.some((s: string) => s.startsWith("DELETE FROM TASK_TAGS WHERE TASK_ID")),
+			calls.some((s: string) =>
+				s.startsWith("DELETE FROM TASK_TAGS WHERE TASK_ID"),
+			),
 		).toBe(true);
 	});
 
@@ -631,11 +662,21 @@ describe("SqliteRepository — bulkImport", () => {
 		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls.map(
 			(c: unknown[]) => (c[0] as string).trim().toUpperCase(),
 		);
-		expect(calls.some((s: string) => s.startsWith("DELETE FROM TASK_TAGS"))).toBe(true);
-		expect(calls.some((s: string) => s.startsWith("DELETE FROM TASKS"))).toBe(true);
-		expect(calls.some((s: string) => s.startsWith("DELETE FROM TAGS"))).toBe(true);
-		expect(calls.some((s: string) => s.startsWith("DELETE FROM PROJECTS"))).toBe(true);
-		expect(calls.some((s: string) => s.includes("INSERT OR REPLACE INTO PROJECTS"))).toBe(true);
+		expect(
+			calls.some((s: string) => s.startsWith("DELETE FROM TASK_TAGS")),
+		).toBe(true);
+		expect(calls.some((s: string) => s.startsWith("DELETE FROM TASKS"))).toBe(
+			true,
+		);
+		expect(calls.some((s: string) => s.startsWith("DELETE FROM TAGS"))).toBe(
+			true,
+		);
+		expect(
+			calls.some((s: string) => s.startsWith("DELETE FROM PROJECTS")),
+		).toBe(true);
+		expect(
+			calls.some((s: string) => s.includes("INSERT OR REPLACE INTO PROJECTS")),
+		).toBe(true);
 	});
 
 	it("replace: DELETE statements appear before INSERT statements", async () => {
@@ -646,9 +687,12 @@ describe("SqliteRepository — bulkImport", () => {
 		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls.map(
 			(c: unknown[]) => (c[0] as string).trim().toUpperCase(),
 		);
-		const firstDeleteIdx = calls.findIndex((s: string) => s.startsWith("DELETE FROM"));
-		const firstInsertIdx = calls.findIndex((s: string) => s.includes("INSERT OR REPLACE"));
+		const firstDeleteIdx = calls.findIndex((s: string) =>
+			s.startsWith("DELETE FROM"),
+		);
+		const firstInsertIdx = calls.findIndex((s: string) =>
+			s.includes("INSERT OR REPLACE"),
+		);
 		expect(firstDeleteIdx).toBeLessThan(firstInsertIdx);
 	});
-
 });

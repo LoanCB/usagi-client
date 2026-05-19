@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event";
 import "@/i18n";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { ThemeProvider } from "@/theme/ThemeProvider";
-import { roseNoirTheme } from "@/theme/themes/roseNoir";
 import { cosmicGoldTheme } from "@/theme/themes/cosmicGold";
+import { roseNoirTheme } from "@/theme/themes/roseNoir";
 import type { ThemeTokens } from "@/theme/types";
 
 function renderWithTheme(
@@ -66,16 +66,48 @@ describe("ThemeToggle (collapsed)", () => {
 });
 
 const REQUIRED_TOKENS: (keyof ThemeTokens)[] = [
-	"--background", "--foreground", "--card", "--card-foreground",
-	"--popover", "--popover-foreground", "--primary", "--primary-foreground",
-	"--secondary", "--secondary-foreground", "--muted", "--muted-foreground",
-	"--accent", "--accent-foreground", "--border", "--input", "--ring",
-	"--destructive", "--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5",
-	"--sidebar", "--sidebar-foreground", "--sidebar-primary", "--sidebar-primary-foreground",
-	"--sidebar-accent", "--sidebar-accent-foreground", "--sidebar-border", "--sidebar-ring",
-	"--radius", "--priority-high", "--priority-medium", "--priority-low",
-	"--app-gradient", "--orb-1-color", "--orb-2-color", "--orb-3-color",
-	"--vignette-end-color", "--glass-border-color", "--glass-border-hover-color",
+	"--background",
+	"--foreground",
+	"--card",
+	"--card-foreground",
+	"--popover",
+	"--popover-foreground",
+	"--primary",
+	"--primary-foreground",
+	"--secondary",
+	"--secondary-foreground",
+	"--muted",
+	"--muted-foreground",
+	"--accent",
+	"--accent-foreground",
+	"--border",
+	"--input",
+	"--ring",
+	"--destructive",
+	"--chart-1",
+	"--chart-2",
+	"--chart-3",
+	"--chart-4",
+	"--chart-5",
+	"--sidebar",
+	"--sidebar-foreground",
+	"--sidebar-primary",
+	"--sidebar-primary-foreground",
+	"--sidebar-accent",
+	"--sidebar-accent-foreground",
+	"--sidebar-border",
+	"--sidebar-ring",
+	"--radius",
+	"--priority-high",
+	"--priority-medium",
+	"--priority-low",
+	"--app-gradient",
+	"--orb-1-color",
+	"--orb-2-color",
+	"--orb-3-color",
+	"--vignette-end-color",
+	"--glass-border-color",
+	"--glass-border-hover-color",
 ];
 
 describe("roseNoirTheme", () => {

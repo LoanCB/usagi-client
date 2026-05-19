@@ -56,6 +56,7 @@ const en = {
 		projectFallback: "Project",
 		addDate: "Add date",
 		search: "Search…",
+		copyTitle: "Copy title",
 	},
 	priority: {
 		label: "Priority",
