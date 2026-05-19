@@ -31,6 +31,9 @@ const en = {
 		noTasks: "No tasks for this day",
 		newTask: "New task for this day",
 		closeDay: "Close day detail",
+		dueSection: "To do",
+		completedSection: "Completed",
+		overdue: "overdue",
 		filter: {
 			allProjects: "All projects",
 			trigger: "Project filter",

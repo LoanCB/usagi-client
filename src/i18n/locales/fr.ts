@@ -33,6 +33,9 @@ const fr: typeof en = {
 		noTasks: "Aucune tâche pour ce jour",
 		newTask: "Nouvelle tâche pour ce jour",
 		closeDay: "Fermer le détail du jour",
+		dueSection: "À faire",
+		completedSection: "Terminées",
+		overdue: "retard",
 		filter: {
 			allProjects: "Tous les projets",
 			trigger: "Filtre projet",

@@ -21,7 +21,7 @@ export function CalendarView() {
 
 	const { loadTasks } = useTaskStore();
 	const tasks = useTaskStore((s) => s.tasks);
-	const { setSelectedTask } = useUIStore();
+	const { navigateToTask } = useUIStore();
 	const projects = useProjectStore((s) => s.projects);
 
 	const [calendarProjectFilter, setCalendarProjectFilter] = useState<
@@ -76,7 +76,7 @@ export function CalendarView() {
 	}
 
 	function handleTaskClick(task: Task) {
-		setSelectedTask(task.id);
+		navigateToTask(task.projectId, task.id);
 	}
 
 	function handleDateChange(date: Date) {

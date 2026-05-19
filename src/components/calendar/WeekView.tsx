@@ -13,6 +13,11 @@ import {
 	ContextMenuItem,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types";
 
@@ -82,32 +87,34 @@ export function WeekView({
 
 							<div className="flex flex-col gap-0.5 p-1 flex-1 overflow-y-auto">
 								{due.map((task) => (
-									<button
-										key={task.id}
-										type="button"
-										title={task.title}
-										onClick={(e) => {
-											e.stopPropagation();
-											onTaskClick(task);
-										}}
-										className="text-xs truncate px-1.5 py-1 rounded bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 text-left w-full transition-colors"
-									>
-										{task.title}
-									</button>
+									<Tooltip key={task.id}>
+										<TooltipTrigger
+											type="button"
+											onClick={(e) => {
+												e.stopPropagation();
+												onTaskClick(task);
+											}}
+											className="text-xs truncate px-1.5 py-1 rounded bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 text-left w-full transition-colors"
+										>
+											{task.title}
+										</TooltipTrigger>
+										<TooltipContent side="left">{task.title}</TooltipContent>
+									</Tooltip>
 								))}
 								{completed.map((task) => (
-									<button
-										key={task.id}
-										type="button"
-										title={task.title}
-										onClick={(e) => {
-											e.stopPropagation();
-											onTaskClick(task);
-										}}
-										className="text-xs truncate px-1.5 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 text-left w-full transition-colors line-through opacity-70"
-									>
-										{task.title}
-									</button>
+									<Tooltip key={task.id}>
+										<TooltipTrigger
+											type="button"
+											onClick={(e) => {
+												e.stopPropagation();
+												onTaskClick(task);
+											}}
+											className="text-xs truncate px-1.5 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 text-left w-full transition-colors line-through opacity-70"
+										>
+											{task.title}
+										</TooltipTrigger>
+										<TooltipContent side="left">{task.title}</TooltipContent>
+									</Tooltip>
 								))}
 							</div>
 						</ContextMenuTrigger>
