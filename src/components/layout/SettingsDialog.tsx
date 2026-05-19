@@ -442,7 +442,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 			const data = await exportData(getRepository(), exportOptions);
 			const today = new Date().toISOString().slice(0, 10);
 			const path = await save({
-				defaultPath: `usagi-backup-${today}.json`,
+				defaultPath: `bunly-backup-${today}.json`,
 				filters: [{ name: "JSON", extensions: ["json"] }],
 			});
 			if (!path) return;

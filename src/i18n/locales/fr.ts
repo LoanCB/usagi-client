@@ -174,7 +174,7 @@ const fr: typeof en = {
 		exportError: "Échec de l'export",
 		importError: "Fichier invalide ou corrompu",
 		importDescription:
-			"Restaurer depuis un fichier JSON exporté depuis Usagi. Vous pouvez fusionner ou remplacer vos données existantes.",
+			"Restaurer depuis un fichier JSON exporté depuis Bunly. Vous pouvez fusionner ou remplacer vos données existantes.",
 	},
 };
 

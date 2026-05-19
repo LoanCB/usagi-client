@@ -32,7 +32,7 @@ export interface ThemeTokens {
 	"--sidebar-border": string;
 	"--sidebar-ring": string;
 	"--radius": string;
-	// Usagi-specific
+	// Bunly-specific
 	"--priority-high": string;
 	"--priority-medium": string;
 	"--priority-low": string;
