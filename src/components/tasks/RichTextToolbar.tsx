@@ -45,6 +45,7 @@ interface ToolbarButton {
 export function RichTextToolbar({ editor }: RichTextToolbarProps) {
 	const [linkOpen, setLinkOpen] = useState(false);
 	const [linkUrl, setLinkUrl] = useState("");
+	const [linkText, setLinkText] = useState("");
 
 	const buttons: ToolbarButton[] = [
 		{
@@ -106,10 +107,30 @@ export function RichTextToolbar({ editor }: RichTextToolbarProps) {
 	function handleLinkSubmit() {
 		const url = linkUrl.trim();
 		if (url) {
-			editor.chain().focus().setLink({ href: url }).run();
+			const text = linkText.trim() || url;
+			editor
+				.chain()
+				.focus()
+				.insertContent({
+					type: "text",
+					text,
+					marks: [{ type: "link", attrs: { href: url } }],
+				})
+				.command(({ tr, dispatch }) => {
+					if (dispatch) {
+						const linkType = editor.schema.marks.link;
+						if (linkType) {
+							const current = tr.storedMarks ?? tr.selection.$head.marks();
+							tr.setStoredMarks(current.filter((m) => m.type !== linkType));
+						}
+					}
+					return true;
+				})
+				.run();
 		}
 		setLinkOpen(false);
 		setLinkUrl("");
+		setLinkText("");
 	}
 
 	function handleLinkButtonClick(e: React.MouseEvent) {
@@ -117,6 +138,8 @@ export function RichTextToolbar({ editor }: RichTextToolbarProps) {
 			e.preventDefault(); // prevents Radix from opening the popover
 			editor.chain().focus().unsetLink().run();
 		} else {
+			const { from, to } = editor.state.selection;
+			setLinkText(editor.state.doc.textBetween(from, to));
 			setLinkUrl("");
 		}
 	}
@@ -165,13 +188,13 @@ export function RichTextToolbar({ editor }: RichTextToolbarProps) {
 					</TooltipTrigger>
 					<TooltipContent>Lien</TooltipContent>
 				</Tooltip>
-				<PopoverContent className="w-72 p-2">
+				<PopoverContent className="w-80 p-2">
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();
 							handleLinkSubmit();
 						}}
-						className="flex gap-2"
+						className="flex flex-col gap-2"
 					>
 						<Input
 							value={linkUrl}
@@ -180,7 +203,13 @@ export function RichTextToolbar({ editor }: RichTextToolbarProps) {
 							className="h-7 text-sm"
 							autoFocus
 						/>
-						<Button type="submit" size="sm" className="h-7 px-2 text-xs">
+						<Input
+							value={linkText}
+							onChange={(e) => setLinkText(e.target.value)}
+							placeholder="Texte du lien (facultatif)"
+							className="h-7 text-sm"
+						/>
+						<Button type="submit" size="sm" className="h-7 px-2 text-xs self-end">
 							OK
 						</Button>
 					</form>
