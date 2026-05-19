@@ -200,7 +200,9 @@ type CustomThemeLabelKey =
   | "theme.retro"
   | "theme.ember"
   | "theme.deepOcean"
-  | "theme.ocean";
+  | "theme.ocean"
+  | "theme.roseNoir"
+  | "theme.cosmicGold";
 const CUSTOM_THEMES: {
   mode: ThemeMode;
   color: string;
@@ -221,6 +223,16 @@ const CUSTOM_THEMES: {
     labelKey: "theme.deepOcean",
   },
   { mode: "ocean", color: "oklch(0.62 0.15 193)", labelKey: "theme.ocean" },
+  {
+    mode: "rose-noir",
+    color: "oklch(0.68 0.30 340)",
+    labelKey: "theme.roseNoir",
+  },
+  {
+    mode: "cosmic-gold",
+    color: "oklch(0.72 0.16 72)",
+    labelKey: "theme.cosmicGold",
+  },
 ];
 
 function hasConflict(a: SortShortcut, b: SortShortcut): boolean {

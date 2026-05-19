@@ -107,6 +107,8 @@ const en = {
 		ember: "Ember",
 		deepOcean: "Deep Ocean",
 		ocean: "Ocean",
+		roseNoir: "Rose Noir",
+		cosmicGold: "Cosmic Gold",
 	},
 	notifications: {
 		overdueTitle: "Overdue tasks",
