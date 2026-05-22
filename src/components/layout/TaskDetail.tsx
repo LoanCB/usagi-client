@@ -31,7 +31,9 @@ export function TaskDetail({ width }: TaskDetailProps) {
 	const { t } = useTranslation();
 
 	const taskInList = tasks.find((t) => t.id === selectedTaskId) ?? null;
-	const [fetchedTask, setFetchedTask] = useState<(typeof tasks)[0] | null>(null);
+	const [fetchedTask, setFetchedTask] = useState<(typeof tasks)[0] | null>(
+		null,
+	);
 	const task = taskInList ?? fetchedTask;
 
 	useEffect(() => {

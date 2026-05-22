@@ -24,7 +24,11 @@ export const useUIStore = create<UIStore>((set) => ({
 		set({ selectedProjectId: id, selectedTaskId: null, activeFilters: {} }),
 	setSelectedTask: (id) => set({ selectedTaskId: id }),
 	navigateToTask: (projectId, taskId) =>
-		set({ selectedProjectId: projectId, selectedTaskId: taskId, activeFilters: {} }),
+		set({
+			selectedProjectId: projectId,
+			selectedTaskId: taskId,
+			activeFilters: {},
+		}),
 	setFilters: (filters) =>
 		set((s) => ({ activeFilters: { ...s.activeFilters, ...filters } })),
 }));

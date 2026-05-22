@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import logoUrl from "@/assets/logo.png";
 import { SettingsDialog } from "@/components/layout/SettingsDialog";
+import { DeleteProjectDialog } from "@/components/projects/DeleteProjectDialog";
 import { ProjectForm } from "@/components/projects/ProjectForm";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import { useSettingsStore } from "@/store/settings";
+import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
 import type { Project } from "@/types";
@@ -109,12 +111,88 @@ function ProjectNavItem({
 }: ProjectNavItemProps) {
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [editOpen, setEditOpen] = useState(false);
+	const [deleteOpen, setDeleteOpen] = useState(false);
 	const { deleteProject } = useProjectStore();
 	const { selectedProjectId, setSelectedProject } = useUIStore();
 	const { t } = useTranslation();
 
-	async function handleDelete() {
-		await deleteProject(getRepository(), project.id);
+	async function handleConfirmDelete(
+		options: import("@/components/projects/DeleteProjectDialog").DeleteProjectOptions,
+	) {
+		setDeleteOpen(false);
+		const repo = getRepository();
+		const { tagAction, taskAction, targetProjectId, targetTagProjectId, summary } = options;
+
+		// --- Tags: update DB then sync store so deleteProject's filter sees the new projectIds ---
+		const tagIds = new Set(summary.tags.map((t) => t.id));
+		if (tagAction === "generic") {
+			await Promise.all(
+				summary.tags.map((tag) =>
+					repo.updateTag(tag.id, { name: tag.name, color: tag.color ?? undefined, projectId: null }),
+				),
+			);
+			useTagStore.setState((s) => ({
+				tags: s.tags.map((t) => (tagIds.has(t.id) ? { ...t, projectId: null } : t)),
+			}));
+		} else if (tagAction === "project" && targetTagProjectId) {
+			await Promise.all(
+				summary.tags.map((tag) =>
+					repo.updateTag(tag.id, { name: tag.name, color: tag.color ?? undefined, projectId: targetTagProjectId }),
+				),
+			);
+			useTagStore.setState((s) => ({
+				tags: s.tags.map((t) => (tagIds.has(t.id) ? { ...t, projectId: targetTagProjectId } : t)),
+			}));
+		} else if (tagAction === "delete") {
+			await Promise.all(summary.tags.map((tag) => repo.deleteTag(tag.id)));
+			useTagStore.setState((s) => ({
+				tags: s.tags.filter((t) => !tagIds.has(t.id)),
+			}));
+		}
+
+		// --- Tasks: update DB then sync store ---
+		const allTasks = [
+			...summary.pendingTasks,
+			...summary.completedTasks,
+			...summary.archivedTasks,
+		];
+		const allTaskIds = new Set(allTasks.map((t) => t.id));
+		const archivedAndCompletedIds = new Set([
+			...summary.pendingTasks.map((t) => t.id),
+			...summary.completedTasks.map((t) => t.id),
+		]);
+		if (taskAction === "delete") {
+			await Promise.all(
+				[...summary.pendingTasks, ...summary.completedTasks].map((task) =>
+					repo.archiveTask(task.id),
+				),
+			);
+			useTaskStore.setState((s) => ({
+				tasks: s.tasks.filter((t) => !archivedAndCompletedIds.has(t.id)),
+			}));
+			await useTaskStore.getState().refreshCounts(repo);
+		} else if (taskAction === "inbox") {
+			await Promise.all(
+				allTasks.map((task) => repo.updateTask(task.id, { projectId: null })),
+			);
+			useTaskStore.setState((s) => ({
+				tasks: s.tasks.map((t) => (allTaskIds.has(t.id) ? { ...t, projectId: null } : t)),
+			}));
+		} else if (taskAction === "project" && targetProjectId) {
+			await Promise.all(
+				allTasks.map((task) =>
+					repo.updateTask(task.id, { projectId: targetProjectId }),
+				),
+			);
+			useTaskStore.setState((s) => ({
+				tasks: s.tasks.map((t) =>
+					allTaskIds.has(t.id) ? { ...t, projectId: targetProjectId } : t,
+				),
+			}));
+		}
+
+		// --- Delete project (also cleans up store + residual tag store entries) ---
+		await deleteProject(repo, project.id);
 		if (selectedProjectId === project.id) setSelectedProject(null);
 	}
 
@@ -183,7 +261,10 @@ function ProjectNavItem({
 										<DropdownMenuSeparator />
 										<DropdownMenuItem
 											variant="destructive"
-											onClick={handleDelete}
+											onClick={() => {
+												setMenuOpen(false);
+												setDeleteOpen(true);
+											}}
 										>
 											<Trash2 className="h-4 w-4" />
 											{t("common.delete")}
@@ -200,6 +281,12 @@ function ProjectNavItem({
 				project={project}
 				open={editOpen}
 				onOpenChange={setEditOpen}
+			/>
+			<DeleteProjectDialog
+				project={project}
+				open={deleteOpen}
+				onConfirm={handleConfirmDelete}
+				onCancel={() => setDeleteOpen(false)}
 			/>
 		</>
 	);
