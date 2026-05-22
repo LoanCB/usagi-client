@@ -37,6 +37,11 @@ const en = {
 		filter: {
 			allProjects: "All projects",
 			trigger: "Project filter",
+			allStatuses: "All statuses",
+			statusTrigger: "Status filter",
+			pending: "Not done",
+			overdue: "Overdue",
+			completed: "Completed",
 		},
 	},
 	sort: {

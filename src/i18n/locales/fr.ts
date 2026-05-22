@@ -39,6 +39,11 @@ const fr: typeof en = {
 		filter: {
 			allProjects: "Tous les projets",
 			trigger: "Filtre projet",
+			allStatuses: "Tous les états",
+			statusTrigger: "Filtre état",
+			pending: "Non faite",
+			overdue: "En retard",
+			completed: "Terminée",
 		},
 	},
 	sort: {

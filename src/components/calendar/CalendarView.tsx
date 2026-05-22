@@ -28,6 +28,10 @@ export function CalendarView() {
 		string | null | undefined
 	>(undefined);
 
+	const [calendarStatusFilter, setCalendarStatusFilter] = useState<
+		"completed" | "overdue" | "pending" | undefined
+	>(undefined);
+
 	const { width, isDragging, onMouseDown, onDoubleClick } = useResizable({
 		storageKey: "calendar-day-panel-width",
 		defaultWidth: 280,
@@ -39,13 +43,30 @@ export function CalendarView() {
 		loadTasks(getRepository(), { allTasks: true });
 	}, [loadTasks]);
 
-	const filteredTasks = useMemo(
-		() =>
+	const filteredTasks = useMemo(() => {
+		let result =
 			calendarProjectFilter === undefined
 				? tasks
-				: tasks.filter((t) => t.projectId === calendarProjectFilter),
-		[tasks, calendarProjectFilter],
-	);
+				: tasks.filter((t) => t.projectId === calendarProjectFilter);
+
+		if (calendarStatusFilter !== undefined) {
+			const today = new Date().toISOString().slice(0, 10);
+			result = result.filter((t) => {
+				if (calendarStatusFilter === "completed") return t.completedAt !== null;
+				if (calendarStatusFilter === "overdue")
+					return (
+						t.completedAt === null &&
+						t.dueDate !== null &&
+						t.dueDate < today
+					);
+				return (
+					t.completedAt === null &&
+					(t.dueDate === null || t.dueDate >= today)
+				);
+			});
+		}
+		return result;
+	}, [tasks, calendarProjectFilter, calendarStatusFilter]);
 
 	const grouped = useMemo(
 		() => groupTasksByDate(filteredTasks),
@@ -120,6 +141,8 @@ export function CalendarView() {
 				onDateChange={handleDateChange}
 				projectFilter={calendarProjectFilter}
 				onProjectFilterChange={setCalendarProjectFilter}
+				statusFilter={calendarStatusFilter}
+				onStatusFilterChange={setCalendarStatusFilter}
 			/>
 
 			<div className="flex flex-1 overflow-hidden min-w-0">
