@@ -84,6 +84,28 @@ export function CalendarView() {
 		setSelectedDay(null);
 	}
 
+	useEffect(() => {
+		function handleKeyDown(e: KeyboardEvent) {
+			if (
+				e.target instanceof HTMLInputElement ||
+				e.target instanceof HTMLTextAreaElement
+			)
+				return;
+			if (
+				e.key === "Escape" &&
+				!e.metaKey &&
+				!e.ctrlKey &&
+				!e.altKey &&
+				!e.shiftKey &&
+				selectedDay
+			) {
+				setSelectedDay(null);
+			}
+		}
+		globalThis.addEventListener("keydown", handleKeyDown);
+		return () => globalThis.removeEventListener("keydown", handleKeyDown);
+	}, [selectedDay]);
+
 	return (
 		<div className="flex flex-col flex-1 min-w-0 overflow-hidden">
 			<CalendarHeader
