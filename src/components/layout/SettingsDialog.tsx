@@ -1,3 +1,4 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import {
@@ -14,6 +15,7 @@ import {
 import { type ReactElement, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ImportConfirmDialog } from "@/components/layout/ImportConfirmDialog";
+import { useUpdaterContext } from "@/hooks/useUpdater";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -390,6 +392,19 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	const [activeTab, setActiveTab] = useState<
 		"general" | "notifications" | "data"
 	>("general");
+	const [appVersion, setAppVersion] = useState<string | null>(null);
+	const [upToDate, setUpToDate] = useState(false);
+	const { checkForUpdate, status } = useUpdaterContext();
+
+	useEffect(() => {
+		getVersion().then(setAppVersion).catch(() => null);
+	}, []);
+
+	async function handleCheckForUpdate() {
+		setUpToDate(false);
+		await checkForUpdate();
+		setUpToDate(true);
+	}
 
 	function handleShortcut(action: ShortcutAction, s: SortShortcut) {
 		setShortcut(getRepository(), action, s);
@@ -733,6 +748,31 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 											</div>
 										</div>
 									</div>
+								</div>
+
+								<div className="rounded-lg border border-input p-4 flex items-center justify-between gap-4 mt-2">
+									<div className="flex flex-col gap-0.5">
+										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+											Application
+										</p>
+										{appVersion && (
+											<p className="text-sm text-muted-foreground">v{appVersion}</p>
+										)}
+										{upToDate && status === "idle" && (
+											<p className="text-xs text-green-600">Vous êtes à jour</p>
+										)}
+										{status === "available" && (
+											<p className="text-xs text-primary">Une mise à jour est disponible</p>
+										)}
+									</div>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={handleCheckForUpdate}
+										disabled={status === "downloading"}
+									>
+										Vérifier les mises à jour
+									</Button>
 								</div>
 							</div>
 						)}

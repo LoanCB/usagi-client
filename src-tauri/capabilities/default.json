@@ -12,6 +12,7 @@
 		"notification:default",
 		"opener:default",
 		"dialog:default",
+		"updater:default",
 		"fs:allow-read-text-file",
 		"fs:allow-write-text-file",
 		{
