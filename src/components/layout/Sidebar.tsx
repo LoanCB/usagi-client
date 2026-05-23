@@ -121,27 +121,45 @@ function ProjectNavItem({
 	) {
 		setDeleteOpen(false);
 		const repo = getRepository();
-		const { tagAction, taskAction, targetProjectId, targetTagProjectId, summary } = options;
+		const {
+			tagAction,
+			taskAction,
+			targetProjectId,
+			targetTagProjectId,
+			summary,
+		} = options;
 
 		// --- Tags: update DB then sync store so deleteProject's filter sees the new projectIds ---
 		const tagIds = new Set(summary.tags.map((t) => t.id));
 		if (tagAction === "generic") {
 			await Promise.all(
 				summary.tags.map((tag) =>
-					repo.updateTag(tag.id, { name: tag.name, color: tag.color ?? undefined, projectId: null }),
+					repo.updateTag(tag.id, {
+						name: tag.name,
+						color: tag.color ?? undefined,
+						projectId: null,
+					}),
 				),
 			);
 			useTagStore.setState((s) => ({
-				tags: s.tags.map((t) => (tagIds.has(t.id) ? { ...t, projectId: null } : t)),
+				tags: s.tags.map((t) =>
+					tagIds.has(t.id) ? { ...t, projectId: null } : t,
+				),
 			}));
 		} else if (tagAction === "project" && targetTagProjectId) {
 			await Promise.all(
 				summary.tags.map((tag) =>
-					repo.updateTag(tag.id, { name: tag.name, color: tag.color ?? undefined, projectId: targetTagProjectId }),
+					repo.updateTag(tag.id, {
+						name: tag.name,
+						color: tag.color ?? undefined,
+						projectId: targetTagProjectId,
+					}),
 				),
 			);
 			useTagStore.setState((s) => ({
-				tags: s.tags.map((t) => (tagIds.has(t.id) ? { ...t, projectId: targetTagProjectId } : t)),
+				tags: s.tags.map((t) =>
+					tagIds.has(t.id) ? { ...t, projectId: targetTagProjectId } : t,
+				),
 			}));
 		} else if (tagAction === "delete") {
 			await Promise.all(summary.tags.map((tag) => repo.deleteTag(tag.id)));
@@ -176,7 +194,9 @@ function ProjectNavItem({
 				allTasks.map((task) => repo.updateTask(task.id, { projectId: null })),
 			);
 			useTaskStore.setState((s) => ({
-				tasks: s.tasks.map((t) => (allTaskIds.has(t.id) ? { ...t, projectId: null } : t)),
+				tasks: s.tasks.map((t) =>
+					allTaskIds.has(t.id) ? { ...t, projectId: null } : t,
+				),
 			}));
 		} else if (taskAction === "project" && targetProjectId) {
 			await Promise.all(

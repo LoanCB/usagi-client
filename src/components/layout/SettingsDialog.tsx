@@ -15,7 +15,6 @@ import {
 import { type ReactElement, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ImportConfirmDialog } from "@/components/layout/ImportConfirmDialog";
-import { useUpdaterContext } from "@/hooks/useUpdater";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -27,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Switch } from "@/components/ui/switch";
+import { useUpdaterContext } from "@/hooks/useUpdater";
 import {
 	type ExportData,
 	type ExportOptions,
@@ -397,7 +397,9 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	const { checkForUpdate, status } = useUpdaterContext();
 
 	useEffect(() => {
-		getVersion().then(setAppVersion).catch(() => null);
+		getVersion()
+			.then(setAppVersion)
+			.catch(() => null);
 	}, []);
 
 	async function handleCheckForUpdate() {
@@ -756,13 +758,17 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 											Application
 										</p>
 										{appVersion && (
-											<p className="text-sm text-muted-foreground">v{appVersion}</p>
+											<p className="text-sm text-muted-foreground">
+												v{appVersion}
+											</p>
 										)}
 										{upToDate && status === "idle" && (
 											<p className="text-xs text-green-600">Vous êtes à jour</p>
 										)}
 										{status === "available" && (
-											<p className="text-xs text-primary">Une mise à jour est disponible</p>
+											<p className="text-xs text-primary">
+												Une mise à jour est disponible
+											</p>
 										)}
 									</div>
 									<Button

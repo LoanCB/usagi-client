@@ -1,21 +1,21 @@
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import {
 	AlertTriangleIcon,
 	ChevronRightIcon,
-	InboxIcon,
 	FolderSyncIcon,
-	Trash2Icon,
+	InboxIcon,
 	TagsIcon,
+	Trash2Icon,
 	XIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogTitle,
-	DialogDescription,
 } from "@/components/ui/dialog";
 import {
 	Select,
@@ -24,9 +24,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { getRepository } from "@/store/repository";
-import { useProjectStore } from "@/store/projects";
 import { cn } from "@/lib/utils";
+import { useProjectStore } from "@/store/projects";
+import { getRepository } from "@/store/repository";
 import type { Project, Tag, Task } from "@/types";
 
 export type TagAction = "delete" | "generic" | "project";
@@ -65,7 +65,9 @@ export function DeleteProjectDialog({
 	const [tagAction, setTagAction] = useState<TagAction>("delete");
 	const [taskAction, setTaskAction] = useState<TaskAction>("inbox");
 	const [targetProjectId, setTargetProjectId] = useState<string | undefined>();
-	const [targetTagProjectId, setTargetTagProjectId] = useState<string | undefined>();
+	const [targetTagProjectId, setTargetTagProjectId] = useState<
+		string | undefined
+	>();
 	const [tasksExpanded, setTasksExpanded] = useState(false);
 	const [tagsExpanded, setTagsExpanded] = useState(false);
 
@@ -108,7 +110,13 @@ export function DeleteProjectDialog({
 
 	function handleConfirm() {
 		if (!summary || !canConfirm) return;
-		onConfirm({ tagAction, taskAction, targetProjectId, targetTagProjectId, summary });
+		onConfirm({
+			tagAction,
+			taskAction,
+			targetProjectId,
+			targetTagProjectId,
+			summary,
+		});
 	}
 
 	return (
@@ -214,7 +222,9 @@ export function DeleteProjectDialog({
 										>
 											<Select
 												value={targetProjectId}
-												onValueChange={(v) => setTargetProjectId(v ?? undefined)}
+												onValueChange={(v) =>
+													setTargetProjectId(v ?? undefined)
+												}
 											>
 												<SelectTrigger
 													size="sm"
@@ -309,7 +319,9 @@ export function DeleteProjectDialog({
 										>
 											<Select
 												value={targetTagProjectId}
-												onValueChange={(v) => setTargetTagProjectId(v ?? undefined)}
+												onValueChange={(v) =>
+													setTargetTagProjectId(v ?? undefined)
+												}
 											>
 												<SelectTrigger
 													size="sm"
@@ -317,10 +329,14 @@ export function DeleteProjectDialog({
 													onClick={(e) => e.stopPropagation()}
 												>
 													<SelectValue
-														placeholder={t("project.taskActionProjectPlaceholder")}
+														placeholder={t(
+															"project.taskActionProjectPlaceholder",
+														)}
 													>
 														{targetTagProjectId
-															? otherProjects.find((p) => p.id === targetTagProjectId)?.name
+															? otherProjects.find(
+																	(p) => p.id === targetTagProjectId,
+																)?.name
 															: null}
 													</SelectValue>
 												</SelectTrigger>
@@ -445,10 +461,7 @@ function DisclosureList({
 						item.raw ? (
 							<span key={item.key}>{item.content}</span>
 						) : (
-							<div
-								key={item.key}
-								className="flex items-center gap-1.5 py-0.5"
-							>
+							<div key={item.key} className="flex items-center gap-1.5 py-0.5">
 								<span className="w-1 h-1 rounded-full bg-muted-foreground/40 shrink-0" />
 								<span className="text-xs text-muted-foreground truncate">
 									{item.content}
@@ -480,14 +493,7 @@ function RadioCard({
 	readonly children?: React.ReactNode;
 }) {
 	return (
-		<div
-			role="radio"
-			aria-checked={checked}
-			tabIndex={0}
-			onClick={onSelect}
-			onKeyDown={(e) => {
-				if (e.key === " " || e.key === "Enter") onSelect();
-			}}
+		<label
 			className={cn(
 				"flex items-start gap-2.5 px-3 py-2.5 rounded-[9px] border cursor-pointer transition-all duration-[130ms]",
 				checked
@@ -497,6 +503,12 @@ function RadioCard({
 					: "border-border hover:bg-foreground/[0.03]",
 			)}
 		>
+			<input
+				type="radio"
+				className="sr-only"
+				checked={checked}
+				onChange={onSelect}
+			/>
 			{/* Radio dot */}
 			<span
 				className={cn(
@@ -535,7 +547,9 @@ function RadioCard({
 				<p
 					className={cn(
 						"text-[13px] leading-[1.25]",
-						checked ? "font-semibold text-foreground" : "font-medium text-foreground",
+						checked
+							? "font-semibold text-foreground"
+							: "font-medium text-foreground",
 					)}
 				>
 					{label}
@@ -545,6 +559,6 @@ function RadioCard({
 				</p>
 				{children}
 			</div>
-		</div>
+		</label>
 	);
 }

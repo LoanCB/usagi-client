@@ -44,7 +44,7 @@ export function AppContent() {
 
 	useEffect(() => {
 		updater.checkForUpdate();
-	}, []); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [updater.checkForUpdate]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	return (
 		<UpdaterContext.Provider value={updater}>

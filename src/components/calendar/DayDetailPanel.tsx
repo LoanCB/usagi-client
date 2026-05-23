@@ -108,7 +108,7 @@ function CompletedTaskButton({
 				<div className="w-3.5 h-3.5 rounded-full bg-muted/20 flex items-center justify-center shrink-0">
 					<Check className="w-2 h-2 text-muted-foreground/50" />
 				</div>
-				<span className="truncate">{task.title}</span>
+				<span className="truncate line-through">{task.title}</span>
 			</TooltipTrigger>
 			<TooltipContent side="left">{task.title}</TooltipContent>
 		</Tooltip>

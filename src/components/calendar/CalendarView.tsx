@@ -55,13 +55,10 @@ export function CalendarView() {
 				if (calendarStatusFilter === "completed") return t.completedAt !== null;
 				if (calendarStatusFilter === "overdue")
 					return (
-						t.completedAt === null &&
-						t.dueDate !== null &&
-						t.dueDate < today
+						t.completedAt === null && t.dueDate !== null && t.dueDate < today
 					);
 				return (
-					t.completedAt === null &&
-					(t.dueDate === null || t.dueDate >= today)
+					t.completedAt === null && (t.dueDate === null || t.dueDate >= today)
 				);
 			});
 		}
