@@ -21,11 +21,15 @@ export function CalendarView() {
 
 	const { loadTasks } = useTaskStore();
 	const tasks = useTaskStore((s) => s.tasks);
-	const { setSelectedTask } = useUIStore();
+	const { navigateToTask } = useUIStore();
 	const projects = useProjectStore((s) => s.projects);
 
 	const [calendarProjectFilter, setCalendarProjectFilter] = useState<
 		string | null | undefined
+	>(undefined);
+
+	const [calendarStatusFilter, setCalendarStatusFilter] = useState<
+		"completed" | "overdue" | "pending" | undefined
 	>(undefined);
 
 	const { width, isDragging, onMouseDown, onDoubleClick } = useResizable({
@@ -39,13 +43,27 @@ export function CalendarView() {
 		loadTasks(getRepository(), { allTasks: true });
 	}, [loadTasks]);
 
-	const filteredTasks = useMemo(
-		() =>
+	const filteredTasks = useMemo(() => {
+		let result =
 			calendarProjectFilter === undefined
 				? tasks
-				: tasks.filter((t) => t.projectId === calendarProjectFilter),
-		[tasks, calendarProjectFilter],
-	);
+				: tasks.filter((t) => t.projectId === calendarProjectFilter);
+
+		if (calendarStatusFilter !== undefined) {
+			const today = new Date().toISOString().slice(0, 10);
+			result = result.filter((t) => {
+				if (calendarStatusFilter === "completed") return t.completedAt !== null;
+				if (calendarStatusFilter === "overdue")
+					return (
+						t.completedAt === null && t.dueDate !== null && t.dueDate < today
+					);
+				return (
+					t.completedAt === null && (t.dueDate === null || t.dueDate >= today)
+				);
+			});
+		}
+		return result;
+	}, [tasks, calendarProjectFilter, calendarStatusFilter]);
 
 	const grouped = useMemo(
 		() => groupTasksByDate(filteredTasks),
@@ -76,13 +94,35 @@ export function CalendarView() {
 	}
 
 	function handleTaskClick(task: Task) {
-		setSelectedTask(task.id);
+		navigateToTask(task.projectId, task.id);
 	}
 
 	function handleDateChange(date: Date) {
 		setCurrentDate(date);
 		setSelectedDay(null);
 	}
+
+	useEffect(() => {
+		function handleKeyDown(e: KeyboardEvent) {
+			if (
+				e.target instanceof HTMLInputElement ||
+				e.target instanceof HTMLTextAreaElement
+			)
+				return;
+			if (
+				e.key === "Escape" &&
+				!e.metaKey &&
+				!e.ctrlKey &&
+				!e.altKey &&
+				!e.shiftKey &&
+				selectedDay
+			) {
+				setSelectedDay(null);
+			}
+		}
+		globalThis.addEventListener("keydown", handleKeyDown);
+		return () => globalThis.removeEventListener("keydown", handleKeyDown);
+	}, [selectedDay]);
 
 	return (
 		<div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -98,6 +138,8 @@ export function CalendarView() {
 				onDateChange={handleDateChange}
 				projectFilter={calendarProjectFilter}
 				onProjectFilterChange={setCalendarProjectFilter}
+				statusFilter={calendarStatusFilter}
+				onStatusFilterChange={setCalendarStatusFilter}
 			/>
 
 			<div className="flex flex-1 overflow-hidden min-w-0">

@@ -12,6 +12,20 @@ vi.mock("@/store/repository", () => ({
 	})),
 }));
 
+vi.mock("@/hooks/useUpdater", () => ({
+	useUpdaterContext: () => ({
+		status: "idle",
+		checkForUpdate: vi.fn(),
+	}),
+	UpdaterContext: {
+		Provider: ({ children }: { children: React.ReactNode }) => children,
+	},
+}));
+
+vi.mock("@tauri-apps/api/app", () => ({
+	getVersion: vi.fn().mockResolvedValue("1.0.0"),
+}));
+
 function renderDialog() {
 	return render(
 		<SettingsDialog>

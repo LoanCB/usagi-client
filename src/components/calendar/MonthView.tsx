@@ -16,6 +16,11 @@ import {
 	ContextMenuItem,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types";
 
@@ -95,28 +100,30 @@ export function MonthView({
 								</div>
 								<div className="flex flex-wrap gap-1">
 									{due.map((task) => (
-										<button
-											key={task.id}
-											type="button"
-											title={task.title}
-											onClick={(e) => {
-												e.stopPropagation();
-												onTaskClick(task);
-											}}
-											className="w-2.5 h-2.5 rounded-full bg-orange-400/80 hover:scale-125 transition-transform shrink-0"
-										/>
+										<Tooltip key={task.id}>
+											<TooltipTrigger
+												type="button"
+												onClick={(e) => {
+													e.stopPropagation();
+													onTaskClick(task);
+												}}
+												className="w-2.5 h-2.5 rounded-full bg-orange-400/80 hover:scale-125 transition-transform shrink-0"
+											/>
+											<TooltipContent side="top">{task.title}</TooltipContent>
+										</Tooltip>
 									))}
 									{completed.map((task) => (
-										<button
-											key={task.id}
-											type="button"
-											title={task.title}
-											onClick={(e) => {
-												e.stopPropagation();
-												onTaskClick(task);
-											}}
-											className="w-2.5 h-2.5 rounded-full bg-green-400/80 hover:scale-125 transition-transform shrink-0"
-										/>
+										<Tooltip key={task.id}>
+											<TooltipTrigger
+												type="button"
+												onClick={(e) => {
+													e.stopPropagation();
+													onTaskClick(task);
+												}}
+												className="w-2.5 h-2.5 rounded-full bg-green-400/80 hover:scale-125 transition-transform shrink-0"
+											/>
+											<TooltipContent side="top">{task.title}</TooltipContent>
+										</Tooltip>
 									))}
 								</div>
 							</ContextMenuTrigger>

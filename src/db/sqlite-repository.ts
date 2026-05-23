@@ -1,3 +1,4 @@
+import type { ExportData } from "@/lib/dataTransfer";
 import type {
 	CreateProjectInput,
 	CreateTagInput,
@@ -459,6 +460,75 @@ export class SqliteRepository implements TodoRepository {
 			"INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
 			[key, value],
 		);
+	}
+
+	async bulkImport(
+		data: ExportData,
+		strategy: "merge" | "replace",
+	): Promise<void> {
+		if (strategy === "replace") {
+			await this.db.execute("DELETE FROM task_tags", []);
+			await this.db.execute("DELETE FROM tasks", []);
+			await this.db.execute("DELETE FROM tags", []);
+			await this.db.execute("DELETE FROM projects", []);
+		}
+
+		for (const p of data.projects) {
+			await this.db.execute(
+				"INSERT OR REPLACE INTO projects (id, name, color, icon, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+				[p.id, p.name, p.color, p.icon, p.sortOrder, p.createdAt, p.updatedAt],
+			);
+		}
+
+		// In merge mode use OR IGNORE to avoid overwriting existing tags that share
+		// the same UNIQUE(name) — which would delete the existing row and orphan its task_tags.
+		const tagSql =
+			strategy === "merge"
+				? "INSERT OR IGNORE INTO tags (id, name, color, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+				: "INSERT OR REPLACE INTO tags (id, name, color, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)";
+		for (const tag of data.tags) {
+			await this.db.execute(tagSql, [
+				tag.id,
+				tag.name,
+				tag.color,
+				tag.projectId,
+				data.exportedAt,
+				data.exportedAt,
+			]);
+		}
+
+		// Only link task→tag associations for tags present in the export. In replace
+		// mode this prevents dangling references when the "tags" checkbox was unchecked.
+		const exportedTagIds = new Set(data.tags.map((t) => t.id));
+
+		for (const task of data.tasks) {
+			await this.db.execute(
+				"INSERT OR REPLACE INTO tasks (id, title, description, project_id, priority, due_date, completed_at, deleted_at, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				[
+					task.id,
+					task.title,
+					task.description,
+					task.projectId,
+					task.priority,
+					task.dueDate,
+					task.completedAt,
+					task.deletedAt,
+					task.sortOrder,
+					task.createdAt,
+					task.updatedAt,
+				],
+			);
+			await this.db.execute("DELETE FROM task_tags WHERE task_id = ?", [
+				task.id,
+			]);
+			for (const tag of task.tags) {
+				if (strategy === "replace" && !exportedTagIds.has(tag.id)) continue;
+				await this.db.execute(
+					"INSERT OR REPLACE INTO task_tags (task_id, tag_id) VALUES (?, ?)",
+					[task.id, tag.id],
+				);
+			}
+		}
 	}
 
 	private async _attachTags(taskRows: TaskRow[]): Promise<Task[]> {

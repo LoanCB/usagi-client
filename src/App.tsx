@@ -2,6 +2,7 @@ import Database from "@tauri-apps/plugin-sql";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/AppShell";
+import { UpdateBanner } from "@/components/layout/UpdateBanner";
 import { createRepository } from "@/db";
 // Load migration SQL at build time (Vite raw import)
 import migrationSql from "@/db/migrations/001_initial.sql?raw";
@@ -9,6 +10,7 @@ import migration002 from "@/db/migrations/002_add_description.sql?raw";
 import migration003 from "@/db/migrations/003_settings.sql?raw";
 import migration004 from "@/db/migrations/004_tags_project_scope.sql?raw";
 import { useOverdueNotifications } from "@/hooks/useOverdueNotifications";
+import { UpdaterContext, useUpdater } from "@/hooks/useUpdater";
 import { useProjectStore } from "@/store/projects";
 import { getRepository, setRepository } from "@/store/repository";
 import { useSettingsStore } from "@/store/settings";
@@ -26,6 +28,8 @@ export function AppContent() {
 	const tasks = useTaskStore((s) => s.tasks);
 	useOverdueNotifications(tasks);
 
+	const updater = useUpdater();
+
 	useEffect(() => {
 		const repo = getRepository();
 		async function load() {
@@ -38,7 +42,16 @@ export function AppContent() {
 		load();
 	}, [loadSettings, loadTasks, loadTags, loadShortcuts, loadProjects]); // eslint-disable-line react-hooks/exhaustive-deps
 
-	return <AppShell />;
+	useEffect(() => {
+		updater.checkForUpdate();
+	}, [updater.checkForUpdate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	return (
+		<UpdaterContext.Provider value={updater}>
+			<AppShell />
+			<UpdateBanner />
+		</UpdaterContext.Provider>
+	);
 }
 
 export default function App() {

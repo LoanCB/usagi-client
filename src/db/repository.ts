@@ -1,3 +1,4 @@
+import type { ExportData } from "@/lib/dataTransfer";
 import type {
 	CreateProjectInput,
 	CreateTagInput,
@@ -21,6 +22,7 @@ export interface TodoRepository {
 	unarchiveTask(id: string): Promise<void>;
 	getArchivedTasks(): Promise<Task[]>;
 	reorderTasks(orderedIds: string[]): Promise<void>;
+	bulkImport(data: ExportData, strategy: "merge" | "replace"): Promise<void>;
 
 	// Projects
 	getProjects(): Promise<Project[]>;

@@ -33,6 +33,7 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		deleteTag: vi.fn(),
 		getSettings: vi.fn().mockResolvedValue({}),
 		setSetting: vi.fn().mockResolvedValue(undefined),
+		bulkImport: vi.fn().mockResolvedValue(undefined),
 		...overrides,
 	} as TodoRepository;
 }

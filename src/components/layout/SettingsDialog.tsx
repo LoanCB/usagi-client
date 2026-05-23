@@ -1,3 +1,6 @@
+import { getVersion } from "@tauri-apps/api/app";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import {
 	ChevronDown,
 	ChevronUp,
@@ -11,6 +14,7 @@ import {
 } from "lucide-react";
 import { type ReactElement, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ImportConfirmDialog } from "@/components/layout/ImportConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -20,9 +24,18 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { Switch } from "@/components/ui/switch";
+import { useUpdaterContext } from "@/hooks/useUpdater";
+import {
+	type ExportData,
+	type ExportOptions,
+	exportData,
+	INBOX_PROJECT_ID,
+} from "@/lib/dataTransfer";
 import { formatShortcut, type SortShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
+import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import { type NotificationTime, useSettingsStore } from "@/store/settings";
 import { type ShortcutAction, useShortcutsStore } from "@/store/shortcuts";
@@ -46,7 +59,7 @@ function TimeSegment({ field, value, step, onAdj, onSet }: TimeSegmentProps) {
 	const max = field === "hour" ? 23 : 59;
 
 	function commit(raw: string) {
-		const n = parseInt(raw, 10);
+		const n = Number.parseInt(raw, 10);
 		if (!Number.isNaN(n)) onSet(Math.min(max, Math.max(0, n)));
 		setDraft(null);
 	}
@@ -159,7 +172,6 @@ function TimeSlotRow({
 					onSet={(val) => onUpdate({ ...slot, minute: val })}
 				/>
 			</div>
-
 			<Button
 				variant="ghost"
 				size="icon"
@@ -190,7 +202,9 @@ type CustomThemeLabelKey =
 	| "theme.retro"
 	| "theme.ember"
 	| "theme.deepOcean"
-	| "theme.ocean";
+	| "theme.ocean"
+	| "theme.roseNoir"
+	| "theme.cosmicGold";
 const CUSTOM_THEMES: {
 	mode: ThemeMode;
 	color: string;
@@ -211,6 +225,16 @@ const CUSTOM_THEMES: {
 		labelKey: "theme.deepOcean",
 	},
 	{ mode: "ocean", color: "oklch(0.62 0.15 193)", labelKey: "theme.ocean" },
+	{
+		mode: "rose-noir",
+		color: "oklch(0.68 0.30 340)",
+		labelKey: "theme.roseNoir",
+	},
+	{
+		mode: "cosmic-gold",
+		color: "oklch(0.72 0.16 72)",
+		labelKey: "theme.cosmicGold",
+	},
 ];
 
 function hasConflict(a: SortShortcut, b: SortShortcut): boolean {
@@ -331,11 +355,11 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	const currentLang = i18n.language.startsWith("fr") ? "fr" : "en";
 	const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
 	const notificationTimes = useSettingsStore((s) => s.notificationTimes);
-	const parallaxEnabled = useSettingsStore((s) => s.parallaxEnabled);
 	const setNotificationsEnabled = useSettingsStore(
 		(s) => s.setNotificationsEnabled,
 	);
 	const setNotificationTimes = useSettingsStore((s) => s.setNotificationTimes);
+	const parallaxEnabled = useSettingsStore((s) => s.parallaxEnabled);
 	const setParallaxEnabled = useSettingsStore((s) => s.setParallaxEnabled);
 	const glassmorphismEnabled = useSettingsStore((s) => s.glassmorphismEnabled);
 	const setGlassmorphismEnabled = useSettingsStore(
@@ -353,6 +377,36 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	const sortProject = useShortcutsStore((s) => s.sortProject);
 	const setShortcut = useShortcutsStore((s) => s.setShortcut);
 	const resetShortcuts = useShortcutsStore((s) => s.resetShortcuts);
+
+	const projects = useProjectStore((s) => s.projects);
+	const [exportOptions, setExportOptions] = useState<ExportOptions>({
+		activeTasks: true,
+		completedTasks: true,
+		archivedTasks: true,
+		projects: true,
+		tags: true,
+		projectIds: null,
+	});
+	const [pendingImport, setPendingImport] = useState<ExportData | null>(null);
+	const [dataError, setDataError] = useState<string | null>(null);
+	const [activeTab, setActiveTab] = useState<
+		"general" | "notifications" | "data"
+	>("general");
+	const [appVersion, setAppVersion] = useState<string | null>(null);
+	const [upToDate, setUpToDate] = useState(false);
+	const { checkForUpdate, status } = useUpdaterContext();
+
+	useEffect(() => {
+		getVersion()
+			.then(setAppVersion)
+			.catch(() => null);
+	}, []);
+
+	async function handleCheckForUpdate() {
+		setUpToDate(false);
+		await checkForUpdate();
+		setUpToDate(true);
+	}
 
 	function handleShortcut(action: ShortcutAction, s: SortShortcut) {
 		setShortcut(getRepository(), action, s);
@@ -392,279 +446,520 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 		const freeHour = Array.from({ length: 24 }, (_, i) => i).find(
 			(h) => !usedHours.has(h),
 		);
-		if (freeHour === undefined) return; // all 24 hours used
+		if (freeHour === undefined) return;
 		setNotificationTimes(getRepository(), [
 			...notificationTimes,
 			{ hour: freeHour, minute: 0 },
 		]);
 	}
 
+	async function handleExport() {
+		setDataError(null);
+		try {
+			const data = await exportData(getRepository(), exportOptions);
+			const today = new Date().toISOString().slice(0, 10);
+			const path = await save({
+				defaultPath: `bunly-backup-${today}.json`,
+				filters: [{ name: "JSON", extensions: ["json"] }],
+			});
+			if (!path) return;
+			await writeTextFile(path, JSON.stringify(data, null, 2));
+		} catch {
+			setDataError(t("data.exportError"));
+		}
+	}
+
+	async function handleImportPick() {
+		setDataError(null);
+		const path = await open({
+			multiple: false,
+			filters: [{ name: "JSON", extensions: ["json"] }],
+		});
+		if (!path || Array.isArray(path)) return;
+		try {
+			const raw = await readTextFile(path);
+			const parsed = JSON.parse(raw) as ExportData;
+			if (
+				parsed.version !== 1 ||
+				!Array.isArray(parsed.tasks) ||
+				!Array.isArray(parsed.projects) ||
+				!Array.isArray(parsed.tags)
+			) {
+				setDataError(t("data.importError"));
+				return;
+			}
+			setPendingImport(parsed);
+		} catch {
+			setDataError(t("data.importError"));
+		}
+	}
+
+	async function handleImportConfirm(strategy: "merge" | "replace") {
+		if (!pendingImport) return;
+		try {
+			await getRepository().bulkImport(pendingImport, strategy);
+			setPendingImport(null);
+			window.location.reload();
+		} catch {
+			setDataError(t("data.importError"));
+			setPendingImport(null);
+		}
+	}
+
 	return (
-		<Dialog>
-			<DialogTrigger render={children} />
-			<DialogContent className="flex flex-col max-h-[85vh] sm:max-w-[min(calc(100%-2rem),42rem)]">
-				<DialogHeader>
-					<DialogTitle>{t("settings.title")}</DialogTitle>
-				</DialogHeader>
-
-				<div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col sm:flex-row">
-					{/* Left column: Appearance, Language, Shortcuts */}
-					<div className="flex-1 min-w-0 flex flex-col sm:pr-4">
-						{/* Section: Appearance */}
-						<div className="flex flex-col gap-3 pb-4">
-							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-								{t("settings.appearance")}
-							</p>
-							<div className="flex gap-1">
-								{THEME_MODES.map(({ mode, icon: Icon, labelKey }) => (
-									<button
-										key={mode}
-										type="button"
-										onClick={() => setThemeMode(mode)}
-										aria-label={t(labelKey)}
-										aria-pressed={themeMode === mode}
-										className={cn(
-											"flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-colors",
-											themeMode === mode
-												? "bg-primary text-primary-foreground"
-												: "text-muted-foreground hover:text-foreground border border-input",
-										)}
-									>
-										<Icon className="h-3.5 w-3.5" />
-										{t(labelKey)}
-									</button>
-								))}
-							</div>
-							<div className="flex flex-wrap gap-1">
-								{CUSTOM_THEMES.map(({ mode, color, labelKey }) => (
-									<button
-										key={mode}
-										type="button"
-										onClick={() => setThemeMode(mode)}
-										aria-label={t(labelKey)}
-										aria-pressed={themeMode === mode}
-										style={{ flexBasis: "calc(33.333% - 0.167rem)" }}
-										className={cn(
-											"flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-colors",
-											themeMode === mode
-												? "bg-primary text-primary-foreground"
-												: "text-muted-foreground hover:text-foreground border border-input",
-										)}
-									>
-										<span
-											className="h-3.5 w-3.5 rounded-full flex-shrink-0"
-											style={{ background: color }}
-											aria-hidden
-										/>
-										{t(labelKey)}
-									</button>
-								))}
-							</div>
-							<div className="flex items-center justify-between cursor-pointer select-none">
-								<span className="text-sm text-foreground">
-									{t("settings.glassmorphism")}
-								</span>
-								<Switch
-									checked={glassmorphismEnabled}
-									onCheckedChange={(v) =>
-										setGlassmorphismEnabled(getRepository(), v)
-									}
-								/>
-							</div>
-							<div
-								className={cn(
-									"flex items-center justify-between cursor-pointer select-none",
-									!glassmorphismEnabled && "pointer-events-none opacity-40",
-								)}
-							>
-								<span className="text-sm text-foreground">
-									{t("settings.parallax")}
-								</span>
-								<Switch
-									checked={parallaxEnabled}
-									onCheckedChange={(v) =>
-										setParallaxEnabled(getRepository(), v)
-									}
-								/>
-							</div>
-						</div>
-
-						<div className="h-px bg-border" />
-
-						{/* Section: Language */}
-						<div className="flex flex-col gap-3 py-4">
-							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-								{t("settings.language")}
-							</p>
-							<div className="flex gap-1">
-								{(["fr", "en"] as const).map((lang) => (
-									<button
-										key={lang}
-										type="button"
-										onClick={() => i18n.changeLanguage(lang)}
-										aria-label={lang === "fr" ? "Français" : "English"}
-										aria-pressed={currentLang === lang}
-										className={cn(
-											"flex-1 py-1.5 rounded-md text-xs font-medium uppercase transition-colors",
-											currentLang === lang
-												? "bg-primary text-primary-foreground"
-												: "text-muted-foreground hover:text-foreground border border-input",
-										)}
-									>
-										{lang}
-									</button>
-								))}
-							</div>
-						</div>
-
-						<div className="h-px bg-border" />
-
-						{/* Section: Shortcuts */}
-						<div className="flex flex-col gap-3 pt-4">
-							<div className="flex items-center justify-between">
-								<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-									{t("settings.shortcuts")}
-								</p>
-								<Button
+		<>
+			<Dialog>
+				<DialogTrigger render={children} />
+				<DialogContent className="flex flex-col h-[min(65vh,38rem)] sm:max-w-[min(calc(100%-2rem),42rem)]">
+					<DialogHeader className="border-b border-border pb-0">
+						<DialogTitle>{t("settings.title")}</DialogTitle>
+						<div className="flex mt-3" role="tablist">
+							{(
+								[
+									["general", t("settings.tabGeneral")],
+									["notifications", t("settings.notifications")],
+									["data", t("data.title")],
+								] as ["general" | "notifications" | "data", string][]
+							).map(([id, label]) => (
+								<button
+									key={id}
 									type="button"
-									variant="ghost"
-									size="sm"
-									className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground -my-1"
-									onClick={() => resetShortcuts(getRepository())}
+									role="tab"
+									aria-selected={activeTab === id}
+									onClick={() => setActiveTab(id)}
+									className={cn(
+										"px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors",
+										activeTab === id
+											? "border-primary text-foreground"
+											: "border-transparent text-muted-foreground hover:text-foreground",
+									)}
 								>
-									<RotateCcw className="h-3 w-3" />
-									{t("settings.shortcutsReset")}
-								</Button>
-							</div>
-							<div className="flex flex-col gap-2">
-								<div className="flex items-start justify-between gap-4">
-									<span className="text-sm pt-1 min-w-0 shrink">
-										{t("settings.shortcutUrgency")}
-									</span>
-									<ShortcutInput
-										shortcut={sortUrgency}
-										onChange={(s) => handleShortcut("sortUrgency", s)}
-										conflict={urgencyConflict}
-									/>
-								</div>
-								<div className="flex items-start justify-between gap-4">
-									<span className="text-sm pt-1 min-w-0 shrink">
-										{t("settings.shortcutDueDate")}
-									</span>
-									<ShortcutInput
-										shortcut={sortDueDate}
-										onChange={(s) => handleShortcut("sortDueDate", s)}
-										conflict={dateConflict}
-									/>
-								</div>
-								<div className="flex items-start justify-between gap-4">
-									<span className="text-sm pt-1 min-w-0 shrink">
-										{t("settings.shortcutProject")}
-									</span>
-									<ShortcutInput
-										shortcut={sortProject}
-										onChange={(s) => handleShortcut("sortProject", s)}
-										conflict={projectConflict}
-									/>
-								</div>
-							</div>
+									{label}
+								</button>
+							))}
 						</div>
-					</div>
+					</DialogHeader>
 
-					{/* Divider: horizontal when stacked, vertical when side-by-side */}
-					<div className="h-px bg-border sm:hidden" />
-					<div className="hidden sm:block w-px bg-border flex-shrink-0" />
+					<div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+						{/* ── Panel : Général ── */}
+						{activeTab === "general" && (
+							<div className="flex flex-col sm:flex-row py-4" role="tabpanel">
+								{/* Left column: Appearance + Language */}
+								<div className="flex-1 min-w-0 flex flex-col sm:pr-4">
+									{/* Section: Appearance */}
+									<div className="flex flex-col gap-3 pb-4">
+										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+											{t("settings.appearance")}
+										</p>
+										<div className="flex gap-1">
+											{THEME_MODES.map(({ mode, icon: Icon, labelKey }) => (
+												<button
+													key={mode}
+													type="button"
+													onClick={() => setThemeMode(mode)}
+													aria-label={t(labelKey)}
+													aria-pressed={themeMode === mode}
+													className={cn(
+														"flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-colors",
+														themeMode === mode
+															? "bg-primary text-primary-foreground"
+															: "text-muted-foreground hover:text-foreground border border-input",
+													)}
+												>
+													<Icon className="h-3.5 w-3.5" />
+													{t(labelKey)}
+												</button>
+											))}
+										</div>
+										<div className="flex flex-wrap gap-1">
+											{CUSTOM_THEMES.map(({ mode, color, labelKey }) => (
+												<button
+													key={mode}
+													type="button"
+													onClick={() => setThemeMode(mode)}
+													aria-label={t(labelKey)}
+													aria-pressed={themeMode === mode}
+													style={{ flexBasis: "calc(33.333% - 0.167rem)" }}
+													className={cn(
+														"flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-colors",
+														themeMode === mode
+															? "bg-primary text-primary-foreground"
+															: "text-muted-foreground hover:text-foreground border border-input",
+													)}
+												>
+													<span
+														className="h-3.5 w-3.5 rounded-full flex-shrink-0"
+														style={{ background: color }}
+														aria-hidden
+													/>
+													{t(labelKey)}
+												</button>
+											))}
+										</div>
+										<div className="flex items-center justify-between cursor-pointer select-none">
+											<span className="text-sm text-foreground">
+												{t("settings.glassmorphism")}
+											</span>
+											<Switch
+												checked={glassmorphismEnabled}
+												onCheckedChange={(v) =>
+													setGlassmorphismEnabled(getRepository(), v)
+												}
+											/>
+										</div>
+										<div
+											className={cn(
+												"flex items-center justify-between cursor-pointer select-none",
+												!glassmorphismEnabled &&
+													"pointer-events-none opacity-40",
+											)}
+										>
+											<span className="text-sm text-foreground">
+												{t("settings.parallax")}
+											</span>
+											<Switch
+												checked={parallaxEnabled}
+												onCheckedChange={(v) =>
+													setParallaxEnabled(getRepository(), v)
+												}
+											/>
+										</div>
+									</div>
 
-					{/* Right column: Notifications */}
-					<div className="flex-1 min-w-0 flex flex-col pt-4 sm:pt-0 sm:pl-4">
-						{/* Section: Sidebar views */}
-						<div className="flex flex-col gap-3 pb-4">
-							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-								{t("settings.sidebarViews")}
-							</p>
-							<div className="flex items-center justify-between cursor-pointer select-none">
-								<span className="text-sm">{t("nav.calendar")}</span>
-								<Switch
-									aria-label={t("nav.calendar")}
-									checked={calendarVisible}
-									onCheckedChange={(v) =>
-										setCalendarVisible(getRepository(), v)
-									}
-								/>
+									<div className="h-px bg-border" />
+
+									{/* Section: Language */}
+									<div className="flex flex-col gap-3 py-4">
+										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+											{t("settings.language")}
+										</p>
+										<div className="flex gap-1">
+											{(["fr", "en"] as const).map((lang) => (
+												<button
+													key={lang}
+													type="button"
+													onClick={() => i18n.changeLanguage(lang)}
+													aria-label={lang === "fr" ? "Français" : "English"}
+													aria-pressed={currentLang === lang}
+													className={cn(
+														"flex-1 py-1.5 rounded-md text-xs font-medium uppercase transition-colors",
+														currentLang === lang
+															? "bg-primary text-primary-foreground"
+															: "text-muted-foreground hover:text-foreground border border-input",
+													)}
+												>
+													{lang}
+												</button>
+											))}
+										</div>
+									</div>
+								</div>
+
+								{/* Divider */}
+								<div className="h-px bg-border sm:hidden" />
+								<div className="hidden sm:block w-px bg-border flex-shrink-0" />
+
+								{/* Right column: Sidebar Views + Shortcuts */}
+								<div className="flex-1 min-w-0 flex flex-col pt-4 sm:pt-0 sm:pl-4">
+									{/* Section: Sidebar views */}
+									<div className="flex flex-col gap-3 pb-4">
+										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+											{t("settings.sidebarViews")}
+										</p>
+										<div className="flex items-center justify-between cursor-pointer select-none">
+											<span className="text-sm">{t("nav.calendar")}</span>
+											<Switch
+												aria-label={t("nav.calendar")}
+												checked={calendarVisible}
+												onCheckedChange={(v) =>
+													setCalendarVisible(getRepository(), v)
+												}
+											/>
+										</div>
+										<div className="flex items-center justify-between cursor-pointer select-none">
+											<span className="text-sm">{t("nav.archives")}</span>
+											<Switch
+												aria-label={t("nav.archives")}
+												checked={archivesVisible}
+												onCheckedChange={(v) =>
+													setArchivesVisible(getRepository(), v)
+												}
+											/>
+										</div>
+										<div className="flex items-center justify-between cursor-pointer select-none">
+											<span className="text-sm">{t("nav.tags")}</span>
+											<Switch
+												aria-label={t("nav.tags")}
+												checked={tagsVisible}
+												onCheckedChange={(v) =>
+													setTagsVisible(getRepository(), v)
+												}
+											/>
+										</div>
+									</div>
+
+									<div className="h-px bg-border" />
+
+									{/* Section: Shortcuts */}
+									<div className="flex flex-col gap-3 pt-4">
+										<div className="flex items-center justify-between">
+											<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+												{t("settings.shortcuts")}
+											</p>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground -my-1"
+												onClick={() => resetShortcuts(getRepository())}
+											>
+												<RotateCcw className="h-3 w-3" />
+												{t("settings.shortcutsReset")}
+											</Button>
+										</div>
+										<div className="flex flex-col gap-2">
+											<div className="flex items-start justify-between gap-4">
+												<span className="text-sm pt-1 min-w-0 shrink">
+													{t("settings.shortcutUrgency")}
+												</span>
+												<ShortcutInput
+													shortcut={sortUrgency}
+													onChange={(s) => handleShortcut("sortUrgency", s)}
+													conflict={urgencyConflict}
+												/>
+											</div>
+											<div className="flex items-start justify-between gap-4">
+												<span className="text-sm pt-1 min-w-0 shrink">
+													{t("settings.shortcutDueDate")}
+												</span>
+												<ShortcutInput
+													shortcut={sortDueDate}
+													onChange={(s) => handleShortcut("sortDueDate", s)}
+													conflict={dateConflict}
+												/>
+											</div>
+											<div className="flex items-start justify-between gap-4">
+												<span className="text-sm pt-1 min-w-0 shrink">
+													{t("settings.shortcutProject")}
+												</span>
+												<ShortcutInput
+													shortcut={sortProject}
+													onChange={(s) => handleShortcut("sortProject", s)}
+													conflict={projectConflict}
+												/>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div className="rounded-lg border border-input p-4 flex items-center justify-between gap-4 mt-2">
+									<div className="flex flex-col gap-0.5">
+										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+											Application
+										</p>
+										{appVersion && (
+											<p className="text-sm text-muted-foreground">
+												v{appVersion}
+											</p>
+										)}
+										{upToDate && status === "idle" && (
+											<p className="text-xs text-green-600">Vous êtes à jour</p>
+										)}
+										{status === "available" && (
+											<p className="text-xs text-primary">
+												Une mise à jour est disponible
+											</p>
+										)}
+									</div>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={handleCheckForUpdate}
+										disabled={status === "downloading"}
+									>
+										Vérifier les mises à jour
+									</Button>
+								</div>
 							</div>
-							<div className="flex items-center justify-between cursor-pointer select-none">
-								<span className="text-sm">{t("nav.archives")}</span>
-								<Switch
-									aria-label={t("nav.archives")}
-									checked={archivesVisible}
-									onCheckedChange={(v) =>
-										setArchivesVisible(getRepository(), v)
-									}
-								/>
-							</div>
-							<div className="flex items-center justify-between cursor-pointer select-none">
-								<span className="text-sm">{t("nav.tags")}</span>
-								<Switch
-									aria-label={t("nav.tags")}
-									checked={tagsVisible}
-									onCheckedChange={(v) => setTagsVisible(getRepository(), v)}
-								/>
-							</div>
-						</div>
+						)}
 
-						<div className="h-px bg-border" />
-
-						<div className="flex flex-col gap-3 pt-4">
-							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-								{t("settings.notifications")}
-							</p>
-
-							{/* biome-ignore lint/a11y/noLabelWithoutControl: label wraps Checkbox which renders a native input */}
-							<label className="flex items-center gap-3 cursor-pointer select-none">
-								<Checkbox
-									checked={notificationsEnabled}
-									onCheckedChange={handleToggleEnabled}
-								/>
-								<span className="text-sm">
-									{t("settings.enableNotifications")}
-								</span>
-							</label>
-
-							<div
-								className={cn(
-									"flex flex-col gap-2",
-									!notificationsEnabled && "pointer-events-none opacity-40",
-								)}
-							>
-								<p className="text-xs text-muted-foreground">
-									{t("settings.notificationTimes")}
+						{/* ── Panel : Notifications ── */}
+						{activeTab === "notifications" && (
+							<div className="flex flex-col gap-3 py-4" role="tabpanel">
+								<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+									{t("settings.notifications")}
 								</p>
 
-								{notificationTimes.map((slot, i) => (
-									<TimeSlotRow
-										key={`${slot.hour}:${slot.minute}`}
-										slot={slot}
-										onUpdate={(updated) => handleUpdateTime(i, updated)}
-										onRemove={() => handleRemoveTime(i)}
-										removeLabel={t("settings.removeTime")}
-										toggleLabel={t("settings.toggleTime")}
+								{/* biome-ignore lint/a11y/noLabelWithoutControl: label wraps Checkbox which renders a native input */}
+								<label className="flex items-center gap-3 cursor-pointer select-none">
+									<Checkbox
+										checked={notificationsEnabled}
+										onCheckedChange={handleToggleEnabled}
 									/>
-								))}
+									<span className="text-sm">
+										{t("settings.enableNotifications")}
+									</span>
+								</label>
 
-								<Button
-									variant="ghost"
-									size="sm"
-									className="w-fit text-muted-foreground"
-									onClick={handleAddTime}
+								<div
+									className={cn(
+										"flex flex-col gap-2",
+										!notificationsEnabled && "pointer-events-none opacity-40",
+									)}
 								>
-									<Plus className="h-3.5 w-3.5 mr-1" />
-									{t("settings.addTime")}
-								</Button>
+									<p className="text-xs text-muted-foreground">
+										{t("settings.notificationTimes")}
+									</p>
+
+									{notificationTimes.map((slot, i) => (
+										<TimeSlotRow
+											key={`${slot.hour}:${slot.minute}`}
+											slot={slot}
+											onUpdate={(updated) => handleUpdateTime(i, updated)}
+											onRemove={() => handleRemoveTime(i)}
+											removeLabel={t("settings.removeTime")}
+											toggleLabel={t("settings.toggleTime")}
+										/>
+									))}
+
+									<Button
+										variant="ghost"
+										size="sm"
+										className="w-fit text-muted-foreground"
+										onClick={handleAddTime}
+									>
+										<Plus className="h-3.5 w-3.5 mr-1" />
+										{t("settings.addTime")}
+									</Button>
+								</div>
 							</div>
-						</div>
+						)}
+
+						{/* ── Panel : Données ── */}
+						{activeTab === "data" && (
+							<div className="flex flex-col gap-4 py-4" role="tabpanel">
+								<div className="flex flex-col sm:flex-row gap-4">
+									{/* Card Export */}
+									<div className="flex-1 rounded-lg border border-input p-4 flex flex-col gap-3">
+										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+											{t("data.exportSection")}
+										</p>
+										<div className="flex flex-wrap gap-1.5">
+											{(
+												[
+													["activeTasks", "data.activeTasks"],
+													["completedTasks", "data.completedTasks"],
+													["archivedTasks", "data.archivedTasks"],
+													["projects", "data.exportProjects"],
+													["tags", "data.exportTags"],
+												] as [
+													Extract<
+														keyof ExportOptions,
+														| "activeTasks"
+														| "completedTasks"
+														| "archivedTasks"
+														| "projects"
+														| "tags"
+													>,
+													(
+														| "data.activeTasks"
+														| "data.completedTasks"
+														| "data.archivedTasks"
+														| "data.exportProjects"
+														| "data.exportTags"
+													),
+												][]
+											).map(([key, labelKey]) => {
+												const forced =
+													key === "projects" &&
+													exportOptions.projectIds !== null;
+												const active = forced || exportOptions[key];
+												return (
+													<button
+														key={key}
+														type="button"
+														onClick={() => {
+															if (!forced)
+																setExportOptions((prev) => ({
+																	...prev,
+																	[key]: !prev[key],
+																}));
+														}}
+														className={cn(
+															"rounded-full border px-3 py-1 text-xs transition-colors",
+															active
+																? "border-primary text-primary"
+																: "border-input text-muted-foreground hover:text-foreground",
+															forced && "cursor-not-allowed opacity-60",
+														)}
+													>
+														{t(labelKey)}
+													</button>
+												);
+											})}
+										</div>
+										<MultiSelect
+											options={[
+												{ value: INBOX_PROJECT_ID, label: t("nav.inbox") },
+												...projects.map((p) => ({
+													value: p.id,
+													label: p.name,
+												})),
+											]}
+											value={exportOptions.projectIds ?? null}
+											onChange={(value) =>
+												setExportOptions((prev) => ({
+													...prev,
+													projectIds: value,
+												}))
+											}
+											allLabel={t("data.allProjects")}
+											itemsLabel={t("data.exportProjects")}
+										/>
+										<Button
+											variant="outline"
+											size="sm"
+											className="w-full mt-auto"
+											onClick={handleExport}
+										>
+											{t("data.export")}
+										</Button>
+									</div>
+
+									{/* Card Import */}
+									<div className="flex-1 rounded-lg border border-input p-4 flex flex-col gap-3">
+										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+											{t("data.importSection")}
+										</p>
+										<p className="text-sm text-muted-foreground flex-1">
+											{t("data.importDescription")}
+										</p>
+										<Button
+											variant="outline"
+											size="sm"
+											className="w-full mt-auto"
+											onClick={handleImportPick}
+										>
+											{t("data.import")}
+										</Button>
+									</div>
+								</div>
+
+								{dataError && (
+									<p className="text-xs text-destructive">{dataError}</p>
+								)}
+							</div>
+						)}
 					</div>
-				</div>
-			</DialogContent>
-		</Dialog>
+				</DialogContent>
+			</Dialog>
+			{pendingImport && (
+				<ImportConfirmDialog
+					data={pendingImport}
+					onConfirm={handleImportConfirm}
+					onCancel={() => setPendingImport(null)}
+				/>
+			)}
+		</>
 	);
 }

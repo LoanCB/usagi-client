@@ -24,6 +24,7 @@
 	"bundle": {
 		"active": true,
 		"targets": "all",
+		"createUpdaterArtifacts": true,
 		"linux": {
 			"deb": {
 				"depends": ["libdbus-1-3", "libnotify4"]
@@ -37,5 +38,13 @@
 			"icons/icon.ico"
 		],
 		"resources": ["icons/128x128.png"]
+	},
+	"plugins": {
+		"updater": {
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERDNjU0M0VFREM0MTU4QUEKUldTcVdFSGM3a05sM0F0c2o2ZjhwMkxLNk1FUitEY2E3cWY4aDlZMDZaSHF5dCtqRDBoM0EzRGIK%",
+			"endpoints": [
+				"https://github.com/LoanCB/usagi-client/releases/latest/download/latest.json"
+			]
+		}
 	}
 }

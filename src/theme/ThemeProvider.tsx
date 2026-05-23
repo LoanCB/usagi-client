@@ -5,6 +5,8 @@ import {
 	useEffect,
 	useState,
 } from "react";
+import { contrastTheme } from "./themes/contrast";
+import { cosmicGoldTheme } from "./themes/cosmicGold";
 import { darkTheme } from "./themes/dark";
 import { deepOceanTheme } from "./themes/deepOcean";
 import { draculaTheme } from "./themes/dracula";
@@ -14,6 +16,7 @@ import { luxuryTheme } from "./themes/luxury";
 import { natureTheme } from "./themes/nature";
 import { oceanTheme } from "./themes/ocean";
 import { retroTheme } from "./themes/retro";
+import { roseNoirTheme } from "./themes/roseNoir";
 import type { Theme, ThemeMode } from "./types";
 
 interface ThemeContextValue {
@@ -44,7 +47,9 @@ function isDarkTheme(mode: ThemeMode, prefersDark: boolean): boolean {
 		mode === "dracula" ||
 		mode === "ember" ||
 		mode === "contrast" ||
-		mode === "deep-ocean"
+		mode === "deep-ocean" ||
+		mode === "rose-noir" ||
+		mode === "cosmic-gold"
 	);
 }
 
@@ -58,8 +63,10 @@ function resolveTheme(mode: ThemeMode, prefersDark: boolean): Theme {
 	if (mode === "dracula") return draculaTheme;
 	if (mode === "retro") return retroTheme;
 	if (mode === "ember") return emberTheme;
-	if (mode === "contrast") return darkTheme;
+	if (mode === "contrast") return contrastTheme;
 	if (mode === "deep-ocean") return deepOceanTheme;
+	if (mode === "rose-noir") return roseNoirTheme;
+	if (mode === "cosmic-gold") return cosmicGoldTheme;
 	return prefersDark ? darkTheme : lightTheme;
 }
 

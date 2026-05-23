@@ -30,7 +30,22 @@ export function TaskDetail({ width }: TaskDetailProps) {
 	const { selectedTaskId, setSelectedTask } = useUIStore();
 	const { t } = useTranslation();
 
-	const task = tasks.find((t) => t.id === selectedTaskId) ?? null;
+	const taskInList = tasks.find((t) => t.id === selectedTaskId) ?? null;
+	const [fetchedTask, setFetchedTask] = useState<(typeof tasks)[0] | null>(
+		null,
+	);
+	const task = taskInList ?? fetchedTask;
+
+	useEffect(() => {
+		if (!selectedTaskId || taskInList) {
+			setFetchedTask(null);
+			return;
+		}
+		getRepository()
+			.getTask(selectedTaskId)
+			.then((t) => setFetchedTask(t));
+	}, [selectedTaskId, taskInList]);
+
 	const [title, setTitle] = useState(task?.title ?? "");
 	const [description, setDescription] = useState("");
 	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
