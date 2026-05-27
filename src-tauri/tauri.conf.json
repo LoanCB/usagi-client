@@ -41,7 +41,7 @@
 	},
 	"plugins": {
 		"updater": {
-			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERDNjU0M0VFREM0MTU4QUEKUldTcVdFSGM3a05sM0F0c2o2ZjhwMkxLNk1FUitEY2E3cWY4aDlZMDZaSHF5dCtqRDBoM0EzRGIK%",
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERDNjU0M0VFREM0MTU4QUEKUldTcVdFSGM3a05sM0F0c2o2ZjhwMkxLNk1FUitEY2E3cWY4aDlZMDZaSHF5dCtqRDBoM0EzRGIK",
 			"endpoints": [
 				"https://github.com/LoanCB/usagi-client/releases/latest/download/latest.json"
 			]
