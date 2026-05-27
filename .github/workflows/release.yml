@@ -108,14 +108,17 @@ jobs:
             exit 0
           }
           $zipName = $exe.FullName -replace '\.exe$', '.nsis.zip'
-          if (-not (Test-Path $zipName)) {
-            Write-Output "Creating $(Split-Path -Leaf $zipName)"
-            Compress-Archive -Path $exe.FullName -DestinationPath $zipName
-          }
-          if (-not (Test-Path "$zipName.sig")) {
-            Write-Output "Signing $(Split-Path -Leaf $zipName)"
-            pnpm tauri signer sign $zipName
-          }
+
+          # Always recreate the zip with ZIP_STORED (no compression, method 0).
+          # tauri-plugin-updater uses the `zip` crate compiled without the deflate
+          # feature, so DEFLATE-compressed zips (the Tauri CLI default) fail with
+          # "unsupported Zip archive: Compression method not supported".
+          $env:NSIS_EXE = $exe.FullName
+          $env:NSIS_ZIP = $zipName
+          Write-Output "Creating STORE-compressed $(Split-Path -Leaf $zipName)"
+          python -c "import zipfile,os; e=os.environ; [os.remove(e['NSIS_ZIP'])] if os.path.exists(e['NSIS_ZIP']) else None; z=zipfile.ZipFile(e['NSIS_ZIP'],'w',0); z.write(e['NSIS_EXE'],os.path.basename(e['NSIS_EXE'])); z.close(); print('Created',e['NSIS_ZIP'])"
+          Write-Output "Signing $(Split-Path -Leaf $zipName)"
+          pnpm tauri signer sign $zipName
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
