@@ -71,7 +71,16 @@ jobs:
           if [[ "$VERSION" =~ -[^0-9] ]]; then
             VERSION="${VERSION%%-*}"
           fi
-          jq --arg version "$VERSION" '.version = $version' src-tauri/tauri.conf.json > tmp.json
+          # WiX/MSI hard-limits the major version to 255. CalVer tags like 2026.x.y
+          # exceed this. Map the year to its last two digits (2026 → 26) for the
+          # bundle version; the tag and release name still carry the full CalVer.
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          BUNDLE_VERSION="$VERSION"
+          if [[ "$MAJOR" -gt 255 ]]; then
+            REST=$(echo "$VERSION" | cut -d. -f2-)
+            BUNDLE_VERSION="$((MAJOR % 100)).$REST"
+          fi
+          jq --arg version "$BUNDLE_VERSION" '.version = $version' src-tauri/tauri.conf.json > tmp.json
           mv tmp.json src-tauri/tauri.conf.json
 
       - name: Build Tauri app
