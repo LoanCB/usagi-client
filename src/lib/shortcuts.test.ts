@@ -92,43 +92,85 @@ describe("matchesShortcut", () => {
 
 describe("formatShortcut", () => {
 	it("returns empty string when disabled", () => {
-		expect(formatShortcut(disabled)).toBe("");
+		expect(formatShortcut(disabled, true)).toBe("");
+		expect(formatShortcut(disabled, false)).toBe("");
 	});
 
-	it("formats Cmd+S as ⌘S", () => {
-		expect(formatShortcut(cmdS)).toBe("⌘S");
+	describe("macOS format", () => {
+		it("formats Cmd+S as ⌘S", () => {
+			expect(formatShortcut(cmdS, true)).toBe("⌘S");
+		});
+
+		it("formats Ctrl+D as ⌃D", () => {
+			const ctrlD: SortShortcut = {
+				key: "d",
+				meta: false,
+				ctrl: true,
+				alt: false,
+				shift: false,
+			};
+			expect(formatShortcut(ctrlD, true)).toBe("⌃D");
+		});
+
+		it("formats Alt+Shift+U as ⌥⇧U", () => {
+			const altShiftU: SortShortcut = {
+				key: "u",
+				meta: false,
+				ctrl: false,
+				alt: true,
+				shift: true,
+			};
+			expect(formatShortcut(altShiftU, true)).toBe("⌥⇧U");
+		});
+
+		it("formats all modifiers in order: ⌘⌃⌥⇧", () => {
+			const all: SortShortcut = {
+				key: "x",
+				meta: true,
+				ctrl: true,
+				alt: true,
+				shift: true,
+			};
+			expect(formatShortcut(all, true)).toBe("⌘⌃⌥⇧X");
+		});
 	});
 
-	it("formats Ctrl+D as ⌃D", () => {
-		const ctrlD: SortShortcut = {
-			key: "d",
-			meta: false,
-			ctrl: true,
-			alt: false,
-			shift: false,
-		};
-		expect(formatShortcut(ctrlD)).toBe("⌃D");
-	});
+	describe("Windows/Linux format", () => {
+		it("formats Ctrl+S as Ctrl+S", () => {
+			const ctrlS: SortShortcut = {
+				key: "s",
+				meta: false,
+				ctrl: true,
+				alt: false,
+				shift: false,
+			};
+			expect(formatShortcut(ctrlS, false)).toBe("Ctrl+S");
+		});
 
-	it("formats Alt+Shift+U as ⌥⇧U", () => {
-		const altShiftU: SortShortcut = {
-			key: "u",
-			meta: false,
-			ctrl: false,
-			alt: true,
-			shift: true,
-		};
-		expect(formatShortcut(altShiftU)).toBe("⌥⇧U");
-	});
+		it("formats Alt+Shift+U as Alt+Shift+U", () => {
+			const altShiftU: SortShortcut = {
+				key: "u",
+				meta: false,
+				ctrl: false,
+				alt: true,
+				shift: true,
+			};
+			expect(formatShortcut(altShiftU, false)).toBe("Alt+Shift+U");
+		});
 
-	it("formats all modifiers in order: ⌘⌃⌥⇧", () => {
-		const all: SortShortcut = {
-			key: "x",
-			meta: true,
-			ctrl: true,
-			alt: true,
-			shift: true,
-		};
-		expect(formatShortcut(all)).toBe("⌘⌃⌥⇧X");
+		it("formats Win+S as Win+S", () => {
+			expect(formatShortcut(cmdS, false)).toBe("Win+S");
+		});
+
+		it("formats all modifiers in order: Win+Ctrl+Alt+Shift", () => {
+			const all: SortShortcut = {
+				key: "x",
+				meta: true,
+				ctrl: true,
+				alt: true,
+				shift: true,
+			};
+			expect(formatShortcut(all, false)).toBe("Win+Ctrl+Alt+Shift+X");
+		});
 	});
 });
