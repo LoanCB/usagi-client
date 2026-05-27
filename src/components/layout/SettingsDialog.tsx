@@ -4,6 +4,7 @@ import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import {
 	ChevronDown,
 	ChevronUp,
+	Loader2,
 	Monitor,
 	Moon,
 	Plus,
@@ -393,8 +394,8 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 		"general" | "notifications" | "data"
 	>("general");
 	const [appVersion, setAppVersion] = useState<string | null>(null);
-	const [upToDate, setUpToDate] = useState(false);
-	const { checkForUpdate, status } = useUpdaterContext();
+	const [hasChecked, setHasChecked] = useState(false);
+	const { checkForUpdate, status, update } = useUpdaterContext();
 
 	useEffect(() => {
 		getVersion()
@@ -403,9 +404,9 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	}, []);
 
 	async function handleCheckForUpdate() {
-		setUpToDate(false);
+		setHasChecked(false);
 		await checkForUpdate();
-		setUpToDate(true);
+		setHasChecked(true);
 	}
 
 	function handleShortcut(action: ShortcutAction, s: SortShortcut) {
@@ -510,7 +511,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 		<>
 			<Dialog>
 				<DialogTrigger render={children} />
-				<DialogContent className="flex flex-col h-[min(65vh,38rem)] sm:max-w-[min(calc(100%-2rem),42rem)]">
+				<DialogContent className="flex flex-col h-[min(85vh,52rem)] max-h-[500px] sm:max-w-[min(calc(100%-2rem),42rem)]">
 					<DialogHeader className="border-b border-border pb-0">
 						<DialogTitle>{t("settings.title")}</DialogTitle>
 						<div className="flex mt-3" role="tablist">
@@ -544,215 +545,215 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 						{/* ── Panel : Général ── */}
 						{activeTab === "general" && (
 							<div className="flex flex-col py-4 gap-4" role="tabpanel">
-							<div className="flex flex-col sm:flex-row">
-								{/* Left column: Appearance + Language */}
-								<div className="flex-1 min-w-0 flex flex-col sm:pr-4">
-									{/* Section: Appearance */}
-									<div className="flex flex-col gap-3 pb-4">
-										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-											{t("settings.appearance")}
-										</p>
-										<div className="flex gap-1">
-											{THEME_MODES.map(({ mode, icon: Icon, labelKey }) => (
-												<button
-													key={mode}
-													type="button"
-													onClick={() => setThemeMode(mode)}
-													aria-label={t(labelKey)}
-													aria-pressed={themeMode === mode}
-													className={cn(
-														"flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-colors",
-														themeMode === mode
-															? "bg-primary text-primary-foreground"
-															: "text-muted-foreground hover:text-foreground border border-input",
-													)}
-												>
-													<Icon className="h-3.5 w-3.5" />
-													{t(labelKey)}
-												</button>
-											))}
-										</div>
-										<div className="flex flex-wrap gap-1">
-											{CUSTOM_THEMES.map(({ mode, color, labelKey }) => (
-												<button
-													key={mode}
-													type="button"
-													onClick={() => setThemeMode(mode)}
-													aria-label={t(labelKey)}
-													aria-pressed={themeMode === mode}
-													style={{ flexBasis: "calc(33.333% - 0.167rem)" }}
-													className={cn(
-														"flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-colors",
-														themeMode === mode
-															? "bg-primary text-primary-foreground"
-															: "text-muted-foreground hover:text-foreground border border-input",
-													)}
-												>
-													<span
-														className="h-3.5 w-3.5 rounded-full flex-shrink-0"
-														style={{ background: color }}
-														aria-hidden
-													/>
-													{t(labelKey)}
-												</button>
-											))}
-										</div>
-										<div className="flex items-center justify-between cursor-pointer select-none">
-											<span className="text-sm text-foreground">
-												{t("settings.glassmorphism")}
-											</span>
-											<Switch
-												checked={glassmorphismEnabled}
-												onCheckedChange={(v) =>
-													setGlassmorphismEnabled(getRepository(), v)
-												}
-											/>
-										</div>
-										<div
-											className={cn(
-												"flex items-center justify-between cursor-pointer select-none",
-												!glassmorphismEnabled &&
-													"pointer-events-none opacity-40",
-											)}
-										>
-											<span className="text-sm text-foreground">
-												{t("settings.parallax")}
-											</span>
-											<Switch
-												checked={parallaxEnabled}
-												onCheckedChange={(v) =>
-													setParallaxEnabled(getRepository(), v)
-												}
-											/>
-										</div>
-									</div>
-
-									<div className="h-px bg-border" />
-
-									{/* Section: Language */}
-									<div className="flex flex-col gap-3 py-4">
-										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-											{t("settings.language")}
-										</p>
-										<div className="flex gap-1">
-											{(["fr", "en"] as const).map((lang) => (
-												<button
-													key={lang}
-													type="button"
-													onClick={() => i18n.changeLanguage(lang)}
-													aria-label={lang === "fr" ? "Français" : "English"}
-													aria-pressed={currentLang === lang}
-													className={cn(
-														"flex-1 py-1.5 rounded-md text-xs font-medium uppercase transition-colors",
-														currentLang === lang
-															? "bg-primary text-primary-foreground"
-															: "text-muted-foreground hover:text-foreground border border-input",
-													)}
-												>
-													{lang}
-												</button>
-											))}
-										</div>
-									</div>
-								</div>
-
-								{/* Divider */}
-								<div className="h-px bg-border sm:hidden" />
-								<div className="hidden sm:block w-px bg-border flex-shrink-0" />
-
-								{/* Right column: Sidebar Views + Shortcuts */}
-								<div className="flex-1 min-w-0 flex flex-col pt-4 sm:pt-0 sm:pl-4">
-									{/* Section: Sidebar views */}
-									<div className="flex flex-col gap-3 pb-4">
-										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-											{t("settings.sidebarViews")}
-										</p>
-										<div className="flex items-center justify-between cursor-pointer select-none">
-											<span className="text-sm">{t("nav.calendar")}</span>
-											<Switch
-												aria-label={t("nav.calendar")}
-												checked={calendarVisible}
-												onCheckedChange={(v) =>
-													setCalendarVisible(getRepository(), v)
-												}
-											/>
-										</div>
-										<div className="flex items-center justify-between cursor-pointer select-none">
-											<span className="text-sm">{t("nav.archives")}</span>
-											<Switch
-												aria-label={t("nav.archives")}
-												checked={archivesVisible}
-												onCheckedChange={(v) =>
-													setArchivesVisible(getRepository(), v)
-												}
-											/>
-										</div>
-										<div className="flex items-center justify-between cursor-pointer select-none">
-											<span className="text-sm">{t("nav.tags")}</span>
-											<Switch
-												aria-label={t("nav.tags")}
-												checked={tagsVisible}
-												onCheckedChange={(v) =>
-													setTagsVisible(getRepository(), v)
-												}
-											/>
-										</div>
-									</div>
-
-									<div className="h-px bg-border" />
-
-									{/* Section: Shortcuts */}
-									<div className="flex flex-col gap-3 pt-4">
-										<div className="flex items-center justify-between">
+								<div className="flex flex-col sm:flex-row">
+									{/* Left column: Appearance + Language */}
+									<div className="flex-1 min-w-0 flex flex-col sm:pr-4">
+										{/* Section: Appearance */}
+										<div className="flex flex-col gap-3 pb-4">
 											<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-												{t("settings.shortcuts")}
+												{t("settings.appearance")}
 											</p>
-											<Button
-												type="button"
-												variant="ghost"
-												size="sm"
-												className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground -my-1"
-												onClick={() => resetShortcuts(getRepository())}
+											<div className="flex gap-1">
+												{THEME_MODES.map(({ mode, icon: Icon, labelKey }) => (
+													<button
+														key={mode}
+														type="button"
+														onClick={() => setThemeMode(mode)}
+														aria-label={t(labelKey)}
+														aria-pressed={themeMode === mode}
+														className={cn(
+															"flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-colors",
+															themeMode === mode
+																? "bg-primary text-primary-foreground"
+																: "text-muted-foreground hover:text-foreground border border-input",
+														)}
+													>
+														<Icon className="h-3.5 w-3.5" />
+														{t(labelKey)}
+													</button>
+												))}
+											</div>
+											<div className="flex flex-wrap gap-1">
+												{CUSTOM_THEMES.map(({ mode, color, labelKey }) => (
+													<button
+														key={mode}
+														type="button"
+														onClick={() => setThemeMode(mode)}
+														aria-label={t(labelKey)}
+														aria-pressed={themeMode === mode}
+														style={{ flexBasis: "calc(33.333% - 0.167rem)" }}
+														className={cn(
+															"flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-colors",
+															themeMode === mode
+																? "bg-primary text-primary-foreground"
+																: "text-muted-foreground hover:text-foreground border border-input",
+														)}
+													>
+														<span
+															className="h-3.5 w-3.5 rounded-full flex-shrink-0"
+															style={{ background: color }}
+															aria-hidden
+														/>
+														{t(labelKey)}
+													</button>
+												))}
+											</div>
+											<div className="flex items-center justify-between cursor-pointer select-none">
+												<span className="text-sm text-foreground">
+													{t("settings.glassmorphism")}
+												</span>
+												<Switch
+													checked={glassmorphismEnabled}
+													onCheckedChange={(v) =>
+														setGlassmorphismEnabled(getRepository(), v)
+													}
+												/>
+											</div>
+											<div
+												className={cn(
+													"flex items-center justify-between cursor-pointer select-none",
+													!glassmorphismEnabled &&
+														"pointer-events-none opacity-40",
+												)}
 											>
-												<RotateCcw className="h-3 w-3" />
-												{t("settings.shortcutsReset")}
-											</Button>
+												<span className="text-sm text-foreground">
+													{t("settings.parallax")}
+												</span>
+												<Switch
+													checked={parallaxEnabled}
+													onCheckedChange={(v) =>
+														setParallaxEnabled(getRepository(), v)
+													}
+												/>
+											</div>
 										</div>
-										<div className="flex flex-col gap-2">
-											<div className="flex items-start justify-between gap-4">
-												<span className="text-sm pt-1 min-w-0 shrink">
-													{t("settings.shortcutUrgency")}
-												</span>
-												<ShortcutInput
-													shortcut={sortUrgency}
-													onChange={(s) => handleShortcut("sortUrgency", s)}
-													conflict={urgencyConflict}
+
+										<div className="h-px bg-border" />
+
+										{/* Section: Language */}
+										<div className="flex flex-col gap-3 py-4">
+											<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+												{t("settings.language")}
+											</p>
+											<div className="flex gap-1">
+												{(["fr", "en"] as const).map((lang) => (
+													<button
+														key={lang}
+														type="button"
+														onClick={() => i18n.changeLanguage(lang)}
+														aria-label={lang === "fr" ? "Français" : "English"}
+														aria-pressed={currentLang === lang}
+														className={cn(
+															"flex-1 py-1.5 rounded-md text-xs font-medium uppercase transition-colors",
+															currentLang === lang
+																? "bg-primary text-primary-foreground"
+																: "text-muted-foreground hover:text-foreground border border-input",
+														)}
+													>
+														{lang}
+													</button>
+												))}
+											</div>
+										</div>
+									</div>
+
+									{/* Divider */}
+									<div className="h-px bg-border sm:hidden" />
+									<div className="hidden sm:block w-px bg-border flex-shrink-0" />
+
+									{/* Right column: Sidebar Views + Shortcuts */}
+									<div className="flex-1 min-w-0 flex flex-col pt-4 sm:pt-0 sm:pl-4">
+										{/* Section: Sidebar views */}
+										<div className="flex flex-col gap-3 pb-4">
+											<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+												{t("settings.sidebarViews")}
+											</p>
+											<div className="flex items-center justify-between cursor-pointer select-none">
+												<span className="text-sm">{t("nav.calendar")}</span>
+												<Switch
+													aria-label={t("nav.calendar")}
+													checked={calendarVisible}
+													onCheckedChange={(v) =>
+														setCalendarVisible(getRepository(), v)
+													}
 												/>
 											</div>
-											<div className="flex items-start justify-between gap-4">
-												<span className="text-sm pt-1 min-w-0 shrink">
-													{t("settings.shortcutDueDate")}
-												</span>
-												<ShortcutInput
-													shortcut={sortDueDate}
-													onChange={(s) => handleShortcut("sortDueDate", s)}
-													conflict={dateConflict}
+											<div className="flex items-center justify-between cursor-pointer select-none">
+												<span className="text-sm">{t("nav.archives")}</span>
+												<Switch
+													aria-label={t("nav.archives")}
+													checked={archivesVisible}
+													onCheckedChange={(v) =>
+														setArchivesVisible(getRepository(), v)
+													}
 												/>
 											</div>
-											<div className="flex items-start justify-between gap-4">
-												<span className="text-sm pt-1 min-w-0 shrink">
-													{t("settings.shortcutProject")}
-												</span>
-												<ShortcutInput
-													shortcut={sortProject}
-													onChange={(s) => handleShortcut("sortProject", s)}
-													conflict={projectConflict}
+											<div className="flex items-center justify-between cursor-pointer select-none">
+												<span className="text-sm">{t("nav.tags")}</span>
+												<Switch
+													aria-label={t("nav.tags")}
+													checked={tagsVisible}
+													onCheckedChange={(v) =>
+														setTagsVisible(getRepository(), v)
+													}
 												/>
+											</div>
+										</div>
+
+										<div className="h-px bg-border" />
+
+										{/* Section: Shortcuts */}
+										<div className="flex flex-col gap-3 pt-4">
+											<div className="flex items-center justify-between">
+												<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+													{t("settings.shortcuts")}
+												</p>
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground -my-1"
+													onClick={() => resetShortcuts(getRepository())}
+												>
+													<RotateCcw className="h-3 w-3" />
+													{t("settings.shortcutsReset")}
+												</Button>
+											</div>
+											<div className="flex flex-col gap-2">
+												<div className="flex items-start justify-between gap-4">
+													<span className="text-sm pt-1 min-w-0 shrink">
+														{t("settings.shortcutUrgency")}
+													</span>
+													<ShortcutInput
+														shortcut={sortUrgency}
+														onChange={(s) => handleShortcut("sortUrgency", s)}
+														conflict={urgencyConflict}
+													/>
+												</div>
+												<div className="flex items-start justify-between gap-4">
+													<span className="text-sm pt-1 min-w-0 shrink">
+														{t("settings.shortcutDueDate")}
+													</span>
+													<ShortcutInput
+														shortcut={sortDueDate}
+														onChange={(s) => handleShortcut("sortDueDate", s)}
+														conflict={dateConflict}
+													/>
+												</div>
+												<div className="flex items-start justify-between gap-4">
+													<span className="text-sm pt-1 min-w-0 shrink">
+														{t("settings.shortcutProject")}
+													</span>
+													<ShortcutInput
+														shortcut={sortProject}
+														onChange={(s) => handleShortcut("sortProject", s)}
+														conflict={projectConflict}
+													/>
+												</div>
 											</div>
 										</div>
 									</div>
 								</div>
-							</div>
 							</div>
 						)}
 
@@ -925,19 +926,26 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 								<div className="rounded-lg border border-input p-4 flex items-center justify-between gap-4">
 									<div className="flex flex-col gap-0.5">
 										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-											Application
+											{t("settings.application")}
 										</p>
 										{appVersion && (
 											<p className="text-sm text-muted-foreground">
 												v{appVersion}
 											</p>
 										)}
-										{upToDate && status === "idle" && (
-											<p className="text-xs text-green-600">Vous êtes à jour</p>
+										{hasChecked && status === "idle" && (
+											<p className="text-xs text-green-600">
+												{t("settings.upToDate")}
+											</p>
+										)}
+										{hasChecked && status === "error" && !update && (
+											<p className="text-xs text-destructive">
+												{t("settings.updateCheckError")}
+											</p>
 										)}
 										{status === "available" && (
 											<p className="text-xs text-primary">
-												Une mise à jour est disponible
+												{t("settings.updateAvailable")}
 											</p>
 										)}
 									</div>
@@ -945,9 +953,16 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 										variant="outline"
 										size="sm"
 										onClick={handleCheckForUpdate}
-										disabled={status === "downloading"}
+										disabled={status === "downloading" || status === "checking"}
 									>
-										Vérifier les mises à jour
+										{status === "checking" ? (
+											<>
+												<Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+												{t("settings.checkingForUpdates")}
+											</>
+										) : (
+											t("settings.checkForUpdates")
+										)}
 									</Button>
 								</div>
 							</div>

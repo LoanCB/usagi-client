@@ -12,6 +12,7 @@ function makeState(overrides: Partial<UpdaterState> = {}): UpdaterState {
 		status: "idle",
 		update: null,
 		progress: 0,
+		error: null,
 		checkForUpdate: vi.fn(),
 		downloadAndInstall: vi.fn(),
 		dismiss: vi.fn(),

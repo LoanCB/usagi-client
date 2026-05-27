@@ -179,6 +179,12 @@ const en = {
 		glassmorphism: "Glassmorphism",
 		sidebarViews: "Sidebar views",
 		tabGeneral: "General",
+		application: "Application",
+		checkForUpdates: "Check for updates",
+		checkingForUpdates: "Checking…",
+		upToDate: "You're up to date",
+		updateAvailable: "An update is available",
+		updateCheckError: "Unable to check for updates",
 	},
 	taskList: {
 		remaining_one: "{{count}} remaining",
