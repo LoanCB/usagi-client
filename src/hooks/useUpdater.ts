@@ -14,6 +14,7 @@ export interface UpdaterState {
 	status: UpdateStatus;
 	update: Update | null;
 	progress: number;
+	error: string | null;
 	checkForUpdate: () => Promise<void>;
 	downloadAndInstall: () => Promise<void>;
 	dismiss: () => void;
@@ -24,10 +25,12 @@ export function useUpdater(): UpdaterState {
 	const [status, setStatus] = useState<UpdateStatus>("idle");
 	const [update, setUpdate] = useState<Update | null>(null);
 	const [progress, setProgress] = useState(0);
+	const [error, setError] = useState<string | null>(null);
 
 	const checkForUpdate = useCallback(async () => {
 		if (import.meta.env.MODE !== "production") return;
 		setStatus("checking");
+		setError(null);
 		try {
 			const available = await check();
 			if (available) {
@@ -36,18 +39,23 @@ export function useUpdater(): UpdaterState {
 			} else {
 				setStatus("idle");
 			}
-		} catch {
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			console.error("[updater] checkForUpdate failed:", message);
+			setError(message);
 			setStatus("error");
 		}
 	}, []);
 
 	const downloadAndInstall = useCallback(async () => {
 		if (!update) {
+			setError("No update available");
 			setStatus("error");
 			return;
 		}
 		setStatus("downloading");
 		setProgress(0);
+		setError(null);
 		try {
 			let received = 0;
 			let total = 0;
@@ -62,7 +70,10 @@ export function useUpdater(): UpdaterState {
 					setStatus("ready");
 				}
 			});
-		} catch {
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			console.error("[updater] downloadAndInstall failed:", message);
+			setError(message);
 			setStatus("error");
 		}
 	}, [update]);
@@ -71,6 +82,7 @@ export function useUpdater(): UpdaterState {
 		setStatus("idle");
 		setUpdate(null);
 		setProgress(0);
+		setError(null);
 	}, []);
 
 	const relaunchApp = useCallback(async () => {
@@ -81,6 +93,7 @@ export function useUpdater(): UpdaterState {
 		status,
 		update,
 		progress,
+		error,
 		checkForUpdate,
 		downloadAndInstall,
 		dismiss,

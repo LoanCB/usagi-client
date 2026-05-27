@@ -7,6 +7,7 @@ export function UpdateBanner() {
 		status,
 		update,
 		progress,
+		error,
 		downloadAndInstall,
 		dismiss,
 		relaunchApp,
@@ -65,9 +66,16 @@ export function UpdateBanner() {
 			{status === "error" && (
 				<>
 					<AlertCircle className="h-4 w-4 text-destructive shrink-0" />
-					<span className="text-sm flex-1 text-destructive">
-						Échec de la mise à jour
-					</span>
+					<div className="flex flex-col flex-1 min-w-0">
+						<span className="text-sm text-destructive">
+							Échec de la mise à jour
+						</span>
+						{error && (
+							<span className="text-xs text-muted-foreground truncate" title={error}>
+								{error}
+							</span>
+						)}
+					</div>
 					<Button variant="ghost" size="sm" onClick={dismiss}>
 						Fermer
 					</Button>
