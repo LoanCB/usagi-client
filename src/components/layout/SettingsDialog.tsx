@@ -511,7 +511,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 		<>
 			<Dialog>
 				<DialogTrigger render={children} />
-				<DialogContent className="flex flex-col h-[min(65vh,38rem)] sm:max-w-[min(calc(100%-2rem),42rem)]">
+				<DialogContent className="flex flex-col h-[min(85vh,52rem)] max-h-[500px] sm:max-w-[min(calc(100%-2rem),42rem)]">
 					<DialogHeader className="border-b border-border pb-0">
 						<DialogTitle>{t("settings.title")}</DialogTitle>
 						<div className="flex mt-3" role="tablist">
@@ -934,7 +934,9 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 											</p>
 										)}
 										{hasChecked && status === "idle" && (
-											<p className="text-xs text-green-600">{t("settings.upToDate")}</p>
+											<p className="text-xs text-green-600">
+												{t("settings.upToDate")}
+											</p>
 										)}
 										{hasChecked && status === "error" && !update && (
 											<p className="text-xs text-destructive">

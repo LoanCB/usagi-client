@@ -71,7 +71,10 @@ export function UpdateBanner() {
 							Échec de la mise à jour
 						</span>
 						{error && (
-							<span className="text-xs text-muted-foreground truncate" title={error}>
+							<span
+								className="text-xs text-muted-foreground truncate"
+								title={error}
+							>
 								{error}
 							</span>
 						)}
