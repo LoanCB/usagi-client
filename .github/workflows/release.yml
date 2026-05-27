@@ -65,6 +65,12 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           VERSION="${TAG#v}"
+          # MSI requires numeric-only pre-release identifiers (≤ 65535).
+          # Strip non-numeric pre-release suffixes (e.g. -beta, -beta.1) so the
+          # build succeeds on Windows; the tag/release name still conveys beta status.
+          if [[ "$VERSION" =~ -[^0-9] ]]; then
+            VERSION="${VERSION%%-*}"
+          fi
           jq --arg version "$VERSION" '.version = $version' src-tauri/tauri.conf.json > tmp.json
           mv tmp.json src-tauri/tauri.conf.json
 
