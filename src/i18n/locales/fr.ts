@@ -181,6 +181,12 @@ const fr: typeof en = {
 		glassmorphism: "Glassmorphisme",
 		sidebarViews: "Vues de la sidebar",
 		tabGeneral: "Général",
+		application: "Application",
+		checkForUpdates: "Vérifier les mises à jour",
+		checkingForUpdates: "Vérification…",
+		upToDate: "Vous êtes à jour",
+		updateAvailable: "Une mise à jour est disponible",
+		updateCheckError: "Impossible de vérifier les mises à jour",
 	},
 	taskList: {
 		remaining_one: "{{count}} restante",

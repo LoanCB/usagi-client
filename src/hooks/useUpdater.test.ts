@@ -55,7 +55,7 @@ describe("useUpdater", () => {
 		expect(result.current.update).toBe(mockUpdate);
 	});
 
-	it("stays idle when no update found", async () => {
+	it("returns to idle when no update found", async () => {
 		mockCheck.mockResolvedValue(null);
 
 		const { result } = renderHook(() => useUpdater());

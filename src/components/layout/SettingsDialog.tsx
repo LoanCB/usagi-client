@@ -4,6 +4,7 @@ import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import {
 	ChevronDown,
 	ChevronUp,
+	Loader2,
 	Monitor,
 	Moon,
 	Plus,
@@ -393,8 +394,8 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 		"general" | "notifications" | "data"
 	>("general");
 	const [appVersion, setAppVersion] = useState<string | null>(null);
-	const [upToDate, setUpToDate] = useState(false);
-	const { checkForUpdate, status } = useUpdaterContext();
+	const [hasChecked, setHasChecked] = useState(false);
+	const { checkForUpdate, status, update } = useUpdaterContext();
 
 	useEffect(() => {
 		getVersion()
@@ -403,9 +404,9 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	}, []);
 
 	async function handleCheckForUpdate() {
-		setUpToDate(false);
+		setHasChecked(false);
 		await checkForUpdate();
-		setUpToDate(true);
+		setHasChecked(true);
 	}
 
 	function handleShortcut(action: ShortcutAction, s: SortShortcut) {
@@ -925,19 +926,24 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 								<div className="rounded-lg border border-input p-4 flex items-center justify-between gap-4">
 									<div className="flex flex-col gap-0.5">
 										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-											Application
+											{t("settings.application")}
 										</p>
 										{appVersion && (
 											<p className="text-sm text-muted-foreground">
 												v{appVersion}
 											</p>
 										)}
-										{upToDate && status === "idle" && (
-											<p className="text-xs text-green-600">Vous êtes à jour</p>
+										{hasChecked && status === "idle" && (
+											<p className="text-xs text-green-600">{t("settings.upToDate")}</p>
+										)}
+										{hasChecked && status === "error" && !update && (
+											<p className="text-xs text-destructive">
+												{t("settings.updateCheckError")}
+											</p>
 										)}
 										{status === "available" && (
 											<p className="text-xs text-primary">
-												Une mise à jour est disponible
+												{t("settings.updateAvailable")}
 											</p>
 										)}
 									</div>
@@ -945,9 +951,16 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 										variant="outline"
 										size="sm"
 										onClick={handleCheckForUpdate}
-										disabled={status === "downloading"}
+										disabled={status === "downloading" || status === "checking"}
 									>
-										Vérifier les mises à jour
+										{status === "checking" ? (
+											<>
+												<Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+												{t("settings.checkingForUpdates")}
+											</>
+										) : (
+											t("settings.checkForUpdates")
+										)}
 									</Button>
 								</div>
 							</div>

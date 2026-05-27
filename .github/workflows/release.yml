@@ -71,6 +71,46 @@ jobs:
       - name: Build Tauri app
         run: pnpm tauri build
 
+      - name: Generate Linux updater artifacts
+        if: matrix.os == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          BUNDLE_DIR="src-tauri/target/release/bundle/appimage"
+          APPIMAGE=$(find "$BUNDLE_DIR" -name "*.AppImage" ! -name "*.tar.gz" 2>/dev/null | head -1)
+          if [ -z "$APPIMAGE" ]; then
+            echo "::warning::No AppImage found — skipping Linux updater artifact"
+            exit 0
+          fi
+          TARBALL="${APPIMAGE}.tar.gz"
+          if [ ! -f "$TARBALL" ]; then
+            echo "Creating $(basename "$TARBALL")"
+            (cd "$BUNDLE_DIR" && tar -czf "$(basename "$TARBALL")" "$(basename "$APPIMAGE")")
+          fi
+          if [ ! -f "${TARBALL}.sig" ]; then
+            echo "Signing $(basename "$TARBALL")"
+            pnpm tauri signer sign "$TARBALL"
+          fi
+
+      - name: Generate Windows updater artifacts
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $nsisDir = "src-tauri/target/release/bundle/nsis"
+          $exe = Get-ChildItem "$nsisDir/*-setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) {
+            Write-Warning "No NSIS installer found — skipping Windows updater artifact"
+            exit 0
+          }
+          $zipName = $exe.FullName -replace '\.exe$', '.nsis.zip'
+          if (-not (Test-Path $zipName)) {
+            Write-Output "Creating $(Split-Path -Leaf $zipName)"
+            Compress-Archive -Path $exe.FullName -DestinationPath $zipName
+          }
+          if (-not (Test-Path "$zipName.sig")) {
+            Write-Output "Signing $(Split-Path -Leaf $zipName)"
+            pnpm tauri signer sign $zipName
+          }
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:

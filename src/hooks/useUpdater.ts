@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useState } from "react";
 
 export type UpdateStatus =
 	| "idle"
+	| "checking"
 	| "available"
 	| "downloading"
 	| "ready"
@@ -26,11 +27,14 @@ export function useUpdater(): UpdaterState {
 
 	const checkForUpdate = useCallback(async () => {
 		if (import.meta.env.MODE !== "production") return;
+		setStatus("checking");
 		try {
 			const available = await check();
 			if (available) {
 				setUpdate(available);
 				setStatus("available");
+			} else {
+				setStatus("idle");
 			}
 		} catch {
 			setStatus("error");
