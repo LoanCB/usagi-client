@@ -543,7 +543,8 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 					<div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
 						{/* ── Panel : Général ── */}
 						{activeTab === "general" && (
-							<div className="flex flex-col sm:flex-row py-4" role="tabpanel">
+							<div className="flex flex-col py-4 gap-4" role="tabpanel">
+							<div className="flex flex-col sm:flex-row">
 								{/* Left column: Appearance + Language */}
 								<div className="flex-1 min-w-0 flex flex-col sm:pr-4">
 									{/* Section: Appearance */}
@@ -751,35 +752,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 										</div>
 									</div>
 								</div>
-
-								<div className="rounded-lg border border-input p-4 flex items-center justify-between gap-4 mt-2">
-									<div className="flex flex-col gap-0.5">
-										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-											Application
-										</p>
-										{appVersion && (
-											<p className="text-sm text-muted-foreground">
-												v{appVersion}
-											</p>
-										)}
-										{upToDate && status === "idle" && (
-											<p className="text-xs text-green-600">Vous êtes à jour</p>
-										)}
-										{status === "available" && (
-											<p className="text-xs text-primary">
-												Une mise à jour est disponible
-											</p>
-										)}
-									</div>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={handleCheckForUpdate}
-										disabled={status === "downloading"}
-									>
-										Vérifier les mises à jour
-									</Button>
-								</div>
+							</div>
 							</div>
 						)}
 
@@ -948,6 +921,35 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 								{dataError && (
 									<p className="text-xs text-destructive">{dataError}</p>
 								)}
+
+								<div className="rounded-lg border border-input p-4 flex items-center justify-between gap-4">
+									<div className="flex flex-col gap-0.5">
+										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+											Application
+										</p>
+										{appVersion && (
+											<p className="text-sm text-muted-foreground">
+												v{appVersion}
+											</p>
+										)}
+										{upToDate && status === "idle" && (
+											<p className="text-xs text-green-600">Vous êtes à jour</p>
+										)}
+										{status === "available" && (
+											<p className="text-xs text-primary">
+												Une mise à jour est disponible
+											</p>
+										)}
+									</div>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={handleCheckForUpdate}
+										disabled={status === "downloading"}
+									>
+										Vérifier les mises à jour
+									</Button>
+								</div>
 							</div>
 						)}
 					</div>
