@@ -1,10 +1,16 @@
-import { RotateCcw, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { RotateCcw, Search, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CalendarProjectFilter } from "@/components/calendar/CalendarProjectFilter";
+import {
+	ArchiveDateFilter,
+	type DateRange,
+	inRange,
+} from "@/components/layout/ArchiveDateFilter";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { formatDate } from "@/lib/utils";
+import { formatDate, todayIso } from "@/lib/utils";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import { useTaskStore } from "@/store/tasks";
@@ -16,6 +22,50 @@ export function ArchiveView() {
 	const { t, i18n } = useTranslation();
 	const repo = getRepository();
 	const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+	const [search, setSearch] = useState("");
+	const [filterProjectId, setFilterProjectId] = useState<
+		string | null | undefined
+	>(undefined);
+	const [archivedDateRange, setArchivedDateRange] = useState<DateRange>({
+		from: null,
+		to: null,
+	});
+	const [dueDateRange, setDueDateRange] = useState<DateRange>({
+		from: null,
+		to: null,
+	});
+
+	const today = useMemo(() => todayIso(), []);
+
+	const filteredTasks = useMemo(() => {
+		return archivedTasks.filter((task) => {
+			const matchesSearch =
+				!search.trim() ||
+				task.title.toLowerCase().includes(search.toLowerCase());
+			const matchesProject =
+				filterProjectId === undefined ||
+				(filterProjectId === null
+					? task.projectId === null
+					: task.projectId === filterProjectId);
+			const archivedDate = task.deletedAt?.slice(0, 10) ?? null;
+			const matchesArchivedDate = inRange(
+				archivedDate,
+				archivedDateRange,
+				today,
+			);
+			const matchesDueDate = inRange(task.dueDate ?? null, dueDateRange, today);
+			return (
+				matchesSearch && matchesProject && matchesArchivedDate && matchesDueDate
+			);
+		});
+	}, [
+		archivedTasks,
+		search,
+		filterProjectId,
+		archivedDateRange,
+		dueDateRange,
+		today,
+	]);
 
 	useEffect(() => {
 		loadArchivedTasks(repo);
@@ -23,17 +73,51 @@ export function ArchiveView() {
 
 	return (
 		<div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
-			<div className="px-6 py-5 border-b border-border shrink-0">
-				<h2 className="text-lg font-semibold">{t("nav.archives")}</h2>
+			<div className="px-6 py-5 border-b border-border shrink-0 flex items-center gap-3">
+				<h2 className="text-lg font-semibold flex-1">{t("nav.archives")}</h2>
+				<div className="glass-stat flex items-center gap-2 rounded-xl px-3 py-1.5">
+					<Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+					<input
+						type="text"
+						value={search}
+						onChange={(e) => setSearch(e.target.value)}
+						placeholder={t("task.search")}
+						aria-label={t("task.search")}
+						className="w-32 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
+					/>
+					<button
+						type="button"
+						onClick={() => setSearch("")}
+						className={`shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors ${search ? "visible" : "invisible"}`}
+						aria-label="Clear search"
+						tabIndex={search ? 0 : -1}
+					>
+						<X className="h-3.5 w-3.5" />
+					</button>
+				</div>
+				<CalendarProjectFilter
+					value={filterProjectId}
+					onChange={setFilterProjectId}
+				/>
+				<ArchiveDateFilter
+					archivedRange={archivedDateRange}
+					onArchivedRangeChange={setArchivedDateRange}
+					dueDateRange={dueDateRange}
+					onDueDateRangeChange={setDueDateRange}
+				/>
 			</div>
-			<ScrollArea className="flex-1">
+			<ScrollArea className="flex-1 min-h-0">
 				{archivedTasks.length === 0 ? (
 					<div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
 						{t("archive.empty")}
 					</div>
+				) : filteredTasks.length === 0 ? (
+					<div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+						{t("archive.noResults")}
+					</div>
 				) : (
 					<div className="flex flex-col gap-1 p-3">
-						{archivedTasks.map((task) => {
+						{filteredTasks.map((task) => {
 							const project = projects.find((p) => p.id === task.projectId);
 							return (
 								<div
@@ -46,7 +130,10 @@ export function ArchiveView() {
 										</p>
 										<p className="text-xs text-muted-foreground/60 mt-0.5">
 											{project?.name && (
-												<span className="mr-2">{project.name}</span>
+												<>
+													<span>{project.name}</span>
+													<span className="mx-1.5">·</span>
+												</>
 											)}
 											{task.deletedAt &&
 												t("archive.archivedOn", {

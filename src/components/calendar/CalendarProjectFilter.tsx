@@ -66,7 +66,7 @@ export function CalendarProjectFilter({
 				aria-label={t("calendar.filter.trigger")}
 				className={cn(
 					buttonVariants({ variant: "ghost", size: "sm" }),
-					"gap-1.5 h-7 px-2.5 text-xs border max-w-[10rem]",
+					"gap-1.5 h-7 px-2.5 text-xs border w-36",
 					value === undefined && "border-border/40 text-muted-foreground",
 				)}
 				style={triggerStyle}

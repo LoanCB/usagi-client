@@ -197,6 +197,14 @@ const en = {
 	archive: {
 		empty: "No archived tasks",
 		archivedOn: "Archived on {{date}}",
+		noResults: "No tasks match your filters",
+		filterDates: "Dates",
+		filterArchivedDate: "Archived date",
+		preset7d: "Last 7 days",
+		preset30d: "Last 30 days",
+		presetMonth: "This month",
+		fromPlaceholder: "Start…",
+		toPlaceholder: "End…",
 	},
 	data: {
 		title: "Data",

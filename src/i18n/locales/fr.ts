@@ -199,6 +199,14 @@ const fr: typeof en = {
 	archive: {
 		empty: "Aucune tâche archivée",
 		archivedOn: "Archivée le {{date}}",
+		noResults: "Aucune tâche ne correspond aux filtres",
+		filterDates: "Dates",
+		filterArchivedDate: "Date d'archivage",
+		preset7d: "7 derniers jours",
+		preset30d: "30 derniers jours",
+		presetMonth: "Ce mois",
+		fromPlaceholder: "Début…",
+		toPlaceholder: "Fin…",
 	},
 	data: {
 		title: "Données",
