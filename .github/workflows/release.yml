@@ -173,7 +173,20 @@ jobs:
           const path = require('path');
 
           const tag = process.env.TAG;
-          const version = process.env.TAG.replace(/^v/, '');
+          // Normalize version to match the BUNDLE_VERSION computed in the build job:
+          // 1. Strip the leading "v"
+          // 2. Strip non-numeric pre-release suffixes (e.g. -beta, -beta.1) — WiX constraint
+          // 3. Map years > 255 to last two digits (e.g. 2026 → 26) — WiX major-version limit
+          let version = tag.replace(/^v/, '');
+          if (/-[^0-9]/.test(version)) {
+            version = version.replace(/-[^0-9].*$/, '');
+          }
+          const vParts = version.split('.');
+          const major = parseInt(vParts[0], 10);
+          if (major > 255) {
+            vParts[0] = String(major % 100);
+            version = vParts.join('.');
+          }
           const repo = process.env.GITHUB_REPO;
           const baseUrl = `https://github.com/${repo}/releases/download/${tag}`;
 
