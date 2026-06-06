@@ -25,13 +25,34 @@ import { getRepository } from "@/store/repository";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
-import type { Project, Task } from "@/types";
+import type { Priority, Project, Task } from "@/types";
 
-const PRIORITY_BORDER_COLORS: Record<string, string> = {
-	high: "var(--priority-high)",
-	medium: "var(--priority-medium)",
-	low: "var(--priority-low)",
+const PRIORITY_DOT: Record<Priority, string> = {
+	high: "#ef4444",
+	medium: "#eab308",
+	low: "#22c55e",
 	none: "transparent",
+};
+
+const PRIORITY_GLOW: Record<Priority, string> = {
+	high: "0 0 5px rgba(239,68,68,0.7)",
+	medium: "0 0 5px rgba(234,179,8,0.6)",
+	low: "0 0 5px rgba(34,197,94,0.5)",
+	none: "none",
+};
+
+const PRIORITY_BG: Record<Priority, string | undefined> = {
+	high: "rgba(239,68,68,0.13)",
+	medium: "rgba(234,179,8,0.11)",
+	low: "rgba(34,197,94,0.10)",
+	none: undefined,
+};
+
+const PRIORITY_BORDER: Record<Priority, string | undefined> = {
+	high: "rgba(239,68,68,0.30)",
+	medium: "rgba(234,179,8,0.26)",
+	low: "rgba(34,197,94,0.22)",
+	none: undefined,
 };
 
 interface TaskItemProps {
@@ -67,8 +88,8 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 		transition,
 		opacity: isDragging ? 0.45 : undefined,
 		borderStyle: isDragging ? ("dashed" as const) : undefined,
-		background: isDragging ? "transparent" : undefined,
-		borderLeftColor: PRIORITY_BORDER_COLORS[task.priority],
+		backgroundColor: isDragging ? "transparent" : PRIORITY_BG[task.priority],
+		borderColor: PRIORITY_BORDER[task.priority],
 	};
 
 	async function handleChecked(checked: boolean) {
@@ -105,7 +126,7 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 				className={cn(
 					"task-row-animate group",
 					"flex items-center gap-2 mx-3 my-1 pl-2 pr-3 py-2.5",
-					"rounded-xl border border-l-[3px] glass-card transition-all duration-150",
+					"rounded-xl border glass-card transition-all duration-150",
 					task.completedAt && "opacity-60",
 					isSelected && "selected",
 				)}
@@ -125,6 +146,22 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 					checked={!!task.completedAt}
 					onCheckedChange={handleChecked}
 					className="shrink-0"
+				/>
+
+				<span
+					data-testid="priority-dot"
+					className="shrink-0 rounded-full"
+					style={{
+						width: 7,
+						height: 7,
+						background: PRIORITY_DOT[task.priority],
+						boxShadow: PRIORITY_GLOW[task.priority],
+						border:
+							task.priority === "none"
+								? "1.5px solid var(--border)"
+								: undefined,
+						marginLeft: 2,
+					}}
 				/>
 
 				{project?.icon &&

@@ -42,6 +42,9 @@ const mockTask: Task = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	writeTextSpy = vi
+		.spyOn(navigator.clipboard, "writeText")
+		.mockResolvedValue(undefined);
 	useTaskStore.setState({ allCount: 0, todayCount: 0 });
 	useTagStore.setState({ tags: [] });
 	useUIStore.setState({
@@ -80,5 +83,82 @@ describe("TaskItem", () => {
 		});
 
 		expect(writeTextSpy).toHaveBeenCalledWith("Buy groceries");
+	});
+
+	it("renders a priority dot for each priority level", () => {
+		const { rerender } = render(
+			<TaskItem
+				task={{ ...mockTask, priority: "high" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
+
+		rerender(
+			<TaskItem
+				task={{ ...mockTask, priority: "medium" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
+
+		rerender(
+			<TaskItem
+				task={{ ...mockTask, priority: "low" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
+
+		rerender(
+			<TaskItem
+				task={{ ...mockTask, priority: "none" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
+	});
+
+	it("applies red dot color for high priority", () => {
+		render(
+			<TaskItem
+				task={{ ...mockTask, priority: "high" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		const dot = screen.getByTestId("priority-dot");
+		expect(dot).toHaveStyle({ background: "#ef4444" });
+		expect(dot).toHaveStyle({ boxShadow: "0 0 5px rgba(239,68,68,0.7)" });
+	});
+
+	it("applies yellow dot color for medium priority", () => {
+		render(
+			<TaskItem
+				task={{ ...mockTask, priority: "medium" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(screen.getByTestId("priority-dot")).toHaveStyle({
+			background: "#eab308",
+		});
+	});
+
+	it("applies green dot color for low priority", () => {
+		render(
+			<TaskItem
+				task={{ ...mockTask, priority: "low" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(screen.getByTestId("priority-dot")).toHaveStyle({
+			background: "#22c55e",
+		});
+	});
+
+	it("renders transparent dot for no priority", () => {
+		render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+		expect(screen.getByTestId("priority-dot")).toHaveStyle({
+			background: "transparent",
+		});
 	});
 });
