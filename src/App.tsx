@@ -1,5 +1,5 @@
 import Database from "@tauri-apps/plugin-sql";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/AppShell";
 import { UpdateBanner } from "@/components/layout/UpdateBanner";
@@ -58,8 +58,14 @@ export default function App() {
 	const { t } = useTranslation();
 	const [ready, setReady] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const initStarted = useRef(false);
 
 	useEffect(() => {
+		// Guard against React StrictMode double-invoking this effect in dev,
+		// which would run the migrations concurrently and lock the SQLite DB.
+		if (initStarted.current) return;
+		initStarted.current = true;
+
 		async function init() {
 			try {
 				const db = await Database.load("sqlite:usagi.db");
