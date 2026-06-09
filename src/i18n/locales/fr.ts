@@ -179,6 +179,7 @@ const fr: typeof en = {
 		shortcutsReset: "Réinitialiser",
 		parallax: "Animation du fond",
 		glassmorphism: "Glassmorphisme",
+		colorblindMode: "Mode daltonien",
 		sidebarViews: "Vues de la sidebar",
 		tabGeneral: "Général",
 		application: "Application",

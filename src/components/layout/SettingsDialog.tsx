@@ -366,6 +366,8 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	const setGlassmorphismEnabled = useSettingsStore(
 		(s) => s.setGlassmorphismEnabled,
 	);
+	const colorblindMode = useSettingsStore((s) => s.colorblindMode);
+	const setColorblindMode = useSettingsStore((s) => s.setColorblindMode);
 	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
 	const archivesVisible = useSettingsStore((s) => s.archivesVisible);
 	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
@@ -623,6 +625,17 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 													checked={parallaxEnabled}
 													onCheckedChange={(v) =>
 														setParallaxEnabled(getRepository(), v)
+													}
+												/>
+											</div>
+											<div className="flex items-center justify-between cursor-pointer select-none">
+												<span className="text-sm text-foreground">
+													{t("settings.colorblindMode")}
+												</span>
+												<Switch
+													checked={colorblindMode}
+													onCheckedChange={(v) =>
+														setColorblindMode(getRepository(), v)
 													}
 												/>
 											</div>

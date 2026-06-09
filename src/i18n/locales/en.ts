@@ -177,6 +177,7 @@ const en = {
 		shortcutsReset: "Reset to defaults",
 		parallax: "Background animation",
 		glassmorphism: "Glassmorphism",
+		colorblindMode: "Colorblind mode",
 		sidebarViews: "Sidebar views",
 		tabGeneral: "General",
 		application: "Application",

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import "@/i18n";
 import { type MockInstance, vi } from "vitest";
 import { TaskItem } from "@/components/tasks/TaskItem";
+import { useSettingsStore } from "@/store/settings";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
@@ -53,6 +54,7 @@ beforeEach(() => {
 		sidebarCollapsed: false,
 		setSidebarCollapsed: vi.fn(),
 	});
+	useSettingsStore.setState({ colorblindMode: false });
 });
 
 afterEach(() => {
@@ -159,6 +161,38 @@ describe("TaskItem", () => {
 		render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
 		expect(screen.getByTestId("priority-dot")).toHaveStyle({
 			background: "transparent",
+		});
+	});
+
+	describe("colorblind mode", () => {
+		it.each([
+			"high",
+			"medium",
+			"low",
+		] as const)("renders priority bars for %s priority in colorblind mode", (priority) => {
+			useSettingsStore.setState({ colorblindMode: true });
+			render(
+				<TaskItem task={{ ...mockTask, priority }} onDeleteRequest={vi.fn()} />,
+			);
+			expect(screen.getByTestId("priority-bars")).toBeInTheDocument();
+			expect(screen.queryByTestId("priority-dot")).not.toBeInTheDocument();
+		});
+
+		it("renders no bars for none priority in colorblind mode", () => {
+			useSettingsStore.setState({ colorblindMode: true });
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+			expect(screen.queryByTestId("priority-bars")).not.toBeInTheDocument();
+		});
+
+		it("renders dot (not bars) when colorblind mode is off", () => {
+			render(
+				<TaskItem
+					task={{ ...mockTask, priority: "high" }}
+					onDeleteRequest={vi.fn()}
+				/>,
+			);
+			expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
+			expect(screen.queryByTestId("priority-bars")).not.toBeInTheDocument();
 		});
 	});
 });

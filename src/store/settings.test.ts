@@ -38,6 +38,7 @@ beforeEach(() => {
 		calendarVisible: true,
 		archivesVisible: true,
 		tagsVisible: true,
+		colorblindMode: false,
 	});
 });
 
@@ -229,5 +230,36 @@ describe("setTagsVisible", () => {
 		await act(() => result.current.setTagsVisible(repo, false));
 		expect(result.current.tagsVisible).toBe(false);
 		expect(repo.setSetting).toHaveBeenCalledWith("tags_visible", "false");
+	});
+});
+
+describe("useSettingsStore colorblindMode", () => {
+	it("defaults colorblindMode to false", () => {
+		expect(useSettingsStore.getState().colorblindMode).toBe(false);
+	});
+
+	it("setColorblindMode updates state and persists to DB", async () => {
+		await useSettingsStore
+			.getState()
+			// biome-ignore lint/suspicious/noExplicitAny: partial mock
+			.setColorblindMode(mockRepo as any, true);
+		expect(useSettingsStore.getState().colorblindMode).toBe(true);
+		expect(mockRepo.setSetting).toHaveBeenCalledWith("colorblind_mode", "true");
+	});
+
+	it("loadSettings restores colorblindMode from persisted value", async () => {
+		mockRepo.getSettings.mockResolvedValueOnce({
+			colorblind_mode: "true",
+		});
+		// biome-ignore lint/suspicious/noExplicitAny: partial mock
+		await useSettingsStore.getState().loadSettings(mockRepo as any);
+		expect(useSettingsStore.getState().colorblindMode).toBe(true);
+	});
+
+	it("loadSettings defaults colorblindMode to false when key is absent", async () => {
+		mockRepo.getSettings.mockResolvedValueOnce({});
+		// biome-ignore lint/suspicious/noExplicitAny: partial mock
+		await useSettingsStore.getState().loadSettings(mockRepo as any);
+		expect(useSettingsStore.getState().colorblindMode).toBe(false);
 	});
 });
