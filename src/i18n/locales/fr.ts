@@ -91,6 +91,8 @@ const fr: typeof en = {
 		namePlaceholder: "Nom du projet",
 		delete: "Supprimer",
 		options: "Options du projet",
+		newTag: "Nouveau tag",
+		newTagFor: "Nouveau tag pour {{name}}",
 		deleteTitle: 'Supprimer "{{name}}" ?',
 		deleteWarning: "Cette action est irréversible.",
 		deleteTags: "Tags qui seront supprimés",

@@ -89,6 +89,8 @@ const en = {
 		namePlaceholder: "Project name",
 		delete: "Delete",
 		options: "Project options",
+		newTag: "New tag",
+		newTagFor: "New tag for {{name}}",
 		deleteTitle: 'Delete "{{name}}"?',
 		deleteWarning: "This action is permanent and cannot be undone.",
 		deleteTags: "Tags that will be deleted",

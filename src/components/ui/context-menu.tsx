@@ -1,7 +1,7 @@
 "use client";
 
 import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu";
-import { Check } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
@@ -116,6 +116,68 @@ function ContextMenuCheckboxItem({
 	);
 }
 
+function ContextMenuSub({
+	...props
+}: Readonly<ContextMenuPrimitive.SubmenuRoot.Props>) {
+	return (
+		<ContextMenuPrimitive.SubmenuRoot data-slot="context-menu-sub" {...props} />
+	);
+}
+
+function ContextMenuSubTrigger({
+	className,
+	children,
+	...props
+}: Readonly<ContextMenuPrimitive.SubmenuTrigger.Props>) {
+	return (
+		<ContextMenuPrimitive.SubmenuTrigger
+			data-slot="context-menu-sub-trigger"
+			className={cn(
+				"flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+				className,
+			)}
+			{...props}
+		>
+			{children}
+			<ChevronRight className="ml-auto h-3 w-3 opacity-60" />
+		</ContextMenuPrimitive.SubmenuTrigger>
+	);
+}
+
+function ContextMenuSubContent({
+	align = "start",
+	alignOffset = -3,
+	side = "right",
+	sideOffset = 0,
+	className,
+	...props
+}: ContextMenuPrimitive.Popup.Props &
+	Pick<
+		ContextMenuPrimitive.Positioner.Props,
+		"align" | "alignOffset" | "side" | "sideOffset"
+	>) {
+	return (
+		<ContextMenuPrimitive.Portal>
+			<ContextMenuPrimitive.Positioner
+				className="isolate z-50 outline-none"
+				align={align}
+				alignOffset={alignOffset}
+				side={side}
+				sideOffset={sideOffset}
+			>
+				<ContextMenuPrimitive.Popup
+					data-slot="context-menu-sub-content"
+					className={cn(
+						"z-50 min-w-[200px] origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-popover p-3 text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95",
+						className,
+					)}
+					{...props}
+				/>
+			</ContextMenuPrimitive.Positioner>
+		</ContextMenuPrimitive.Portal>
+	);
+}
+
 export {
 	ContextMenu,
 	ContextMenuCheckboxItem,
@@ -123,5 +185,8 @@ export {
 	ContextMenuGroupLabel,
 	ContextMenuItem,
 	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 };
