@@ -181,6 +181,7 @@ const en = {
 		glassmorphism: "Glassmorphism",
 		colorblindMode: "Colorblind mode",
 		sidebarViews: "Sidebar views",
+		searchTrigger: "Search field",
 		tabGeneral: "General",
 		application: "Application",
 		checkForUpdates: "Check for updates",
@@ -230,6 +231,23 @@ const en = {
 		importError: "Invalid or corrupted file",
 		importDescription:
 			"Restore from a previously exported JSON file. You will choose to merge or replace your existing data.",
+	},
+	search: {
+		placeholder: "Search tasks, projects, tags…",
+		tasks: "Tasks",
+		projects: "Projects",
+		tags: "Tags",
+		noResults: "No results",
+		complete: "Mark as complete",
+		uncomplete: "Mark as active",
+		archive: "Archive task",
+		completed: "completed",
+		archived: "archived",
+		navigateHint: "Navigate",
+		openHint: "Open",
+		actionsHint: "Actions",
+		back: "Back",
+		trigger: "Search…",
 	},
 };
 

@@ -8,6 +8,7 @@ import {
 	MoreVertical,
 	Pencil,
 	Plus,
+	Search,
 	Settings2,
 	Tag,
 	Tags,
@@ -51,9 +52,10 @@ import {
 } from "@/components/ui/tooltip";
 import { PRESET_COLORS } from "@/lib/colors";
 import { PRESET_ICONS } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { cn, isMac } from "@/lib/utils";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
+import { useSearchStore } from "@/store/search";
 import { useSettingsStore } from "@/store/settings";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
@@ -499,6 +501,8 @@ export function Sidebar() {
 	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
 	const archivesVisible = useSettingsStore((s) => s.archivesVisible);
 	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
+	const searchTriggerVisible = useSettingsStore((s) => s.searchTriggerVisible);
+	const openSearch = useSearchStore((s) => s.open);
 
 	useEffect(() => {
 		if (
@@ -557,6 +561,40 @@ export function Sidebar() {
 					</span>
 				)}
 			</div>
+
+			{/* Search trigger */}
+			{searchTriggerVisible && (
+				<div className={cn("shrink-0 px-2 pb-2", sidebarCollapsed && "px-1")}>
+					{sidebarCollapsed ? (
+						<TooltipProvider delay={300}>
+							<Tooltip>
+								<TooltipTrigger
+									render={<button type="button" />}
+									onClick={openSearch}
+									className="flex w-full items-center justify-center rounded-md py-2 text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground/70"
+								>
+									<Search className="h-4 w-4" />
+								</TooltipTrigger>
+								<TooltipContent side="right">
+									{t("search.trigger")}
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					) : (
+						<button
+							type="button"
+							onClick={openSearch}
+							className="flex w-full items-center gap-2 rounded-md border border-border/40 bg-sidebar-accent/20 px-2.5 py-1.5 text-left text-sm text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground/70"
+						>
+							<Search className="h-4 w-4 shrink-0" />
+							<span className="flex-1">{t("search.trigger")}</span>
+							<kbd className="rounded border border-border/50 bg-background/50 px-1.5 py-0.5 font-mono text-[10px] text-sidebar-foreground/40">
+								{isMac() ? "⌘K" : "Ctrl+K"}
+							</kbd>
+						</button>
+					)}
+				</div>
+			)}
 
 			<ScrollArea className="flex-1 px-2">
 				<div className="space-y-1.5 pb-2">

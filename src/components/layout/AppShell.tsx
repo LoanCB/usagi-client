@@ -4,8 +4,11 @@ import { ArchiveView } from "@/components/layout/ArchiveView";
 import { TagManager } from "@/components/tags/TagManager";
 import { useOrbParallax } from "@/hooks/useOrbParallax";
 import { useResizable } from "@/hooks/useResizable";
+import { isMac } from "@/lib/utils";
+import { useSearchStore } from "@/store/search";
 import { useSettingsStore } from "@/store/settings";
 import { useUIStore } from "@/store/ui";
+import { GlobalSearch } from "./GlobalSearch";
 import { ResizeHandle } from "./ResizeHandle";
 import { Sidebar } from "./Sidebar";
 import { TaskDetail } from "./TaskDetail";
@@ -22,10 +25,23 @@ export function AppShell() {
 		maxWidth: 600,
 	});
 	const { setOrbRef } = useOrbParallax(parallaxEnabled && glassmorphismEnabled);
+	const toggleSearch = useSearchStore((s) => s.toggle);
 
 	useEffect(() => {
 		document.documentElement.classList.toggle("glass", glassmorphismEnabled);
 	}, [glassmorphismEnabled]);
+
+	useEffect(() => {
+		function handleKeyDown(e: KeyboardEvent) {
+			const modifier = isMac() ? e.metaKey : e.ctrlKey;
+			if (modifier && e.key === "k") {
+				e.preventDefault();
+				toggleSearch();
+			}
+		}
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
+	}, [toggleSearch]);
 
 	const showDetail =
 		selectedTaskId &&
@@ -85,6 +101,7 @@ export function AppShell() {
 					</>
 				)}
 			</div>
+			<GlobalSearch />
 		</div>
 	);
 }

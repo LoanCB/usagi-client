@@ -15,6 +15,7 @@ interface SettingsStore {
 	calendarVisible: boolean;
 	archivesVisible: boolean;
 	tagsVisible: boolean;
+	searchTriggerVisible: boolean;
 	colorblindMode: boolean;
 	loadSettings(repo: TodoRepository): Promise<void>;
 	setNotificationsEnabled(
@@ -33,6 +34,10 @@ interface SettingsStore {
 	setCalendarVisible(repo: TodoRepository, visible: boolean): Promise<void>;
 	setArchivesVisible(repo: TodoRepository, visible: boolean): Promise<void>;
 	setTagsVisible(repo: TodoRepository, visible: boolean): Promise<void>;
+	setSearchTriggerVisible(
+		repo: TodoRepository,
+		visible: boolean,
+	): Promise<void>;
 	setColorblindMode(repo: TodoRepository, enabled: boolean): Promise<void>;
 }
 
@@ -47,6 +52,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 	calendarVisible: true,
 	archivesVisible: true,
 	tagsVisible: true,
+	searchTriggerVisible: true,
 	colorblindMode: false,
 
 	async loadSettings(repo) {
@@ -63,6 +69,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 		const calendarVisible = raw.calendar_visible !== "false";
 		const archivesVisible = raw.archives_visible !== "false";
 		const tagsVisible = raw.tags_visible !== "false";
+		const searchTriggerVisible = raw.search_trigger_visible !== "false";
 		const colorblindMode = raw.colorblind_mode === "true";
 		set({
 			notificationsEnabled,
@@ -72,6 +79,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 			calendarVisible,
 			archivesVisible,
 			tagsVisible,
+			searchTriggerVisible,
 			colorblindMode,
 		});
 	},
@@ -109,6 +117,11 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 	async setTagsVisible(repo, visible) {
 		await repo.setSetting("tags_visible", String(visible));
 		set({ tagsVisible: visible });
+	},
+
+	async setSearchTriggerVisible(repo, visible) {
+		await repo.setSetting("search_trigger_visible", String(visible));
+		set({ searchTriggerVisible: visible });
 	},
 
 	async setColorblindMode(repo, enabled) {

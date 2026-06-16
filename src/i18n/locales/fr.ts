@@ -183,6 +183,7 @@ const fr: typeof en = {
 		glassmorphism: "Glassmorphisme",
 		colorblindMode: "Mode daltonien",
 		sidebarViews: "Vues de la sidebar",
+		searchTrigger: "Champ de recherche",
 		tabGeneral: "Général",
 		application: "Application",
 		checkForUpdates: "Vérifier les mises à jour",
@@ -233,6 +234,23 @@ const fr: typeof en = {
 		importError: "Fichier invalide ou corrompu",
 		importDescription:
 			"Restaurer depuis un fichier JSON exporté depuis Bunly. Vous pouvez fusionner ou remplacer vos données existantes.",
+	},
+	search: {
+		placeholder: "Rechercher tâches, projets, tags…",
+		tasks: "Tâches",
+		projects: "Projets",
+		tags: "Tags",
+		noResults: "Aucun résultat",
+		complete: "Marquer comme complétée",
+		uncomplete: "Marquer comme active",
+		archive: "Archiver la tâche",
+		completed: "complétée",
+		archived: "archivée",
+		navigateHint: "Naviguer",
+		openHint: "Ouvrir",
+		actionsHint: "Actions",
+		back: "Retour",
+		trigger: "Rechercher…",
 	},
 };
 

@@ -371,9 +371,13 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
 	const archivesVisible = useSettingsStore((s) => s.archivesVisible);
 	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
+	const searchTriggerVisible = useSettingsStore((s) => s.searchTriggerVisible);
 	const setCalendarVisible = useSettingsStore((s) => s.setCalendarVisible);
 	const setArchivesVisible = useSettingsStore((s) => s.setArchivesVisible);
 	const setTagsVisible = useSettingsStore((s) => s.setTagsVisible);
+	const setSearchTriggerVisible = useSettingsStore(
+		(s) => s.setSearchTriggerVisible,
+	);
 
 	const sortUrgency = useShortcutsStore((s) => s.sortUrgency);
 	const sortDueDate = useShortcutsStore((s) => s.sortDueDate);
@@ -708,6 +712,18 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 													checked={tagsVisible}
 													onCheckedChange={(v) =>
 														setTagsVisible(getRepository(), v)
+													}
+												/>
+											</div>
+											<div className="flex items-center justify-between cursor-pointer select-none">
+												<span className="text-sm">
+													{t("settings.searchTrigger")}
+												</span>
+												<Switch
+													aria-label={t("settings.searchTrigger")}
+													checked={searchTriggerVisible}
+													onCheckedChange={(v) =>
+														setSearchTriggerVisible(getRepository(), v)
 													}
 												/>
 											</div>
