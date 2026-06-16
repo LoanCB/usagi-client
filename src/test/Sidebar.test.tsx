@@ -1,11 +1,20 @@
-import { act, render, screen } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@/i18n";
 import { vi } from "vitest";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { useProjectStore } from "@/store/projects";
 import { useSettingsStore } from "@/store/settings";
+import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
+import type { Project } from "@/types";
 
 vi.mock("@/store/repository", () => ({
 	getRepository: vi.fn(() => ({
@@ -127,5 +136,111 @@ describe("Sidebar — redirect on active view hidden", () => {
 		setupStores({ calendarVisible: false, selectedProjectId: "today" });
 		render(<Sidebar />);
 		expect(mockSetSelectedProject).not.toHaveBeenCalled();
+	});
+});
+
+describe("ProjectNavItem — quick tag creation", () => {
+	const mockProject: Project = {
+		id: "proj-1",
+		name: "Design",
+		color: "#3b82f6",
+		icon: null,
+		sortOrder: 0,
+		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
+	};
+
+	const mockCreateTag = vi.fn().mockResolvedValue({
+		id: "tag-1",
+		name: "UI review",
+		color: "#3b82f6",
+		projectId: "proj-1",
+	});
+
+	beforeEach(() => {
+		setupStores();
+		useProjectStore.setState({ projects: [mockProject] });
+		useTagStore.setState({
+			tags: [],
+			createTag: mockCreateTag,
+			loadTags: vi.fn(),
+			updateTag: vi.fn(),
+			deleteTag: vi.fn(),
+		});
+	});
+
+	it('shows "New tag" in the context menu when right-clicking a project', async () => {
+		const user = userEvent.setup();
+		render(<Sidebar />);
+
+		await user.pointer({
+			keys: "[MouseRight]",
+			target: screen.getByText("Design"),
+		});
+
+		expect(await screen.findByText(/new tag/i)).toBeInTheDocument();
+	});
+
+	it("shows the tag name input when hovering the New tag submenu trigger", async () => {
+		const user = userEvent.setup();
+		render(<Sidebar />);
+
+		await user.pointer({
+			keys: "[MouseRight]",
+			target: screen.getByText("Design"),
+		});
+
+		const newTagTrigger = await screen.findByText(/new tag/i);
+		await user.hover(newTagTrigger);
+
+		expect(await screen.findByPlaceholderText(/tag name/i)).toBeInTheDocument();
+	});
+
+	it("calls createTag with the correct projectId on Enter", async () => {
+		const user = userEvent.setup();
+		render(<Sidebar />);
+
+		await user.pointer({
+			keys: "[MouseRight]",
+			target: screen.getByText("Design"),
+		});
+
+		const newTagTrigger = await screen.findByText(/new tag/i);
+		await user.hover(newTagTrigger);
+
+		const input = await screen.findByPlaceholderText(/tag name/i);
+		fireEvent.change(input, { target: { value: "UI review" } });
+		fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+
+		await waitFor(() => {
+			expect(mockCreateTag).toHaveBeenCalledWith(
+				expect.anything(),
+				expect.objectContaining({
+					name: "UI review",
+					projectId: "proj-1",
+				}),
+			);
+		});
+	});
+
+	it("clears the name input after tag creation", async () => {
+		const user = userEvent.setup();
+		render(<Sidebar />);
+
+		await user.pointer({
+			keys: "[MouseRight]",
+			target: screen.getByText("Design"),
+		});
+
+		const newTagTrigger = await screen.findByText(/new tag/i);
+		await user.hover(newTagTrigger);
+
+		const input = await screen.findByPlaceholderText(/tag name/i);
+		fireEvent.change(input, { target: { value: "UI review" } });
+		fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+
+		await waitFor(() => {
+			expect(input).toHaveValue("");
+		});
 	});
 });

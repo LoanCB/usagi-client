@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import "@/i18n";
 import { type MockInstance, vi } from "vitest";
 import { TaskItem } from "@/components/tasks/TaskItem";
+import { useSettingsStore } from "@/store/settings";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
@@ -42,6 +43,9 @@ const mockTask: Task = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	writeTextSpy = vi
+		.spyOn(navigator.clipboard, "writeText")
+		.mockResolvedValue(undefined);
 	useTaskStore.setState({ allCount: 0, todayCount: 0 });
 	useTagStore.setState({ tags: [] });
 	useUIStore.setState({
@@ -50,6 +54,7 @@ beforeEach(() => {
 		sidebarCollapsed: false,
 		setSidebarCollapsed: vi.fn(),
 	});
+	useSettingsStore.setState({ colorblindMode: false });
 });
 
 afterEach(() => {
@@ -80,5 +85,114 @@ describe("TaskItem", () => {
 		});
 
 		expect(writeTextSpy).toHaveBeenCalledWith("Buy groceries");
+	});
+
+	it("renders a priority dot for each priority level", () => {
+		const { rerender } = render(
+			<TaskItem
+				task={{ ...mockTask, priority: "high" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
+
+		rerender(
+			<TaskItem
+				task={{ ...mockTask, priority: "medium" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
+
+		rerender(
+			<TaskItem
+				task={{ ...mockTask, priority: "low" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
+
+		rerender(
+			<TaskItem
+				task={{ ...mockTask, priority: "none" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
+	});
+
+	it("applies red dot color for high priority", () => {
+		render(
+			<TaskItem
+				task={{ ...mockTask, priority: "high" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		const dot = screen.getByTestId("priority-dot");
+		expect(dot).toHaveStyle({ background: "#ef4444" });
+		expect(dot).toHaveStyle({ boxShadow: "0 0 5px rgba(239,68,68,0.7)" });
+	});
+
+	it("applies yellow dot color for medium priority", () => {
+		render(
+			<TaskItem
+				task={{ ...mockTask, priority: "medium" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(screen.getByTestId("priority-dot")).toHaveStyle({
+			background: "#eab308",
+		});
+	});
+
+	it("applies green dot color for low priority", () => {
+		render(
+			<TaskItem
+				task={{ ...mockTask, priority: "low" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(screen.getByTestId("priority-dot")).toHaveStyle({
+			background: "#22c55e",
+		});
+	});
+
+	it("renders transparent dot for no priority", () => {
+		render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+		expect(screen.getByTestId("priority-dot")).toHaveStyle({
+			background: "transparent",
+		});
+	});
+
+	describe("colorblind mode", () => {
+		it.each([
+			"high",
+			"medium",
+			"low",
+		] as const)("renders priority bars for %s priority in colorblind mode", (priority) => {
+			useSettingsStore.setState({ colorblindMode: true });
+			render(
+				<TaskItem task={{ ...mockTask, priority }} onDeleteRequest={vi.fn()} />,
+			);
+			expect(screen.getByTestId("priority-bars")).toBeInTheDocument();
+			expect(screen.queryByTestId("priority-dot")).not.toBeInTheDocument();
+		});
+
+		it("renders no bars for none priority in colorblind mode", () => {
+			useSettingsStore.setState({ colorblindMode: true });
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+			expect(screen.queryByTestId("priority-bars")).not.toBeInTheDocument();
+		});
+
+		it("renders dot (not bars) when colorblind mode is off", () => {
+			render(
+				<TaskItem
+					task={{ ...mockTask, priority: "high" }}
+					onDeleteRequest={vi.fn()}
+				/>,
+			);
+			expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
+			expect(screen.queryByTestId("priority-bars")).not.toBeInTheDocument();
+		});
 	});
 });

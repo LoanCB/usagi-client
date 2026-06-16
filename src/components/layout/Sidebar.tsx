@@ -8,11 +8,13 @@ import {
 	MoreVertical,
 	Pencil,
 	Plus,
+	Search,
 	Settings2,
+	Tag,
 	Tags,
 	Trash2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import logoUrl from "@/assets/logo.png";
 import { SettingsDialog } from "@/components/layout/SettingsDialog";
@@ -20,12 +22,26 @@ import { DeleteProjectDialog } from "@/components/projects/DeleteProjectDialog";
 import { ProjectForm } from "@/components/projects/ProjectForm";
 import { Button } from "@/components/ui/button";
 import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -34,15 +50,103 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { PRESET_COLORS } from "@/lib/colors";
 import { PRESET_ICONS } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { cn, isMac } from "@/lib/utils";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
+import { useSearchStore } from "@/store/search";
 import { useSettingsStore } from "@/store/settings";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
 import type { Project } from "@/types";
+
+interface TagCreationFormProps {
+	readonly projectName: string;
+	readonly tagName: string;
+	readonly tagColor: string;
+	readonly tagInputRef: React.RefObject<HTMLInputElement | null>;
+	readonly onTagNameChange: (name: string) => void;
+	readonly onTagColorChange: (color: string) => void;
+	readonly onSubmit: () => void;
+}
+
+function TagCreationForm({
+	projectName,
+	tagName,
+	tagColor,
+	tagInputRef,
+	onTagNameChange,
+	onTagColorChange,
+	onSubmit,
+}: TagCreationFormProps) {
+	const { t } = useTranslation();
+	return (
+		<div className="flex flex-col gap-2">
+			<p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+				{t("project.newTagFor", { name: projectName })}
+			</p>
+			<Input
+				ref={tagInputRef}
+				autoFocus
+				placeholder={t("tag.namePlaceholder")}
+				value={tagName}
+				onChange={(e) => onTagNameChange(e.target.value)}
+				className="h-7 text-sm text-foreground"
+				onKeyDown={(e) => {
+					e.stopPropagation();
+					if (e.key === "Enter") {
+						e.preventDefault();
+						onSubmit();
+					}
+				}}
+				onClick={(e) => e.stopPropagation()}
+			/>
+			<div className="flex gap-1.5 flex-wrap">
+				{PRESET_COLORS.map((c) => (
+					<button
+						key={c}
+						type="button"
+						className="h-4 w-4 rounded-full transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+						style={{
+							background: c,
+							outline: tagColor === c ? `2px solid ${c}` : undefined,
+							outlineOffset: tagColor === c ? "2px" : undefined,
+						}}
+						onClick={(e) => {
+							e.stopPropagation();
+							onTagColorChange(c);
+						}}
+						aria-label={t("common.colorOption", { color: c })}
+					/>
+				))}
+			</div>
+			{tagName.trim() && (
+				<div className="flex items-center gap-1.5 px-2 py-1 rounded bg-accent/30 w-fit">
+					<span
+						className="h-2 w-2 rounded-full shrink-0"
+						style={{ background: tagColor }}
+					/>
+					<span className="text-xs truncate max-w-[9rem]">
+						{tagName.trim()}
+					</span>
+				</div>
+			)}
+			<Button
+				size="sm"
+				className="w-full"
+				disabled={!tagName.trim()}
+				onClick={(e) => {
+					e.stopPropagation();
+					onSubmit();
+				}}
+			>
+				{t("common.create")}
+			</Button>
+		</div>
+	);
+}
 
 interface NavItemProps {
 	readonly icon: React.ReactNode;
@@ -112,6 +216,9 @@ function ProjectNavItem({
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [editOpen, setEditOpen] = useState(false);
 	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [tagName, setTagName] = useState("");
+	const [tagColor, setTagColor] = useState<string>(PRESET_COLORS[5]);
+	const tagInputRef = useRef<HTMLInputElement>(null);
 	const { deleteProject } = useProjectStore();
 	const { selectedProjectId, setSelectedProject } = useUIStore();
 	const { t } = useTranslation();
@@ -216,6 +323,18 @@ function ProjectNavItem({
 		if (selectedProjectId === project.id) setSelectedProject(null);
 	}
 
+	async function handleCreateTag() {
+		if (!tagName.trim()) return;
+		await useTagStore.getState().createTag(getRepository(), {
+			name: tagName.trim(),
+			color: tagColor,
+			projectId: project.id,
+		});
+		setTagName("");
+		setTagColor(PRESET_COLORS[5]);
+		tagInputRef.current?.focus();
+	}
+
 	const iconDef =
 		PRESET_ICONS.find((i) => i.name === project.icon) ?? PRESET_ICONS[0];
 	const ProjectIcon = iconDef.icon;
@@ -227,76 +346,132 @@ function ProjectNavItem({
 		/>
 	);
 
+	const projectButton = (
+		<TooltipProvider delay={collapsed ? 300 : 600}>
+			<Tooltip>
+				<TooltipTrigger
+					render={<button type="button" />}
+					className={cn(
+						"group flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm transition-colors",
+						"border-l-2 border-transparent",
+						"text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-primary/50",
+						active &&
+							"bg-sidebar-primary/20 text-sidebar-foreground font-medium border-sidebar-primary",
+					)}
+					onClick={onClick}
+				>
+					{icon}
+					{!collapsed && (
+						<>
+							<span className="truncate flex-1 text-left">{project.name}</span>
+							<DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+								<DropdownMenuTrigger
+									className="opacity-0 group-hover:opacity-100 focus:opacity-100 h-5 w-5 flex items-center justify-center rounded hover:bg-sidebar-foreground/10 transition-opacity shrink-0"
+									onClick={(e) => e.stopPropagation()}
+									aria-label={t("project.options")}
+								>
+									<MoreVertical className="h-3.5 w-3.5" />
+								</DropdownMenuTrigger>
+								<DropdownMenuContent side="right" align="start">
+									<DropdownMenuItem
+										render={
+											<button
+												type="button"
+												className="w-full flex items-center gap-2"
+												onClick={() => {
+													setMenuOpen(false);
+													setEditOpen(true);
+												}}
+											>
+												<Pencil className="h-4 w-4" />
+												{t("common.edit")}
+											</button>
+										}
+									/>
+									<DropdownMenuSub>
+										<DropdownMenuSubTrigger>
+											<Tag className="h-3.5 w-3.5" />
+											{t("project.newTag")}
+										</DropdownMenuSubTrigger>
+										<DropdownMenuSubContent className="p-3 w-[276px]">
+											<TagCreationForm
+												projectName={project.name}
+												tagName={tagName}
+												tagColor={tagColor}
+												tagInputRef={tagInputRef}
+												onTagNameChange={setTagName}
+												onTagColorChange={setTagColor}
+												onSubmit={handleCreateTag}
+											/>
+										</DropdownMenuSubContent>
+									</DropdownMenuSub>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem
+										variant="destructive"
+										onClick={() => {
+											setMenuOpen(false);
+											setDeleteOpen(true);
+										}}
+									>
+										<Trash2 className="h-4 w-4" />
+										{t("common.delete")}
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</>
+					)}
+				</TooltipTrigger>
+				<TooltipContent side="right">{project.name}</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	);
+
 	return (
 		<>
-			<TooltipProvider delay={collapsed ? 300 : 600}>
-				<Tooltip>
-					<TooltipTrigger
-						render={<button type="button" />}
-						className={cn(
-							"group flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm transition-colors",
-							"border-l-2 border-transparent",
-							"text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-primary/50",
-							active &&
-								"bg-sidebar-primary/20 text-sidebar-foreground font-medium border-sidebar-primary",
-						)}
-						onClick={onClick}
-						onContextMenu={(e) => {
-							if (collapsed) return;
-							e.preventDefault();
-							e.stopPropagation();
-							setMenuOpen(true);
-						}}
-					>
-						{icon}
-						{!collapsed && (
-							<>
-								<span className="truncate flex-1 text-left">
-									{project.name}
-								</span>
-								<DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-									<DropdownMenuTrigger
-										className="opacity-0 group-hover:opacity-100 focus:opacity-100 h-5 w-5 flex items-center justify-center rounded hover:bg-sidebar-foreground/10 transition-opacity shrink-0"
-										onClick={(e) => e.stopPropagation()}
-										aria-label={t("project.options")}
-									>
-										<MoreVertical className="h-3.5 w-3.5" />
-									</DropdownMenuTrigger>
-									<DropdownMenuContent side="right" align="start">
-										<DropdownMenuItem
-											render={
-												<button
-													type="button"
-													className="w-full flex items-center gap-2"
-													onClick={() => {
-														setMenuOpen(false);
-														setEditOpen(true);
-													}}
-												>
-													<Pencil className="h-4 w-4" />
-													{t("common.edit")}
-												</button>
-											}
-										/>
-										<DropdownMenuSeparator />
-										<DropdownMenuItem
-											variant="destructive"
-											onClick={() => {
-												setMenuOpen(false);
-												setDeleteOpen(true);
-											}}
-										>
-											<Trash2 className="h-4 w-4" />
-											{t("common.delete")}
-										</DropdownMenuItem>
-									</DropdownMenuContent>
-								</DropdownMenu>
-							</>
-						)}
-					</TooltipTrigger>
-					<TooltipContent side="right">{project.name}</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
+			{collapsed ? (
+				projectButton
+			) : (
+				<ContextMenu>
+					<ContextMenuTrigger>{projectButton}</ContextMenuTrigger>
+					<ContextMenuContent>
+						<ContextMenuItem
+							onClick={() => {
+								setEditOpen(true);
+							}}
+						>
+							<Pencil className="h-3.5 w-3.5" />
+							{t("common.edit")}
+						</ContextMenuItem>
+						<ContextMenuSub>
+							<ContextMenuSubTrigger>
+								<Tag className="h-3.5 w-3.5" />
+								{t("project.newTag")}
+							</ContextMenuSubTrigger>
+							<ContextMenuSubContent className="w-[276px] min-w-0">
+								<TagCreationForm
+									projectName={project.name}
+									tagName={tagName}
+									tagColor={tagColor}
+									tagInputRef={tagInputRef}
+									onTagNameChange={setTagName}
+									onTagColorChange={setTagColor}
+									onSubmit={handleCreateTag}
+								/>
+							</ContextMenuSubContent>
+						</ContextMenuSub>
+						<ContextMenuSeparator />
+						<ContextMenuItem
+							variant="destructive"
+							onClick={() => {
+								setDeleteOpen(true);
+							}}
+						>
+							<Trash2 className="h-3.5 w-3.5" />
+							{t("common.delete")}
+						</ContextMenuItem>
+					</ContextMenuContent>
+				</ContextMenu>
+			)}
 			<ProjectForm
 				project={project}
 				open={editOpen}
@@ -326,6 +501,8 @@ export function Sidebar() {
 	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
 	const archivesVisible = useSettingsStore((s) => s.archivesVisible);
 	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
+	const searchTriggerVisible = useSettingsStore((s) => s.searchTriggerVisible);
+	const openSearch = useSearchStore((s) => s.open);
 
 	useEffect(() => {
 		if (
@@ -384,6 +561,40 @@ export function Sidebar() {
 					</span>
 				)}
 			</div>
+
+			{/* Search trigger */}
+			{searchTriggerVisible && (
+				<div className={cn("shrink-0 px-2 pb-2", sidebarCollapsed && "px-1")}>
+					{sidebarCollapsed ? (
+						<TooltipProvider delay={300}>
+							<Tooltip>
+								<TooltipTrigger
+									render={<button type="button" />}
+									onClick={openSearch}
+									className="flex w-full items-center justify-center rounded-md py-2 text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground/70"
+								>
+									<Search className="h-4 w-4" />
+								</TooltipTrigger>
+								<TooltipContent side="right">
+									{t("search.trigger")}
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					) : (
+						<button
+							type="button"
+							onClick={openSearch}
+							className="flex w-full items-center gap-2 rounded-md border border-border/40 bg-sidebar-accent/20 px-2.5 py-1.5 text-left text-sm text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground/70"
+						>
+							<Search className="h-4 w-4 shrink-0" />
+							<span className="flex-1">{t("search.trigger")}</span>
+							<kbd className="rounded border border-border/50 bg-background/50 px-1.5 py-0.5 font-mono text-[10px] text-sidebar-foreground/40">
+								{isMac() ? "⌘K" : "Ctrl+K"}
+							</kbd>
+						</button>
+					)}
+				</div>
+			)}
 
 			<ScrollArea className="flex-1 px-2">
 				<div className="space-y-1.5 pb-2">

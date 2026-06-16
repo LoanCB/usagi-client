@@ -22,16 +22,45 @@ import {
 import { PRESET_ICONS } from "@/lib/icons";
 import { cn, formatDate, isOverdue } from "@/lib/utils";
 import { getRepository } from "@/store/repository";
+import { useSettingsStore } from "@/store/settings";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
-import type { Project, Task } from "@/types";
+import type { Priority, Project, Task } from "@/types";
 
-const PRIORITY_BORDER_COLORS: Record<string, string> = {
-	high: "var(--priority-high)",
-	medium: "var(--priority-medium)",
-	low: "var(--priority-low)",
+const PRIORITY_DOT: Record<Priority, string> = {
+	high: "#ef4444",
+	medium: "#eab308",
+	low: "#22c55e",
 	none: "transparent",
+};
+
+const PRIORITY_GLOW: Record<Priority, string> = {
+	high: "0 0 5px rgba(239,68,68,0.7)",
+	medium: "0 0 5px rgba(234,179,8,0.6)",
+	low: "0 0 5px rgba(34,197,94,0.5)",
+	none: "none",
+};
+
+const PRIORITY_BG: Record<Priority, string | undefined> = {
+	high: "rgba(239,68,68,0.13)",
+	medium: "rgba(234,179,8,0.11)",
+	low: "rgba(34,197,94,0.10)",
+	none: undefined,
+};
+
+const PRIORITY_BORDER: Record<Priority, string | undefined> = {
+	high: "rgba(239,68,68,0.30)",
+	medium: "rgba(234,179,8,0.26)",
+	low: "rgba(34,197,94,0.22)",
+	none: undefined,
+};
+
+const PRIORITY_BARS_GLOW: Record<Priority, string> = {
+	high: "0 0 3px rgba(239,68,68,0.5)",
+	medium: "0 0 3px rgba(234,179,8,0.45)",
+	low: "0 0 3px rgba(34,197,94,0.4)",
+	none: "none",
 };
 
 interface TaskItemProps {
@@ -46,6 +75,7 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 	const { selectedTaskId, setSelectedTask } = useUIStore();
 	const { tags } = useTagStore();
 	const { t, i18n } = useTranslation();
+	const colorblindMode = useSettingsStore((s) => s.colorblindMode);
 
 	const visibleTags = tags.filter((tag) => {
 		if (task.projectId === null) return tag.projectId === null;
@@ -67,8 +97,12 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 		transition,
 		opacity: isDragging ? 0.45 : undefined,
 		borderStyle: isDragging ? ("dashed" as const) : undefined,
-		background: isDragging ? "transparent" : undefined,
-		borderLeftColor: PRIORITY_BORDER_COLORS[task.priority],
+		backgroundColor: isDragging
+			? "transparent"
+			: colorblindMode
+				? undefined
+				: PRIORITY_BG[task.priority],
+		borderColor: colorblindMode ? undefined : PRIORITY_BORDER[task.priority],
 	};
 
 	async function handleChecked(checked: boolean) {
@@ -105,7 +139,7 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 				className={cn(
 					"task-row-animate group",
 					"flex items-center gap-2 mx-3 my-1 pl-2 pr-3 py-2.5",
-					"rounded-xl border border-l-[3px] glass-card transition-all duration-150",
+					"rounded-xl border glass-card transition-all duration-150",
 					task.completedAt && "opacity-60",
 					isSelected && "selected",
 				)}
@@ -126,6 +160,65 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 					onCheckedChange={handleChecked}
 					className="shrink-0"
 				/>
+
+				<span className="shrink-0" data-testid="priority-indicator">
+					{!colorblindMode ? (
+						<span
+							data-testid="priority-dot"
+							className="rounded-full"
+							style={{
+								display: "block",
+								width: 7,
+								height: 7,
+								background: PRIORITY_DOT[task.priority],
+								boxShadow: PRIORITY_GLOW[task.priority],
+								border:
+									task.priority === "none"
+										? "1.5px solid var(--border)"
+										: undefined,
+								marginLeft: 2,
+							}}
+						/>
+					) : task.priority !== "none" ? (
+						<span
+							data-testid="priority-bars"
+							style={{
+								display: "flex",
+								alignItems: "flex-end",
+								gap: 1.5,
+								height: 11,
+								marginLeft: 2,
+							}}
+						>
+							{[
+								{ id: "low", height: 4, active: true },
+								{
+									id: "medium",
+									height: 7,
+									active:
+										task.priority === "medium" || task.priority === "high",
+								},
+								{ id: "high", height: 11, active: task.priority === "high" },
+							].map((bar) => (
+								<span
+									key={bar.id}
+									style={{
+										width: 3,
+										height: bar.height,
+										borderRadius: 1,
+										background: PRIORITY_DOT[task.priority],
+										opacity: bar.active ? 1 : 0.2,
+										boxShadow: bar.active
+											? PRIORITY_BARS_GLOW[task.priority]
+											: "none",
+									}}
+								/>
+							))}
+						</span>
+					) : (
+						<span style={{ width: 13, display: "inline-block" }} />
+					)}
+				</span>
 
 				{project?.icon &&
 					(() => {
@@ -164,6 +257,9 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 								isOverdue(task.dueDate)
 									? "text-[var(--priority-high)]"
 									: "text-muted-foreground",
+								isOverdue(task.dueDate) &&
+									colorblindMode &&
+									"underline font-semibold",
 							)}
 						>
 							{formatDate(task.dueDate, i18n.language)}
@@ -176,7 +272,7 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 						variant="secondary"
 						className="text-xs shrink-0 h-5"
 						style={
-							tag.color
+							tag.color && !colorblindMode
 								? {
 										backgroundColor: `${tag.color}28`,
 										color: tag.color,
@@ -227,7 +323,11 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 						>
 							<span
 								className="h-2 w-2 rounded-full shrink-0"
-								style={{ background: tag.color ?? "var(--muted-foreground)" }}
+								style={{
+									background: colorblindMode
+										? "var(--muted-foreground)"
+										: (tag.color ?? "var(--muted-foreground)"),
+								}}
 							/>
 							<span className="truncate">{tag.name}</span>
 						</ContextMenuCheckboxItem>
