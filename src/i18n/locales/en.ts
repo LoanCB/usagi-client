@@ -189,6 +189,12 @@ const en = {
 		upToDate: "You're up to date",
 		updateAvailable: "An update is available",
 		updateCheckError: "Unable to check for updates",
+		betaChannel: "Use beta versions",
+		betaChannelWarning:
+			"Beta versions may contain bugs and are not recommended for daily use.",
+		betaUpdateAvailable: "v{{version}} (beta) is available",
+		betaViewOnGitHub: "View on GitHub",
+		dismissLater: "Later",
 	},
 	taskList: {
 		remaining_one: "{{count}} remaining",

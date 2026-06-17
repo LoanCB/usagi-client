@@ -1,11 +1,16 @@
 import { AlertCircle, ArrowUp, CheckCircle, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useUpdaterContext } from "@/hooks/useUpdater";
 
+const BETA_RELEASE_PAGE = "https://github.com/LoanCB/usagi-client/releases";
+
 export function UpdateBanner() {
+	const { t } = useTranslation();
 	const {
 		status,
 		update,
+		betaVersion,
 		progress,
 		error,
 		downloadAndInstall,
@@ -14,11 +19,11 @@ export function UpdateBanner() {
 		checkForUpdate,
 	} = useUpdaterContext();
 
-	if (status === "idle" || !update) return null;
+	if (status === "idle" || (!update && !betaVersion)) return null;
 
 	return (
 		<div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-lg border bg-card px-4 py-3 shadow-lg min-w-80">
-			{status === "available" && (
+			{status === "available" && update && (
 				<>
 					<ArrowUp className="h-4 w-4 text-primary shrink-0" />
 					<span className="text-sm flex-1">
@@ -30,6 +35,25 @@ export function UpdateBanner() {
 					<Button size="sm" onClick={downloadAndInstall}>
 						Mettre à jour
 					</Button>
+				</>
+			)}
+			{status === "available" && betaVersion && (
+				<>
+					<ArrowUp className="h-4 w-4 text-amber-500 shrink-0" />
+					<span className="text-sm flex-1">
+						{t("settings.betaUpdateAvailable", { version: betaVersion })}
+					</span>
+					<Button variant="ghost" size="sm" onClick={dismiss}>
+						{t("settings.dismissLater")}
+					</Button>
+					<a
+						href={BETA_RELEASE_PAGE}
+						target="_blank"
+						rel="noreferrer"
+						className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-primary text-primary-foreground hover:bg-primary/90"
+					>
+						{t("settings.betaViewOnGitHub")}
+					</a>
 				</>
 			)}
 			{status === "downloading" && (
@@ -82,7 +106,7 @@ export function UpdateBanner() {
 					<Button variant="ghost" size="sm" onClick={dismiss}>
 						Fermer
 					</Button>
-					<Button size="sm" onClick={checkForUpdate}>
+					<Button size="sm" onClick={() => checkForUpdate()}>
 						Réessayer
 					</Button>
 				</>

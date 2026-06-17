@@ -24,6 +24,7 @@ export function AppContent() {
 	const loadProjects = useProjectStore((s) => s.loadProjects);
 	const loadTags = useTagStore((s) => s.loadTags);
 	const loadSettings = useSettingsStore((s) => s.loadSettings);
+	const betaChannel = useSettingsStore((s) => s.betaChannel);
 	const loadShortcuts = useShortcutsStore((s) => s.loadShortcuts);
 	const tasks = useTaskStore((s) => s.tasks);
 	useOverdueNotifications(tasks);
@@ -43,8 +44,8 @@ export function AppContent() {
 	}, [loadSettings, loadTasks, loadTags, loadShortcuts, loadProjects]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	useEffect(() => {
-		updater.checkForUpdate();
-	}, [updater.checkForUpdate]); // eslint-disable-line react-hooks/exhaustive-deps
+		updater.checkForUpdate(betaChannel ? "beta" : "stable");
+	}, [updater.checkForUpdate, betaChannel]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	return (
 		<UpdaterContext.Provider value={updater}>

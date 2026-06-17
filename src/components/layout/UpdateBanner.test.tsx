@@ -11,6 +11,7 @@ function makeState(overrides: Partial<UpdaterState> = {}): UpdaterState {
 	return {
 		status: "idle",
 		update: null,
+		betaVersion: null,
 		progress: 0,
 		error: null,
 		checkForUpdate: vi.fn(),
