@@ -406,9 +406,14 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	const { checkForUpdate, status, update } = useUpdaterContext();
 
 	useEffect(() => {
-		getVersion()
-			.then(setAppVersion)
-			.catch(() => null);
+		const gitTag = import.meta.env.VITE_APP_GIT_TAG as string | undefined;
+		if (gitTag) {
+			setAppVersion(gitTag.replace(/^v/, ""));
+		} else {
+			getVersion()
+				.then(setAppVersion)
+				.catch(() => null);
+		}
 	}, []);
 
 	async function handleCheckForUpdate() {

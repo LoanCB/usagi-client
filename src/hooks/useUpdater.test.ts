@@ -152,22 +152,56 @@ describe("useUpdater", () => {
 		expect(mockRelaunch).toHaveBeenCalledOnce();
 	});
 
-	it("sets betaVersion and status available when beta manifest has a different version", async () => {
+	it("sets betaVersion and status available when beta manifest has a newer minor version", async () => {
 		mockGetVersion.mockResolvedValue("1.0.0");
 		vi.stubGlobal(
 			"fetch",
 			vi.fn().mockResolvedValue({
 				ok: true,
-				json: () => Promise.resolve({ version: "1.1.0-beta" }),
+				json: () => Promise.resolve({ version: "1.1.0-beta1" }),
 			}),
 		);
 		const { result } = renderHook(() => useUpdater());
 		await act(async () => {
 			await result.current.checkForUpdate("beta");
 		});
-		expect(result.current.betaVersion).toBe("1.1.0-beta");
+		expect(result.current.betaVersion).toBe("1.1.0-beta1");
 		expect(result.current.status).toBe("available");
 		expect(mockCheck).not.toHaveBeenCalled();
+	});
+
+	it("detects beta3 as newer than beta1 of the same base version", async () => {
+		vi.stubEnv("VITE_APP_GIT_TAG", "v2026.1.1-beta1");
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: () => Promise.resolve({ version: "2026.1.1-beta3" }),
+			}),
+		);
+		const { result } = renderHook(() => useUpdater());
+		await act(async () => {
+			await result.current.checkForUpdate("beta");
+		});
+		expect(result.current.betaVersion).toBe("2026.1.1-beta3");
+		expect(result.current.status).toBe("available");
+	});
+
+	it("sets status idle when beta manifest version matches current beta version", async () => {
+		vi.stubEnv("VITE_APP_GIT_TAG", "v2026.1.1-beta3");
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: () => Promise.resolve({ version: "2026.1.1-beta3" }),
+			}),
+		);
+		const { result } = renderHook(() => useUpdater());
+		await act(async () => {
+			await result.current.checkForUpdate("beta");
+		});
+		expect(result.current.betaVersion).toBeNull();
+		expect(result.current.status).toBe("idle");
 	});
 
 	it("sets status idle when beta manifest version matches current version", async () => {
@@ -185,6 +219,21 @@ describe("useUpdater", () => {
 		});
 		expect(result.current.betaVersion).toBeNull();
 		expect(result.current.status).toBe("idle");
+	});
+
+	it("sets status idle when beta endpoint returns 404 (no beta published yet)", async () => {
+		mockGetVersion.mockResolvedValue("1.0.0");
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({ ok: false, status: 404 }),
+		);
+		const { result } = renderHook(() => useUpdater());
+		await act(async () => {
+			await result.current.checkForUpdate("beta");
+		});
+		expect(result.current.betaVersion).toBeNull();
+		expect(result.current.status).toBe("idle");
+		expect(result.current.error).toBeNull();
 	});
 
 	it("calls check with no options when channel is stable", async () => {

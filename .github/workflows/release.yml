@@ -82,6 +82,8 @@ jobs:
           fi
           jq --arg version "$BUNDLE_VERSION" '.version = $version' src-tauri/tauri.conf.json > tmp.json
           mv tmp.json src-tauri/tauri.conf.json
+          # Expose the original tag to Vite so the app can display the full version (e.g. 2026.1.1-beta3)
+          echo "VITE_APP_GIT_TAG=${TAG}" >> $GITHUB_ENV
 
       - name: Build Tauri app
         run: pnpm tauri build
@@ -170,35 +172,43 @@ jobs:
         run: |
           if [[ "$TAG" == *"-beta"* ]]; then
             echo "manifest_name=latest-beta.json" >> $GITHUB_OUTPUT
+            echo "is_beta=true" >> $GITHUB_OUTPUT
           else
             echo "manifest_name=latest.json" >> $GITHUB_OUTPUT
+            echo "is_beta=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Generate latest.json
+      - name: Generate updater manifest
         env:
           TAG: ${{ github.ref_name }}
           GITHUB_REPO: LoanCB/usagi-client
           MANIFEST_NAME: ${{ steps.tag_type.outputs.manifest_name }}
+          IS_BETA: ${{ steps.tag_type.outputs.is_beta }}
         run: |
           node << 'EOF'
           const fs = require('fs');
           const path = require('path');
 
           const tag = process.env.TAG;
-          // Normalize version to match the BUNDLE_VERSION computed in the build job:
-          // 1. Strip the leading "v"
-          // 2. Strip non-numeric pre-release suffixes (e.g. -beta, -beta.1) — WiX constraint
-          // 3. Map years > 255 to last two digits (e.g. 2026 → 26) — WiX major-version limit
+          const isBeta = process.env.IS_BETA === 'true';
+
+          // For stable releases: use the WiX-compatible bundle version in the manifest
+          // so Tauri's native updater (which reads tauri.conf.json) can compare correctly.
+          // For beta releases: use the original tag (e.g. 2026.1.1-beta3) so the frontend
+          // can compare pre-release numbers across betas.
           let version = tag.replace(/^v/, '');
-          if (/-[^0-9]/.test(version)) {
-            version = version.replace(/-[^0-9].*$/, '');
+          if (!isBeta) {
+            if (/-[^0-9]/.test(version)) {
+              version = version.replace(/-[^0-9].*$/, '');
+            }
+            const vParts = version.split('.');
+            const major = parseInt(vParts[0], 10);
+            if (major > 255) {
+              vParts[0] = String(major % 100);
+              version = vParts.join('.');
+            }
           }
-          const vParts = version.split('.');
-          const major = parseInt(vParts[0], 10);
-          if (major > 255) {
-            vParts[0] = String(major % 100);
-            version = vParts.join('.');
-          }
+
           const repo = process.env.GITHUB_REPO;
           const baseUrl = `https://github.com/${repo}/releases/download/${tag}`;
 
@@ -278,6 +288,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -291,9 +305,11 @@ jobs:
         run: |
           if [[ "$TAG" == *"-beta"* ]]; then
             echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "is_beta=true" >> $GITHUB_OUTPUT
             echo "release_name=Pre-release $TAG (unstable)" >> $GITHUB_OUTPUT
           else
             echo "prerelease=false" >> $GITHUB_OUTPUT
+            echo "is_beta=false" >> $GITHUB_OUTPUT
             echo "release_name=Release $TAG" >> $GITHUB_OUTPUT
           fi
 
@@ -304,3 +320,25 @@ jobs:
           prerelease: ${{ steps.release_type.outputs.prerelease }}
           generate_release_notes: true
           files: artifacts/**/*
+
+      - name: Update latest-beta tag and release
+        if: steps.release_type.outputs.is_beta == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Move the latest-beta tag to the current commit
+          git tag -f latest-beta
+          git push origin latest-beta --force
+
+          # Create or update the latest-beta release with the manifest
+          # This makes latest-beta.json accessible at a stable URL regardless of which beta is latest
+          if gh release view latest-beta &>/dev/null; then
+            gh release upload latest-beta artifacts/latest-beta.json --clobber
+          else
+            gh release create latest-beta \
+              --title "Latest Beta (auto-updated)" \
+              --notes "This release is automatically updated to always point to the latest beta. Do not install manually." \
+              --prerelease \
+              artifacts/latest-beta.json
+          fi

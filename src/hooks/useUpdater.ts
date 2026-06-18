@@ -4,17 +4,24 @@ import { check, type Update } from "@tauri-apps/plugin-updater";
 import { createContext, useCallback, useContext, useState } from "react";
 
 const BETA_ENDPOINT =
-	"https://github.com/LoanCB/usagi-client/releases/latest/download/latest-beta.json";
+	"https://github.com/LoanCB/usagi-client/releases/download/latest-beta/latest-beta.json";
 
 function isNewer(candidate: string, current: string): boolean {
-	const normalize = (v: string) => v.replace(/-.*$/, "").split(".").map(Number);
-	const a = normalize(candidate);
-	const b = normalize(current);
-	for (let i = 0; i < Math.max(a.length, b.length); i++) {
-		const diff = (a[i] ?? 0) - (b[i] ?? 0);
+	const parse = (v: string) => {
+		const [base, pre] = v.split(/-(?=[a-zA-Z])/);
+		const nums = base.split(".").map(Number);
+		// pre-release number: "beta3" → 3, no pre-release → Infinity (stable > any beta)
+		const preNum = pre ? Number(pre.replace(/\D/g, "") || "0") : Infinity;
+		return { nums, preNum };
+	};
+	const a = parse(candidate);
+	const b = parse(current);
+	for (let i = 0; i < Math.max(a.nums.length, b.nums.length); i++) {
+		const diff = (a.nums[i] ?? 0) - (b.nums[i] ?? 0);
 		if (diff !== 0) return diff > 0;
 	}
-	return false;
+	// Same base version: compare pre-release numbers (Infinity = stable wins)
+	return a.preNum > b.preNum;
 }
 
 export type UpdateStatus =
@@ -52,13 +59,21 @@ export function useUpdater(): UpdaterState {
 		setBetaVersion(null);
 		try {
 			if (channel === "beta") {
+				const gitTag = (
+					import.meta.env.VITE_APP_GIT_TAG as string | undefined
+				)?.replace(/^v/, "");
 				const [manifest, currentVersion] = await Promise.all([
 					fetch(BETA_ENDPOINT).then((r) => {
+						if (r.status === 404) return null;
 						if (!r.ok) throw new Error(`HTTP ${r.status}`);
 						return r.json() as Promise<{ version: string }>;
 					}),
-					getVersion(),
+					gitTag ? Promise.resolve(gitTag) : getVersion(),
 				]);
+				if (!manifest) {
+					setStatus("idle");
+					return;
+				}
 				if (isNewer(manifest.version, currentVersion)) {
 					setBetaVersion(manifest.version);
 					setStatus("available");
