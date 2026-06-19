@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { ColorPicker } from "@/components/ui/ColorPicker";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -16,6 +17,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { GroupColorShape } from "@/components/ui/GroupColorShape";
 import { Input } from "@/components/ui/input";
 import { GROUP_COLORS } from "@/lib/group-colors";
 import { cn } from "@/lib/utils";
@@ -110,9 +112,10 @@ export function ProjectGroupNavItem({
 							"text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors",
 						)}
 					>
-						<span
-							className="h-2 w-2 rounded-full shrink-0"
-							style={{ backgroundColor: group.color }}
+						<GroupColorShape
+							color={group.color}
+							size={8}
+							className="shrink-0"
 						/>
 						<span className="flex-1 truncate text-left">{group.name}</span>
 						{isCollapsed ? (
@@ -155,22 +158,11 @@ export function ProjectGroupNavItem({
 								if (e.key === "Enter") handleEditConfirm();
 							}}
 						/>
-						<div className="flex gap-2 flex-wrap">
-							{GROUP_COLORS.map((c) => (
-								<button
-									key={c}
-									type="button"
-									onClick={() => setEditColor(c)}
-									className="h-6 w-6 rounded-full transition-transform hover:scale-110 focus:outline-none"
-									style={{
-										backgroundColor: c,
-										outline: editColor === c ? `2px solid ${c}` : undefined,
-										outlineOffset: editColor === c ? "2px" : undefined,
-									}}
-									aria-label={c}
-								/>
-							))}
-						</div>
+						<ColorPicker
+							colors={GROUP_COLORS}
+							selectedColor={editColor}
+							onSelect={setEditColor}
+						/>
 					</div>
 					<DialogFooter>
 						<Button variant="outline" onClick={() => setEditOpen(false)}>

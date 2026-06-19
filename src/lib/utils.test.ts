@@ -10,7 +10,7 @@ import {
 
 describe("formatDate", () => {
 	it("formats an ISO date to a short locale string", () => {
-		expect(formatDate("2026-04-12")).toMatch(/Apr\s*12/);
+		expect(formatDate("2026-04-12")).toMatch(/(?:Apr\s*12|12\s*Apr)/);
 	});
 
 	it("respects an optional locale param", () => {

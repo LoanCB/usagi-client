@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { ColorPicker } from "@/components/ui/ColorPicker";
 import {
 	Dialog,
 	DialogContent,
@@ -83,22 +84,11 @@ export function CreateGroupDialog({
 						}}
 					/>
 
-					<div className="flex gap-2 flex-wrap">
-						{GROUP_COLORS.map((c) => (
-							<button
-								key={c}
-								type="button"
-								onClick={() => setColor(c)}
-								className="h-6 w-6 rounded-full transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-1"
-								style={{
-									backgroundColor: c,
-									outline: color === c ? `2px solid ${c}` : undefined,
-									outlineOffset: color === c ? "2px" : undefined,
-								}}
-								aria-label={c}
-							/>
-						))}
-					</div>
+					<ColorPicker
+						colors={GROUP_COLORS}
+						selectedColor={color}
+						onSelect={setColor}
+					/>
 				</div>
 
 				<DialogFooter>

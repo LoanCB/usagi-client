@@ -9,6 +9,7 @@ import {
 	startOfWeek,
 } from "date-fns";
 import { enUS, fr } from "date-fns/locale";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
 	ContextMenu,
@@ -22,6 +23,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useSettingsStore } from "@/store/settings";
 import type { Task } from "@/types";
 
 interface MonthViewProps {
@@ -43,6 +45,7 @@ export function MonthView({
 }: MonthViewProps) {
 	const { t, i18n } = useTranslation();
 	const locale = i18n.language === "fr" ? fr : enUS;
+	const colorblindMode = useSettingsStore((s) => s.colorblindMode);
 
 	const monthStart = startOfMonth(currentDate);
 	const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
@@ -107,8 +110,14 @@ export function MonthView({
 													e.stopPropagation();
 													onTaskClick(task);
 												}}
-												className="w-2.5 h-2.5 rounded-full bg-orange-400/80 hover:scale-125 transition-transform shrink-0"
-											/>
+												className="hover:scale-125 transition-transform shrink-0"
+											>
+												{colorblindMode ? (
+													<AlertTriangle className="w-3 h-3 text-orange-400" />
+												) : (
+													<span className="block w-2.5 h-2.5 rounded-full bg-orange-400/80" />
+												)}
+											</TooltipTrigger>
 											<TooltipContent side="top">{task.title}</TooltipContent>
 										</Tooltip>
 									))}
@@ -120,8 +129,14 @@ export function MonthView({
 													e.stopPropagation();
 													onTaskClick(task);
 												}}
-												className="w-2.5 h-2.5 rounded-full bg-green-400/80 hover:scale-125 transition-transform shrink-0"
-											/>
+												className="hover:scale-125 transition-transform shrink-0"
+											>
+												{colorblindMode ? (
+													<CheckCircle2 className="w-3 h-3 text-green-400" />
+												) : (
+													<span className="block w-2.5 h-2.5 rounded-full bg-green-400/80" />
+												)}
+											</TooltipTrigger>
 											<TooltipContent side="top">{task.title}</TooltipContent>
 										</Tooltip>
 									))}

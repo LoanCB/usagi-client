@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { ColorPicker } from "@/components/ui/ColorPicker";
+import { GroupColorShape } from "@/components/ui/GroupColorShape";
 import { Input } from "@/components/ui/input";
 import {
 	Popover,
@@ -114,9 +116,10 @@ export function TagSelector({
 									selected && "bg-accent",
 								)}
 							>
-								<span
-									className="h-2.5 w-2.5 rounded-full shrink-0"
-									style={{ background: tag.color ?? "var(--muted-foreground)" }}
+								<GroupColorShape
+									color={tag.color ?? "var(--muted-foreground)"}
+									size={10}
+									className="shrink-0"
 								/>
 								<span className="flex-1 text-left truncate">{tag.name}</span>
 								{selected && <Check className="h-3.5 w-3.5 shrink-0" />}
@@ -135,22 +138,11 @@ export function TagSelector({
 							autoFocus
 							onKeyDown={(e) => e.key === "Enter" && handleCreate()}
 						/>
-						<div className="flex gap-1 flex-wrap">
-							{PRESET_COLORS.map((c) => (
-								<button
-									key={c}
-									type="button"
-									className="h-4 w-4 rounded-full transition-transform hover:scale-110"
-									style={{
-										background: c,
-										outline: newColor === c ? `2px solid ${c}` : undefined,
-										outlineOffset: newColor === c ? "2px" : undefined,
-									}}
-									aria-label={t("common.colorOption", { color: c })}
-									onClick={() => setNewColor(c)}
-								/>
-							))}
-						</div>
+						<ColorPicker
+							colors={PRESET_COLORS}
+							selectedColor={newColor}
+							onSelect={setNewColor}
+						/>
 						<div className="flex gap-2">
 							<Button
 								size="sm"

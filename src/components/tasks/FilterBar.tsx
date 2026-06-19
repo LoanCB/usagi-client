@@ -14,6 +14,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { GroupColorShape } from "@/components/ui/GroupColorShape";
 import {
 	Popover,
 	PopoverContent,
@@ -146,11 +147,10 @@ export function FilterBar({
 											selected && "bg-accent",
 										)}
 									>
-										<span
-											className="h-2.5 w-2.5 rounded-full shrink-0"
-											style={{
-												background: tag.color ?? "var(--muted-foreground)",
-											}}
+										<GroupColorShape
+											color={tag.color ?? "var(--muted-foreground)"}
+											size={10}
+											className="shrink-0"
 										/>
 										<span className="flex-1 text-left truncate">
 											{tag.name}

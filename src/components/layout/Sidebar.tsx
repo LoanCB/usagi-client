@@ -36,6 +36,7 @@ import { CreateGroupDialog } from "@/components/projects/CreateGroupDialog";
 import { DeleteProjectDialog } from "@/components/projects/DeleteProjectDialog";
 import { ProjectForm } from "@/components/projects/ProjectForm";
 import { Button } from "@/components/ui/button";
+import { ColorPicker } from "@/components/ui/ColorPicker";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -56,6 +57,7 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { GroupColorShape } from "@/components/ui/GroupColorShape";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -119,31 +121,16 @@ function TagCreationForm({
 				}}
 				onClick={(e) => e.stopPropagation()}
 			/>
-			<div className="flex gap-1.5 flex-wrap">
-				{PRESET_COLORS.map((c) => (
-					<button
-						key={c}
-						type="button"
-						className="h-4 w-4 rounded-full transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-						style={{
-							background: c,
-							outline: tagColor === c ? `2px solid ${c}` : undefined,
-							outlineOffset: tagColor === c ? "2px" : undefined,
-						}}
-						onClick={(e) => {
-							e.stopPropagation();
-							onTagColorChange(c);
-						}}
-						aria-label={t("common.colorOption", { color: c })}
-					/>
-				))}
+			<div role="none" onClick={(e) => e.stopPropagation()}>
+				<ColorPicker
+					colors={PRESET_COLORS}
+					selectedColor={tagColor}
+					onSelect={onTagColorChange}
+				/>
 			</div>
 			{tagName.trim() && (
 				<div className="flex items-center gap-1.5 px-2 py-1 rounded bg-accent/30 w-fit">
-					<span
-						className="h-2 w-2 rounded-full shrink-0"
-						style={{ background: tagColor }}
-					/>
+					<GroupColorShape color={tagColor} size={8} className="shrink-0" />
 					<span className="text-xs truncate max-w-[9rem]">
 						{tagName.trim()}
 					</span>
