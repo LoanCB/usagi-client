@@ -1,9 +1,11 @@
 import type { ExportData } from "@/lib/dataTransfer";
 import type {
+	CreateProjectGroupInput,
 	CreateProjectInput,
 	CreateTagInput,
 	CreateTaskInput,
 	Project,
+	ProjectGroup,
 	Tag,
 	Task,
 	TaskFilters,
@@ -18,6 +20,16 @@ interface ProjectRow {
 	name: string;
 	color: string | null;
 	icon: string | null;
+	sort_order: number;
+	group_id: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+interface ProjectGroupRow {
+	id: string;
+	name: string;
+	color: string;
 	sort_order: number;
 	created_at: string;
 	updated_at: string;
@@ -61,6 +73,18 @@ function mapProject(row: ProjectRow): Project {
 		color: row.color,
 		icon: row.icon,
 		sortOrder: row.sort_order,
+		groupId: row.group_id,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+function mapProjectGroup(row: ProjectGroupRow): ProjectGroup {
+	return {
+		id: row.id,
+		name: row.name,
+		color: row.color,
+		sortOrder: row.sort_order,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -101,7 +125,7 @@ export class SqliteRepository implements TodoRepository {
 
 	async getProjects(): Promise<Project[]> {
 		const rows = await this.db.select<ProjectRow>(
-			"SELECT id, name, color, icon, sort_order, created_at, updated_at FROM projects WHERE deleted_at IS NULL ORDER BY sort_order, created_at",
+			"SELECT id, name, color, icon, sort_order, group_id, created_at, updated_at FROM projects WHERE deleted_at IS NULL ORDER BY sort_order, created_at",
 		);
 		return rows.map(mapProject);
 	}
@@ -165,10 +189,105 @@ export class SqliteRepository implements TodoRepository {
 
 	private async _getProject(id: string): Promise<Project | null> {
 		const rows = await this.db.select<ProjectRow>(
-			"SELECT id, name, color, icon, sort_order, created_at, updated_at FROM projects WHERE id = ? AND deleted_at IS NULL",
+			"SELECT id, name, color, icon, sort_order, group_id, created_at, updated_at FROM projects WHERE id = ? AND deleted_at IS NULL",
 			[id],
 		);
 		return rows[0] ? mapProject(rows[0]) : null;
+	}
+
+	// ---------- Project Groups ----------
+
+	async getProjectGroups(): Promise<ProjectGroup[]> {
+		const rows = await this.db.select<ProjectGroupRow>(
+			"SELECT id, name, color, sort_order, created_at, updated_at FROM project_groups ORDER BY sort_order, created_at",
+		);
+		return rows.map(mapProjectGroup);
+	}
+
+	async createProjectGroup(
+		input: CreateProjectGroupInput,
+	): Promise<ProjectGroup> {
+		const id = crypto.randomUUID();
+		const now = new Date().toISOString();
+		const maxRows = await this.db.select<{ max_order: number | null }>(
+			"SELECT MAX(sort_order) as max_order FROM project_groups",
+		);
+		const nextOrder = (maxRows[0]?.max_order ?? -1) + 1;
+		await this.db.execute(
+			"INSERT INTO project_groups (id, name, color, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+			[id, input.name, input.color, nextOrder, now, now],
+		);
+		const group = await this._getProjectGroup(id);
+		if (!group) throw new Error(`ProjectGroup not found after write: ${id}`);
+		return group;
+	}
+
+	async updateProjectGroup(
+		id: string,
+		patch: Partial<Pick<ProjectGroup, "name" | "color">>,
+	): Promise<ProjectGroup> {
+		const now = new Date().toISOString();
+		const sets: string[] = ["updated_at = ?"];
+		const params: unknown[] = [now];
+		if ("name" in patch) {
+			sets.push("name = ?");
+			params.push(patch.name);
+		}
+		if ("color" in patch) {
+			sets.push("color = ?");
+			params.push(patch.color);
+		}
+		params.push(id);
+		await this.db.execute(
+			`UPDATE project_groups SET ${sets.join(", ")} WHERE id = ?`,
+			params,
+		);
+		const group = await this._getProjectGroup(id);
+		if (!group) throw new Error(`ProjectGroup not found after write: ${id}`);
+		return group;
+	}
+
+	async deleteProjectGroup(id: string): Promise<void> {
+		await this.db.execute("DELETE FROM project_groups WHERE id = ?", [id]);
+	}
+
+	async reorderProjects(orderedIds: string[]): Promise<void> {
+		const now = new Date().toISOString();
+		for (let i = 0; i < orderedIds.length; i++) {
+			await this.db.execute(
+				"UPDATE projects SET sort_order = ?, updated_at = ? WHERE id = ?",
+				[i, now, orderedIds[i]],
+			);
+		}
+	}
+
+	async reorderProjectGroups(orderedIds: string[]): Promise<void> {
+		const now = new Date().toISOString();
+		for (let i = 0; i < orderedIds.length; i++) {
+			await this.db.execute(
+				"UPDATE project_groups SET sort_order = ?, updated_at = ? WHERE id = ?",
+				[i, now, orderedIds[i]],
+			);
+		}
+	}
+
+	async assignProjectToGroup(
+		projectId: string,
+		groupId: string | null,
+	): Promise<void> {
+		const now = new Date().toISOString();
+		await this.db.execute(
+			"UPDATE projects SET group_id = ?, updated_at = ? WHERE id = ?",
+			[groupId, now, projectId],
+		);
+	}
+
+	private async _getProjectGroup(id: string): Promise<ProjectGroup | null> {
+		const rows = await this.db.select<ProjectGroupRow>(
+			"SELECT id, name, color, sort_order, created_at, updated_at FROM project_groups WHERE id = ?",
+			[id],
+		);
+		return rows[0] ? mapProjectGroup(rows[0]) : null;
 	}
 
 	// ---------- Tags ----------
@@ -383,6 +502,20 @@ export class SqliteRepository implements TodoRepository {
 		const updated = await this.getTask(id);
 		if (!updated) throw new Error(`Task not found after write: ${id}`);
 		return updated;
+	}
+
+	async moveTasksToProject(
+		taskIds: string[],
+		projectId: string | null,
+	): Promise<void> {
+		if (taskIds.length === 0) return;
+		const now = new Date().toISOString();
+		for (const id of taskIds) {
+			await this.db.execute(
+				"UPDATE tasks SET project_id = ?, updated_at = ? WHERE id = ?",
+				[projectId, now, id],
+			);
+		}
 	}
 
 	async completeTask(id: string): Promise<Task> {

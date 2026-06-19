@@ -1,9 +1,21 @@
 import {
+	DndContext,
+	type DragEndEvent,
+	DragOverlay,
+	type DragStartEvent,
+	PointerSensor,
+	useDraggable,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
+import {
 	ArchiveX,
 	Calendar,
 	CalendarDays,
 	ChevronLeft,
 	ChevronRight,
+	FolderPlus,
 	ListChecks,
 	MoreVertical,
 	Pencil,
@@ -14,10 +26,13 @@ import {
 	Tags,
 	Trash2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import logoUrl from "@/assets/logo.png";
+import { DropIndicator } from "@/components/layout/DropIndicator";
+import { ProjectGroupNavItem } from "@/components/layout/ProjectGroupNavItem";
 import { SettingsDialog } from "@/components/layout/SettingsDialog";
+import { CreateGroupDialog } from "@/components/projects/CreateGroupDialog";
 import { DeleteProjectDialog } from "@/components/projects/DeleteProjectDialog";
 import { ProjectForm } from "@/components/projects/ProjectForm";
 import { Button } from "@/components/ui/button";
@@ -53,6 +68,7 @@ import {
 import { PRESET_COLORS } from "@/lib/colors";
 import { PRESET_ICONS } from "@/lib/icons";
 import { cn, isMac } from "@/lib/utils";
+import { useProjectGroupStore } from "@/store/projectGroups";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import { useSearchStore } from "@/store/search";
@@ -60,7 +76,7 @@ import { useSettingsStore } from "@/store/settings";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
-import type { Project } from "@/types";
+import type { Project, ProjectGroup } from "@/types";
 
 interface TagCreationFormProps {
 	readonly projectName: string;
@@ -205,6 +221,8 @@ interface ProjectNavItemProps {
 	readonly active: boolean;
 	readonly collapsed: boolean;
 	readonly onClick: () => void;
+	readonly isMergeTarget?: boolean;
+	readonly itemRef?: (el: HTMLDivElement | null) => void;
 }
 
 function ProjectNavItem({
@@ -212,7 +230,16 @@ function ProjectNavItem({
 	active,
 	collapsed,
 	onClick,
+	isMergeTarget,
+	itemRef,
 }: ProjectNavItemProps) {
+	const {
+		attributes,
+		listeners,
+		setNodeRef: setDragRef,
+		isDragging,
+	} = useDraggable({ id: `project:${project.id}` });
+
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [editOpen, setEditOpen] = useState(false);
 	const [deleteOpen, setDeleteOpen] = useState(false);
@@ -297,20 +324,14 @@ function ProjectNavItem({
 			}));
 			await useTaskStore.getState().refreshCounts(repo);
 		} else if (taskAction === "inbox") {
-			await Promise.all(
-				allTasks.map((task) => repo.updateTask(task.id, { projectId: null })),
-			);
+			await repo.moveTasksToProject([...allTaskIds], null);
 			useTaskStore.setState((s) => ({
 				tasks: s.tasks.map((t) =>
 					allTaskIds.has(t.id) ? { ...t, projectId: null } : t,
 				),
 			}));
 		} else if (taskAction === "project" && targetProjectId) {
-			await Promise.all(
-				allTasks.map((task) =>
-					repo.updateTask(task.id, { projectId: targetProjectId }),
-				),
-			);
+			await repo.moveTasksToProject([...allTaskIds], targetProjectId);
 			useTaskStore.setState((s) => ({
 				tasks: s.tasks.map((t) =>
 					allTaskIds.has(t.id) ? { ...t, projectId: targetProjectId } : t,
@@ -357,10 +378,14 @@ function ProjectNavItem({
 						"text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-primary/50",
 						active &&
 							"bg-sidebar-primary/20 text-sidebar-foreground font-medium border-sidebar-primary",
+						isMergeTarget && "ring-2 ring-sidebar-primary animate-pulse",
 					)}
 					onClick={onClick}
 				>
 					{icon}
+					{!collapsed && isMergeTarget && (
+						<FolderPlus className="h-3 w-3 shrink-0 text-sidebar-primary" />
+					)}
 					{!collapsed && (
 						<>
 							<span className="truncate flex-1 text-left">{project.name}</span>
@@ -427,7 +452,15 @@ function ProjectNavItem({
 	);
 
 	return (
-		<>
+		<div
+			ref={(el) => {
+				setDragRef(el);
+				itemRef?.(el);
+			}}
+			style={{ opacity: isDragging ? 0.3 : 1 }}
+			{...attributes}
+			{...listeners}
+		>
 			{collapsed ? (
 				projectButton
 			) : (
@@ -483,9 +516,19 @@ function ProjectNavItem({
 				onConfirm={handleConfirmDelete}
 				onCancel={() => setDeleteOpen(false)}
 			/>
-		</>
+		</div>
 	);
 }
+
+type SidebarItem =
+	| { type: "group"; group: ProjectGroup; projects: Project[]; dndId: string }
+	| { type: "project"; project: Project; dndId: string };
+
+type DropState =
+	| { intent: "reorder"; beforeId: string | null }
+	| { intent: "merge"; targetId: string }
+	| { intent: "join-group"; groupId: string }
+	| null;
 
 export function Sidebar() {
 	const { t } = useTranslation();
@@ -494,8 +537,11 @@ export function Sidebar() {
 		setSidebarCollapsed,
 		selectedProjectId,
 		setSelectedProject,
+		collapsedGroupIds,
 	} = useUIStore();
 	const projects = useProjectStore((s) => s.projects);
+	const { reorderProjects, assignToGroup } = useProjectStore();
+	const groups = useProjectGroupStore((s) => s.groups);
 	const allCount = useTaskStore((s) => s.allCount);
 	const todayCount = useTaskStore((s) => s.todayCount);
 	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
@@ -503,6 +549,315 @@ export function Sidebar() {
 	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
 	const searchTriggerVisible = useSettingsStore((s) => s.searchTriggerVisible);
 	const openSearch = useSearchStore((s) => s.open);
+
+	const sidebarItems = useMemo((): SidebarItem[] => {
+		const items: SidebarItem[] = [];
+		const groupMap = new Map(groups.map((g) => [g.id, g]));
+		const projectsByGroup = new Map<string, Project[]>();
+		const standaloneProjects: Project[] = [];
+
+		for (const p of projects) {
+			if (p.groupId) {
+				const list = projectsByGroup.get(p.groupId) ?? [];
+				list.push(p);
+				projectsByGroup.set(p.groupId, list);
+			} else {
+				standaloneProjects.push(p);
+			}
+		}
+
+		const allTopLevel: Array<{ sortOrder: number; item: SidebarItem }> = [];
+
+		for (const [gid, gProjects] of projectsByGroup) {
+			const group = groupMap.get(gid);
+			if (!group) continue;
+			const sorted = [...gProjects].sort((a, b) => a.sortOrder - b.sortOrder);
+			allTopLevel.push({
+				sortOrder: group.sortOrder,
+				item: { type: "group", group, projects: sorted, dndId: `group:${gid}` },
+			});
+		}
+
+		for (const p of standaloneProjects) {
+			allTopLevel.push({
+				sortOrder: p.sortOrder,
+				item: { type: "project", project: p, dndId: `project:${p.id}` },
+			});
+		}
+
+		allTopLevel.sort((a, b) => a.sortOrder - b.sortOrder);
+
+		for (const { item } of allTopLevel) {
+			items.push(item);
+			if (item.type === "group" && !collapsedGroupIds.has(item.group.id)) {
+				for (const p of item.projects) {
+					items.push({ type: "project", project: p, dndId: `project:${p.id}` });
+				}
+			}
+		}
+
+		return items;
+	}, [projects, groups, collapsedGroupIds]);
+
+	const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+	const [pendingGroupProjects, setPendingGroupProjects] = useState<{
+		projectA: Project;
+		projectB: Project;
+	} | null>(null);
+	const [dropState, setDropState] = useState<DropState>(null);
+	const itemRectsRef = useRef<Map<string, DOMRect>>(new Map());
+	const hasFreshRectsRef = useRef(false);
+	const { reorderGroups } = useProjectGroupStore();
+
+	function makeItemRef(dndId: string) {
+		return (el: HTMLDivElement | null) => {
+			if (el) {
+				itemRectsRef.current.set(dndId, el.getBoundingClientRect());
+			} else {
+				itemRectsRef.current.delete(dndId);
+			}
+		};
+	}
+
+	const sensors = useSensors(
+		useSensor(PointerSensor, {
+			activationConstraint: { distance: 8 },
+		}),
+	);
+
+	function handleDragStart({ active }: DragStartEvent) {
+		const id = String(active.id);
+		if (id.startsWith("project:")) setActiveProjectId(id.slice(8));
+		setDropState(null);
+		hasFreshRectsRef.current = false;
+		// Refresh all rects at drag start so we have fresh values
+		itemRectsRef.current.clear();
+		document.querySelectorAll("[data-dnd-item]").forEach((el) => {
+			const itemId = (el as HTMLElement).dataset.dndItem;
+			if (itemId) itemRectsRef.current.set(itemId, el.getBoundingClientRect());
+		});
+	}
+
+	function handleDragMove({
+		active,
+		delta,
+	}: import("@dnd-kit/core").DragMoveEvent) {
+		const activeId = String(active.id);
+		if (!activeId.startsWith("project:")) return;
+		const draggedProjectId = activeId.slice(8);
+		const draggedProject = projects.find((p) => p.id === draggedProjectId);
+		if (!draggedProject) return;
+
+		if (!hasFreshRectsRef.current) {
+			itemRectsRef.current.clear();
+			document.querySelectorAll("[data-dnd-item]").forEach((el) => {
+				const itemId = (el as HTMLElement).dataset.dndItem;
+				if (itemId)
+					itemRectsRef.current.set(itemId, el.getBoundingClientRect());
+			});
+			hasFreshRectsRef.current = true;
+		}
+
+		// Current pointer Y = initial rect center + delta
+		const initialRect = active.rect.current.initial;
+		if (!initialRect) return;
+		const pointerY = initialRect.top + initialRect.height / 2 + delta.y;
+
+		// Build expanded group rects: from group header top to last visible child bottom
+		// This lets the dashed border cover the whole group container
+		const groupBounds = new Map<string, { top: number; bottom: number }>();
+		for (const item of sidebarItems) {
+			if (item.type !== "group") continue;
+			const groupDndId = item.dndId;
+			const groupRect = itemRectsRef.current.get(groupDndId);
+			if (!groupRect) continue;
+			let bottom = groupRect.bottom;
+			// If group is expanded, extend bottom to last child
+			if (!collapsedGroupIds.has(item.group.id)) {
+				for (const p of item.projects) {
+					const childRect = itemRectsRef.current.get(`project:${p.id}`);
+					if (childRect && childRect.bottom > bottom) bottom = childRect.bottom;
+				}
+			}
+			groupBounds.set(item.group.id, { top: groupRect.top, bottom });
+		}
+
+		// Check if pointer is inside a group's expanded container
+		for (const [groupId, bounds] of groupBounds) {
+			if (pointerY >= bounds.top && pointerY <= bounds.bottom) {
+				// Check if it's near the very top edge → reorder before the group
+				const groupItem = sidebarItems.find(
+					(i) => i.type === "group" && i.group.id === groupId,
+				);
+				const groupRect = groupItem
+					? itemRectsRef.current.get(groupItem.dndId)
+					: null;
+				if (groupRect && pointerY < groupRect.top + groupRect.height * 0.25) {
+					setDropState({ intent: "reorder", beforeId: `group:${groupId}` });
+				} else {
+					setDropState({ intent: "join-group", groupId });
+				}
+				return;
+			}
+		}
+
+		// Walk top-level items (groups and standalone projects)
+		for (const item of sidebarItems) {
+			if (item.dndId === activeId) continue;
+			// Skip child projects of groups — handled by groupBounds above
+			if (item.type === "project" && item.project.groupId) continue;
+
+			const rect = itemRectsRef.current.get(item.dndId);
+			if (!rect) continue;
+
+			const topZone = rect.top + rect.height * 0.3;
+			const midZone = rect.top + rect.height * 0.7;
+
+			if (pointerY < topZone) {
+				setDropState({ intent: "reorder", beforeId: item.dndId });
+				return;
+			}
+			if (pointerY < midZone) {
+				// Standalone project → merge intent
+				setDropState({ intent: "merge", targetId: item.dndId });
+				return;
+			}
+		}
+
+		// Pointer is below all items → append at end
+		setDropState({ intent: "reorder", beforeId: null });
+	}
+
+	async function handleDragEnd({ active }: DragEndEvent) {
+		setActiveProjectId(null);
+		const currentDrop = dropState;
+		setDropState(null);
+
+		const activeId = String(active.id);
+		if (!activeId.startsWith("project:")) return;
+
+		const draggedProjectId = activeId.slice(8);
+		const draggedProject = projects.find((p) => p.id === draggedProjectId);
+		if (!draggedProject) return;
+
+		const repo = getRepository();
+
+		if (!currentDrop) {
+			// Dropped outside — ungroup if needed
+			if (draggedProject.groupId) {
+				assignToGroup(repo, draggedProjectId, null);
+			}
+			return;
+		}
+
+		if (currentDrop.intent === "join-group") {
+			assignToGroup(repo, draggedProjectId, currentDrop.groupId);
+			return;
+		}
+
+		if (currentDrop.intent === "merge") {
+			const targetProjectId = currentDrop.targetId.slice(8); // targetId is "project:<id>"
+			const targetProject = projects.find((p) => p.id === targetProjectId);
+			if (!targetProject) return;
+			if (targetProject.groupId) {
+				assignToGroup(repo, draggedProjectId, targetProject.groupId);
+			} else {
+				setPendingGroupProjects({
+					projectA: draggedProject,
+					projectB: targetProject,
+				});
+			}
+			return;
+		}
+
+		if (currentDrop.intent === "reorder") {
+			const { beforeId } = currentDrop;
+
+			// Build the ordered list of top-level dndIds (groups + standalone projects)
+			const topLevel = sidebarItems.filter(
+				(i) =>
+					i.type === "group" || (i.type === "project" && !i.project.groupId),
+			);
+
+			// If dragged project is inside a group, check if drop target is outside the group
+			if (draggedProject.groupId) {
+				// Determine if the beforeId target is a sibling in the same group
+				const beforeProjectId = beforeId?.startsWith("project:")
+					? beforeId.slice(8)
+					: null;
+				const beforeProject = beforeProjectId
+					? projects.find((p) => p.id === beforeProjectId)
+					: null;
+				const isTargetInSameGroup =
+					beforeProject?.groupId === draggedProject.groupId;
+				const isTargetGroupHeader = beforeId?.startsWith("group:");
+				const isAppendToEnd = beforeId === null;
+
+				if (isTargetInSameGroup) {
+					// Intra-group reorder
+					const groupProjects = projects
+						.filter((p) => p.groupId === draggedProject.groupId)
+						.sort((a, b) => a.sortOrder - b.sortOrder);
+					const ids = groupProjects.map((p) => p.id);
+					const oldIdx = ids.indexOf(draggedProjectId);
+					const newIdx = beforeProjectId
+						? ids.indexOf(beforeProjectId)
+						: ids.length;
+					if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
+						const adjusted = newIdx > oldIdx ? newIdx - 1 : newIdx;
+						const newOrder = arrayMove(ids, oldIdx, adjusted);
+						reorderProjects(repo, newOrder);
+					}
+					return;
+				}
+
+				// Target is outside the group (top-level item, different group, or end of list)
+				// → ungroup the project first
+				await assignToGroup(repo, draggedProjectId, null);
+				// If dropped before a group header or at the end, no further reorder needed
+				// (the store reload will place it at the end of standalone projects)
+				if (!isTargetGroupHeader && !isAppendToEnd && beforeId) {
+					// beforeId points to a standalone project → reorder among standalone
+					const standaloneProjects = projects
+						.filter((p) => !p.groupId && p.id !== draggedProjectId)
+						.sort((a, b) => a.sortOrder - b.sortOrder);
+					const ids = standaloneProjects.map((p) => p.id);
+					ids.push(draggedProjectId); // append ungrouped project at end temporarily
+					const newIdx = beforeProjectId
+						? ids.indexOf(beforeProjectId)
+						: ids.length;
+					const oldIdx = ids.indexOf(draggedProjectId);
+					if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
+						const adjusted = newIdx > oldIdx ? newIdx - 1 : newIdx;
+						const newOrder = arrayMove(ids, oldIdx, adjusted);
+						reorderProjects(repo, newOrder);
+					}
+				}
+				return;
+			}
+
+			// Top-level reorder
+			const topLevelIds = topLevel.map((i) => i.dndId);
+			const dragDndId = `project:${draggedProjectId}`;
+			const oldIdx = topLevelIds.indexOf(dragDndId);
+			const newIdx = beforeId
+				? topLevelIds.indexOf(beforeId)
+				: topLevelIds.length;
+			if (oldIdx === -1 || newIdx === -1) return;
+			if (oldIdx === newIdx) return;
+			const adjusted = newIdx > oldIdx ? newIdx - 1 : newIdx;
+			const reordered = arrayMove(topLevelIds, oldIdx, adjusted);
+
+			const newGroupOrder = reordered
+				.filter((id) => id.startsWith("group:"))
+				.map((id) => id.slice(6));
+			const newProjectOrder = reordered
+				.filter((id) => id.startsWith("project:"))
+				.map((id) => id.slice(8));
+			if (newGroupOrder.length > 0) reorderGroups(repo, newGroupOrder);
+			if (newProjectOrder.length > 0) reorderProjects(repo, newProjectOrder);
+		}
+	}
 
 	useEffect(() => {
 		if (
@@ -668,15 +1023,92 @@ export function Sidebar() {
 							</ProjectForm>
 						</div>
 					)}
-					{projects.map((project) => (
-						<ProjectNavItem
-							key={project.id}
-							project={project}
-							active={selectedProjectId === project.id}
-							collapsed={sidebarCollapsed}
-							onClick={() => setSelectedProject(project.id)}
+					<DndContext
+						sensors={sensors}
+						onDragStart={handleDragStart}
+						onDragMove={handleDragMove}
+						onDragEnd={handleDragEnd}
+					>
+						{sidebarItems.map((item, index) => {
+							// Show DropIndicator BEFORE this item if dropState says so
+							const showIndicatorBefore =
+								dropState?.intent === "reorder" &&
+								dropState.beforeId === item.dndId;
+
+							if (item.type === "group") {
+								const isGroupDragOver =
+									dropState?.intent === "join-group" &&
+									dropState.groupId === item.group.id;
+								return (
+									<div key={item.group.id} data-dnd-item={item.dndId}>
+										{showIndicatorBefore && <DropIndicator />}
+										<ProjectGroupNavItem
+											group={item.group}
+											projects={item.projects}
+											collapsed={sidebarCollapsed}
+											isDragOver={isGroupDragOver}
+										/>
+									</div>
+								);
+							}
+
+							const isMergeTarget =
+								dropState?.intent === "merge" &&
+								dropState.targetId === item.dndId;
+
+							// Detect if this project is inside a group
+							const groupId = item.project.groupId;
+
+							// Detect if this is the last child of its group
+							const nextItem = sidebarItems[index + 1];
+							const isLastInGroup =
+								groupId !== null &&
+								groupId !== undefined &&
+								(!nextItem ||
+									nextItem.type === "group" ||
+									(nextItem.type === "project" &&
+										nextItem.project.groupId !== groupId));
+
+							return (
+								<div key={item.project.id}>
+									<div data-dnd-item={item.dndId}>
+										{showIndicatorBefore && <DropIndicator />}
+										<ProjectNavItem
+											project={item.project}
+											active={selectedProjectId === item.project.id}
+											collapsed={sidebarCollapsed}
+											onClick={() => setSelectedProject(item.project.id)}
+											isMergeTarget={isMergeTarget}
+											itemRef={makeItemRef(item.dndId)}
+										/>
+									</div>
+									{isLastInGroup && !sidebarCollapsed && (
+										<div className="mx-3 mb-1.5 h-px bg-sidebar-border/60" />
+									)}
+								</div>
+							);
+						})}
+						{/* DropIndicator at the END of the list */}
+						{dropState?.intent === "reorder" && dropState.beforeId === null && (
+							<DropIndicator />
+						)}
+						<DragOverlay>
+							{activeProjectId ? (
+								<div className="dnd-dragging opacity-90 rounded-md bg-sidebar-accent px-3 py-2 text-sm shadow-lg cursor-grabbing">
+									{projects.find((p) => p.id === activeProjectId)?.name}
+								</div>
+							) : null}
+						</DragOverlay>
+					</DndContext>
+					{pendingGroupProjects && (
+						<CreateGroupDialog
+							open={true}
+							projectA={pendingGroupProjects.projectA}
+							projectB={pendingGroupProjects.projectB}
+							onConfirm={() => setPendingGroupProjects(null)}
+							onCancel={() => setPendingGroupProjects(null)}
 						/>
-					))}
+					)}
 					{sidebarCollapsed && (
 						<ProjectForm>
 							<Button

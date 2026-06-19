@@ -241,6 +241,15 @@ const fr: typeof en = {
 		importDescription:
 			"Restaurer depuis un fichier JSON exporté depuis Bunly. Vous pouvez fusionner ou remplacer vos données existantes.",
 	},
+	projectGroup: {
+		createTitle: "Nouveau groupe",
+		namePlaceholder: "Nom du groupe",
+		create: "Créer",
+		edit: "Modifier le groupe",
+		rename: "Renommer",
+		renamePlaceholder: "Nouveau nom",
+		dissolve: "Dissoudre le groupe",
+	},
 	search: {
 		placeholder: "Rechercher tâches, projets, tags…",
 		tasks: "Tâches",

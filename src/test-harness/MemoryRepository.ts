@@ -1,11 +1,13 @@
 import type { TodoRepository } from "@/db/repository";
 import type { ExportData } from "@/lib/dataTransfer";
 import type {
+	CreateProjectGroupInput,
 	CreateProjectInput,
 	CreateTagInput,
 	CreateTaskInput,
 	Priority,
 	Project,
+	ProjectGroup,
 	Tag,
 	Task,
 	TaskFilters,
@@ -22,6 +24,7 @@ function uuid(): string {
 export class MemoryRepository implements TodoRepository {
 	private tasks = new Map<string, Task>();
 	private projects = new Map<string, Project>();
+	private projectGroups = new Map<string, ProjectGroup>();
 	private tags = new Map<string, Tag>();
 	private settings = new Map<string, string>([
 		["notification_enabled", "false"],
@@ -132,6 +135,18 @@ export class MemoryRepository implements TodoRepository {
 		return updated;
 	}
 
+	async moveTasksToProject(
+		taskIds: string[],
+		projectId: string | null,
+	): Promise<void> {
+		for (const id of taskIds) {
+			const task = this.tasks.get(id);
+			if (task) {
+				this.tasks.set(id, { ...task, projectId, updatedAt: now() });
+			}
+		}
+	}
+
 	async completeTask(id: string): Promise<Task> {
 		const task = this.tasks.get(id);
 		if (!task) throw new Error(`Task ${id} not found`);
@@ -217,6 +232,7 @@ export class MemoryRepository implements TodoRepository {
 			color: input.color ?? null,
 			icon: input.icon ?? null,
 			sortOrder: ++this.sortCounter,
+			groupId: null,
 			createdAt: now(),
 			updatedAt: now(),
 		};
@@ -249,6 +265,64 @@ export class MemoryRepository implements TodoRepository {
 			this.tasks.set(tid, { ...task, tags: filteredTags });
 		}
 		this.projects.delete(id);
+	}
+
+	async getProjectGroups(): Promise<ProjectGroup[]> {
+		return Array.from(this.projectGroups.values()).sort(
+			(a, b) => a.sortOrder - b.sortOrder,
+		);
+	}
+
+	async createProjectGroup(
+		input: CreateProjectGroupInput,
+	): Promise<ProjectGroup> {
+		const group: ProjectGroup = {
+			id: uuid(),
+			name: input.name,
+			color: input.color,
+			sortOrder: ++this.sortCounter,
+			createdAt: now(),
+			updatedAt: now(),
+		};
+		this.projectGroups.set(group.id, group);
+		return group;
+	}
+
+	async updateProjectGroup(
+		id: string,
+		patch: Partial<Pick<ProjectGroup, "name" | "color">>,
+	): Promise<ProjectGroup> {
+		const group = this.projectGroups.get(id);
+		if (!group) throw new Error(`ProjectGroup ${id} not found`);
+		const updated: ProjectGroup = { ...group, ...patch, updatedAt: now() };
+		this.projectGroups.set(id, updated);
+		return updated;
+	}
+
+	async deleteProjectGroup(id: string): Promise<void> {
+		this.projectGroups.delete(id);
+	}
+
+	async reorderProjects(orderedIds: string[]): Promise<void> {
+		orderedIds.forEach((id, index) => {
+			const project = this.projects.get(id);
+			if (project) this.projects.set(id, { ...project, sortOrder: index });
+		});
+	}
+
+	async reorderProjectGroups(orderedIds: string[]): Promise<void> {
+		orderedIds.forEach((id, index) => {
+			const group = this.projectGroups.get(id);
+			if (group) this.projectGroups.set(id, { ...group, sortOrder: index });
+		});
+	}
+
+	async assignProjectToGroup(
+		projectId: string,
+		groupId: string | null,
+	): Promise<void> {
+		const project = this.projects.get(projectId);
+		if (project) this.projects.set(projectId, { ...project, groupId });
 	}
 
 	async getTags(projectId?: string | null): Promise<Tag[]> {

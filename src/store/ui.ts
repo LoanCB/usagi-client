@@ -6,11 +6,13 @@ interface UIStore {
 	selectedProjectId: string | null | undefined; // null = Inbox, undefined = all tasks
 	selectedTaskId: string | null;
 	activeFilters: TaskFilters;
+	collapsedGroupIds: Set<string>;
 	setSidebarCollapsed(v: boolean): void;
 	setSelectedProject(id: string | null | undefined): void;
 	setSelectedTask(id: string | null): void;
 	navigateToTask(projectId: string | null, taskId: string): void;
 	setFilters(filters: Partial<TaskFilters>): void;
+	toggleGroupCollapsed(id: string): void;
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -18,6 +20,7 @@ export const useUIStore = create<UIStore>((set) => ({
 	selectedProjectId: undefined, // special sentinels: null=Inbox, "today"=Today, "tags"=TagManager, "calendar"=CalendarView, undefined=All
 	selectedTaskId: null,
 	activeFilters: {},
+	collapsedGroupIds: new Set<string>(),
 
 	setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
 	setSelectedProject: (id) =>
@@ -31,4 +34,11 @@ export const useUIStore = create<UIStore>((set) => ({
 		}),
 	setFilters: (filters) =>
 		set((s) => ({ activeFilters: { ...s.activeFilters, ...filters } })),
+	toggleGroupCollapsed: (id) =>
+		set((s) => {
+			const next = new Set(s.collapsedGroupIds);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return { collapsedGroupIds: next };
+		}),
 }));

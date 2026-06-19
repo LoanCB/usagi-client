@@ -532,6 +532,7 @@ const sampleExportData: ExportData = {
 			color: "#f00",
 			icon: null,
 			sortOrder: 0,
+			groupId: null,
 			createdAt: "2026-01-01T00:00:00.000Z",
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		},
@@ -694,5 +695,133 @@ describe("SqliteRepository — bulkImport", () => {
 			s.includes("INSERT OR REPLACE"),
 		);
 		expect(firstDeleteIdx).toBeLessThan(firstInsertIdx);
+	});
+});
+
+describe("SqliteRepository — project groups", () => {
+	it("createProjectGroup inserts a row and returns a ProjectGroup", async () => {
+		const now = "2026-06-18T10:00:00.000Z";
+		const db = makeDb({
+			select: vi
+				.fn()
+				.mockResolvedValueOnce([{ max_order: null }]) // MAX(sort_order) query
+				.mockResolvedValueOnce([
+					{
+						id: "grp-1",
+						name: "Perso",
+						color: "#6366f1",
+						sort_order: 0,
+						created_at: now,
+						updated_at: now,
+					},
+				]),
+		});
+		const repo = new SqliteRepository(db);
+		const group = await repo.createProjectGroup({
+			name: "Perso",
+			color: "#6366f1",
+		});
+		expect(group.name).toBe("Perso");
+		expect(group.color).toBe("#6366f1");
+		expect(typeof group.id).toBe("string");
+		expect(db.execute).toHaveBeenCalledOnce();
+	});
+
+	it("getProjectGroups returns mapped ProjectGroup[]", async () => {
+		const now = "2026-06-18T10:00:00.000Z";
+		const db = makeDb({
+			select: vi.fn().mockResolvedValueOnce([
+				{
+					id: "g1",
+					name: "Work",
+					color: "#3b82f6",
+					sort_order: 0,
+					created_at: now,
+					updated_at: now,
+				},
+				{
+					id: "g2",
+					name: "Perso",
+					color: "#22c55e",
+					sort_order: 1,
+					created_at: now,
+					updated_at: now,
+				},
+			]),
+		});
+		const repo = new SqliteRepository(db);
+		const groups = await repo.getProjectGroups();
+		expect(groups).toHaveLength(2);
+		expect(groups[0].name).toBe("Work");
+		expect(groups[1].sortOrder).toBe(1);
+	});
+
+	it("deleteProjectGroup executes a DELETE", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.deleteProjectGroup("grp-1");
+		expect(db.execute).toHaveBeenCalledWith(expect.stringContaining("DELETE"), [
+			"grp-1",
+		]);
+	});
+
+	it("reorderProjects updates sort_order for each id", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.reorderProjects(["p3", "p1", "p2"]);
+		expect(db.execute).toHaveBeenCalledTimes(3);
+		expect(db.execute).toHaveBeenNthCalledWith(
+			1,
+			expect.stringContaining("UPDATE projects"),
+			expect.arrayContaining([0, "p3"]),
+		);
+		expect(db.execute).toHaveBeenNthCalledWith(
+			2,
+			expect.stringContaining("UPDATE projects"),
+			expect.arrayContaining([1, "p1"]),
+		);
+	});
+
+	it("assignProjectToGroup sets group_id on a project", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.assignProjectToGroup("proj-1", "grp-1");
+		expect(db.execute).toHaveBeenCalledWith(
+			expect.stringContaining("UPDATE projects"),
+			expect.arrayContaining(["grp-1", "proj-1"]),
+		);
+	});
+
+	it("assignProjectToGroup with null clears group_id", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.assignProjectToGroup("proj-1", null);
+		expect(db.execute).toHaveBeenCalledWith(
+			expect.stringContaining("UPDATE projects"),
+			expect.arrayContaining([null, "proj-1"]),
+		);
+	});
+
+	it("updateProjectGroup updates name and returns updated group", async () => {
+		const now = "2026-06-18T10:00:00.000Z";
+		const db = makeDb({
+			select: vi.fn().mockResolvedValueOnce([
+				{
+					id: "grp-1",
+					name: "Updated",
+					color: "#3b82f6",
+					sort_order: 0,
+					created_at: now,
+					updated_at: now,
+				},
+			]),
+		});
+		const repo = new SqliteRepository(db);
+		const updated = await repo.updateProjectGroup("grp-1", { name: "Updated" });
+		expect(updated.name).toBe("Updated");
+		expect(db.execute).toHaveBeenCalledOnce();
+		const call = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(call[0]).toContain("UPDATE project_groups");
+		expect(call[1]).toContain("grp-1");
 	});
 });

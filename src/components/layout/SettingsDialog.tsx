@@ -531,7 +531,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 		<>
 			<Dialog>
 				<DialogTrigger render={children} />
-				<DialogContent className="flex flex-col h-[min(85vh,52rem)] max-h-[500px] sm:max-w-[min(calc(100%-2rem),48rem)]">
+				<DialogContent className="flex flex-col h-[min(85vh,52rem)] max-h-[525px] sm:max-w-[min(calc(100%-2rem),48rem)]">
 					<DialogHeader className="border-b border-border pb-0">
 						<DialogTitle>{t("settings.title")}</DialogTitle>
 						<div className="flex mt-3" role="tablist">

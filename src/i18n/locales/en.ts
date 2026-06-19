@@ -238,6 +238,15 @@ const en = {
 		importDescription:
 			"Restore from a previously exported JSON file. You will choose to merge or replace your existing data.",
 	},
+	projectGroup: {
+		createTitle: "New group",
+		namePlaceholder: "Group name",
+		create: "Create",
+		edit: "Edit group",
+		rename: "Rename",
+		renamePlaceholder: "New name",
+		dissolve: "Dissolve group",
+	},
 	search: {
 		placeholder: "Search tasks, projects, tags…",
 		tasks: "Tasks",

@@ -47,6 +47,12 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		getSettings: vi.fn().mockResolvedValue({}),
 		setSetting: vi.fn().mockResolvedValue(undefined),
 		bulkImport: vi.fn().mockResolvedValue(undefined),
+		getProjectGroups: vi.fn().mockResolvedValue([]),
+		createProjectGroup: vi.fn(),
+		updateProjectGroup: vi.fn(),
+		deleteProjectGroup: vi.fn(),
+		reorderProjects: vi.fn().mockResolvedValue(undefined),
+		assignProjectToGroup: vi.fn().mockResolvedValue(undefined),
 		...overrides,
 	};
 }

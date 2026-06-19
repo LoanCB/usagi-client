@@ -146,6 +146,7 @@ describe("ProjectNavItem — quick tag creation", () => {
 		color: "#3b82f6",
 		icon: null,
 		sortOrder: 0,
+		groupId: null,
 		createdAt: new Date().toISOString(),
 		updatedAt: new Date().toISOString(),
 	};

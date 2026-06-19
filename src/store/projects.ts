@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { TodoRepository } from "@/db/repository";
+import { useProjectGroupStore } from "@/store/projectGroups";
 import { useTagStore } from "@/store/tags";
 import type { CreateProjectInput, Project } from "@/types";
 
@@ -16,9 +17,15 @@ interface ProjectStore {
 		patch: Partial<CreateProjectInput>,
 	): Promise<void>;
 	deleteProject(repo: TodoRepository, id: string): Promise<void>;
+	reorderProjects(repo: TodoRepository, orderedIds: string[]): Promise<void>;
+	assignToGroup(
+		repo: TodoRepository,
+		projectId: string,
+		groupId: string | null,
+	): Promise<void>;
 }
 
-export const useProjectStore = create<ProjectStore>((set) => ({
+export const useProjectStore = create<ProjectStore>((set, get) => ({
 	projects: [],
 
 	async loadProjects(repo) {
@@ -45,5 +52,28 @@ export const useProjectStore = create<ProjectStore>((set) => ({
 		useTagStore.setState((s) => ({
 			tags: s.tags.filter((t) => t.projectId !== id),
 		}));
+	},
+
+	async reorderProjects(repo, orderedIds) {
+		await repo.reorderProjects(orderedIds);
+		const projects = await repo.getProjects();
+		set({ projects });
+	},
+
+	async assignToGroup(repo, projectId, groupId) {
+		const prevGroupId =
+			get().projects.find((p) => p.id === projectId)?.groupId ?? null;
+		await repo.assignProjectToGroup(projectId, groupId);
+		set((s) => ({
+			projects: s.projects.map((p) =>
+				p.id === projectId ? { ...p, groupId } : p,
+			),
+		}));
+		if (prevGroupId && prevGroupId !== groupId) {
+			const remaining = get().projects.filter((p) => p.groupId === prevGroupId);
+			if (remaining.length === 0) {
+				await useProjectGroupStore.getState().deleteGroup(repo, prevGroupId);
+			}
+		}
 	},
 }));
