@@ -165,7 +165,7 @@ jobs:
           mv tmp.json src-tauri/tauri.conf.json
 
       - name: Build iOS (unsigned)
-        run: pnpm tauri ios build --export-method development
+        run: pnpm tauri ios build --export-method debugging
 
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
