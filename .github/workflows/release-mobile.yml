@@ -1,0 +1,210 @@
+name: Release Mobile
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Android NDK
+        run: |
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -f "$SDKMANAGER" ]; then
+            echo "::error::sdkmanager not found at $SDKMANAGER — check runner image"
+            exit 1
+          fi
+          echo "y" | "$SDKMANAGER" "ndk;27.0.12077973"
+          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
+
+      - name: Decode Android keystore
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+        run: |
+          echo "$ANDROID_KEYSTORE" | base64 -d > /tmp/bunly-release.keystore
+          echo "ANDROID_KEYSTORE_PATH=/tmp/bunly-release.keystore" >> $GITHUB_ENV
+
+      - name: Set version from git tag
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG#v}"
+          if [[ "$VERSION" =~ -[^0-9] ]]; then
+            VERSION="${VERSION%%-*}"
+          fi
+          # Ensure 3 version components (required for iOS CFBundleShortVersionString)
+          COMPONENT_COUNT=$(echo "$VERSION" | tr -cd '.' | wc -c)
+          if [[ "$COMPONENT_COUNT" -lt 2 ]]; then
+            VERSION="${VERSION}.0"
+          fi
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          BUNDLE_VERSION="$VERSION"
+          if [[ "$MAJOR" -gt 255 ]]; then
+            REST=$(echo "$VERSION" | cut -d. -f2-)
+            BUNDLE_VERSION="$((MAJOR % 100)).$REST"
+          fi
+          jq --arg version "$BUNDLE_VERSION" '.version = $version' src-tauri/tauri.conf.json > tmp.json
+          mv tmp.json src-tauri/tauri.conf.json
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build Android APK (sideload)
+        # ANDROID_KEYSTORE_PATH is available via $GITHUB_ENV from the "Decode Android keystore" step above
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        run: pnpm tauri android build
+
+      - name: Build Android AAB (Play Store)
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        run: |
+          cd src-tauri/gen/android
+          ./gradlew bundleUniversalRelease
+        # "universal" est la flavor définie par le plugin Rust Tauri v2.
+        # Si la task est introuvable : ./gradlew tasks --all | grep -i bundle
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bunly-android
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
+          if-no-files-found: error
+
+  build-ios:
+    name: Build iOS (unsigned)
+    runs-on: macos-latest
+    continue-on-error: true
+    # iOS signing non configuré — nécessite un compte Apple Developer.
+    # Secrets à ajouter quand disponibles :
+    #   APPLE_CERTIFICATE          — certificat distribution P12 en base64
+    #   APPLE_CERTIFICATE_PASSWORD — mot de passe du certificat P12
+    #   APPLE_PROVISIONING_PROFILE — profil de provisionnement en base64
+    #   APPLE_TEAM_ID              — Team ID Apple Developer (ex: ABCD1234EF)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Set version from git tag
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG#v}"
+          if [[ "$VERSION" =~ -[^0-9] ]]; then
+            VERSION="${VERSION%%-*}"
+          fi
+          # Ensure 3 version components (required for iOS CFBundleShortVersionString)
+          COMPONENT_COUNT=$(echo "$VERSION" | tr -cd '.' | wc -c)
+          if [[ "$COMPONENT_COUNT" -lt 2 ]]; then
+            VERSION="${VERSION}.0"
+          fi
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          BUNDLE_VERSION="$VERSION"
+          if [[ "$MAJOR" -gt 255 ]]; then
+            REST=$(echo "$VERSION" | cut -d. -f2-)
+            BUNDLE_VERSION="$((MAJOR % 100)).$REST"
+          fi
+          jq --arg version "$BUNDLE_VERSION" '.version = $version' src-tauri/tauri.conf.json > tmp.json
+          mv tmp.json src-tauri/tauri.conf.json
+
+      - name: Build iOS (unsigned)
+        run: pnpm tauri ios build --export-method development
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bunly-ios
+          path: src-tauri/gen/apple/build/arm64/*.ipa
+          if-no-files-found: error
+
+  release-mobile:
+    name: Attach mobile artifacts to release
+    needs: [build-android, build-ios]
+    runs-on: ubuntu-latest
+    if: always() && (needs.build-android.result == 'success' || needs.build-ios.result == 'success')
+
+    steps:
+      - name: Download all mobile artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find artifacts -type f | sort
+
+      - name: Wait for GitHub Release and upload artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          for i in $(seq 1 5); do
+            if gh release view "$TAG" --repo "$GH_REPO" &>/dev/null; then
+              echo "Release $TAG found — uploading mobile artifacts"
+              find artifacts -type f -print0 | xargs -0 gh release upload "$TAG" --repo "$GH_REPO" --clobber
+              echo "Upload complete"
+              exit 0
+            fi
+            echo "Attempt $i/5: release $TAG not found yet, waiting 30s..."
+            sleep 30
+          done
+          echo "::error::Release $TAG not found after 5 attempts — desktop pipeline may have failed"
+          exit 1
