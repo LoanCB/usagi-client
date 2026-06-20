@@ -43,6 +43,7 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		updateTag: vi.fn(),
 		deleteTag: vi.fn(),
 		isTagUsedInProjectTasks: vi.fn().mockResolvedValue(false),
+		moveTasksToProject: vi.fn().mockResolvedValue(undefined),
 		reorderTasks: vi.fn().mockResolvedValue(undefined),
 		getSettings: vi.fn().mockResolvedValue({}),
 		setSetting: vi.fn().mockResolvedValue(undefined),
@@ -52,6 +53,7 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		updateProjectGroup: vi.fn(),
 		deleteProjectGroup: vi.fn(),
 		reorderProjects: vi.fn().mockResolvedValue(undefined),
+		reorderProjectGroups: vi.fn().mockResolvedValue(undefined),
 		assignProjectToGroup: vi.fn().mockResolvedValue(undefined),
 		...overrides,
 	};
