@@ -164,14 +164,54 @@ jobs:
           jq --arg version "$BUNDLE_VERSION" '.version = $version' src-tauri/tauri.conf.json > tmp.json
           mv tmp.json src-tauri/tauri.conf.json
 
-      - name: Build iOS (unsigned)
-        run: pnpm tauri ios build --export-method debugging
+      # `tauri ios build` enchaîne un `xcodebuild archive` + export IPA qui
+      # exigent une équipe de signature Apple, même avec --export-method debugging.
+      # Sans compte Apple Developer on construit un .app NON SIGNÉ puis on
+      # l'empaquette manuellement en .ipa (un .ipa = zip d'un dossier Payload/).
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Generate Xcode project
+        run: pnpm tauri ios init --ci
+
+      - name: Build iOS app (unsigned)
+        working-directory: src-tauri/gen/apple
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project Bunly.xcodeproj \
+            -scheme Bunly_iOS \
+            -configuration release \
+            -sdk iphoneos \
+            -arch arm64 \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM=""
+
+      - name: Package unsigned IPA
+        working-directory: src-tauri/gen/apple
+        run: |
+          set -euo pipefail
+          APP_PATH="$(find build/Build/Products -maxdepth 2 -name '*.app' -type d | head -n1)"
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::No .app produced by xcodebuild"
+            exit 1
+          fi
+          echo "Found app: $APP_PATH"
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          mkdir -p build/ipa
+          zip -qry "build/ipa/Bunly-unsigned.ipa" Payload
+          ls -la build/ipa
 
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: bunly-ios
-          path: src-tauri/gen/apple/build/arm64/*.ipa
+          path: src-tauri/gen/apple/build/ipa/*.ipa
           if-no-files-found: error
 
   release-mobile:
