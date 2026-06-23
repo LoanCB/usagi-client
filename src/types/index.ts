@@ -28,8 +28,23 @@ export interface Project {
 	color: string | null;
 	icon: string | null;
 	sortOrder: number;
+	groupId: string | null;
 	createdAt: string;
 	updatedAt: string;
+}
+
+export interface ProjectGroup {
+	id: string;
+	name: string;
+	color: string;
+	sortOrder: number;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface CreateProjectGroupInput {
+	name: string;
+	color: string;
 }
 
 export interface TaskFilters {

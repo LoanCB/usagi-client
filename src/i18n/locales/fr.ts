@@ -191,6 +191,12 @@ const fr: typeof en = {
 		upToDate: "Vous êtes à jour",
 		updateAvailable: "Une mise à jour est disponible",
 		updateCheckError: "Impossible de vérifier les mises à jour",
+		betaChannel: "Utiliser les versions bêta",
+		betaChannelWarning:
+			"Les versions bêta peuvent contenir des bugs. Elles ne sont pas recommandées pour une utilisation quotidienne.",
+		betaUpdateAvailable: "v{{version}} (bêta) est disponible",
+		betaViewOnGitHub: "Voir sur GitHub",
+		dismissLater: "Plus tard",
 	},
 	taskList: {
 		remaining_one: "{{count}} restante",
@@ -234,6 +240,15 @@ const fr: typeof en = {
 		importError: "Fichier invalide ou corrompu",
 		importDescription:
 			"Restaurer depuis un fichier JSON exporté depuis Bunly. Vous pouvez fusionner ou remplacer vos données existantes.",
+	},
+	projectGroup: {
+		createTitle: "Nouveau groupe",
+		namePlaceholder: "Nom du groupe",
+		create: "Créer",
+		edit: "Modifier le groupe",
+		rename: "Renommer",
+		renamePlaceholder: "Nouveau nom",
+		dissolve: "Dissoudre le groupe",
 	},
 	search: {
 		placeholder: "Rechercher tâches, projets, tags…",

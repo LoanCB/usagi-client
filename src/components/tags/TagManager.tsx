@@ -2,12 +2,14 @@ import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { ColorPicker } from "@/components/ui/ColorPicker";
 import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { GroupColorShape } from "@/components/ui/GroupColorShape";
 import { Input } from "@/components/ui/input";
 import { PRESET_COLORS } from "@/lib/colors";
 import { PRESET_ICONS } from "@/lib/icons";
@@ -16,30 +18,20 @@ import { getRepository } from "@/store/repository";
 import { useTagStore } from "@/store/tags";
 import type { Tag } from "@/types";
 
-function ColorPicker({
+function TagColorPicker({
 	value,
 	onChange,
 }: {
 	readonly value: string;
 	readonly onChange: (c: string) => void;
 }) {
-	const { t } = useTranslation();
 	return (
-		<div className="flex gap-1.5 flex-wrap mt-1">
-			{PRESET_COLORS.map((c) => (
-				<button
-					key={c}
-					type="button"
-					className="h-5 w-5 rounded-full transition-transform hover:scale-110 focus:outline-none"
-					style={{
-						background: c,
-						outline: value === c ? `2px solid ${c}` : undefined,
-						outlineOffset: value === c ? "2px" : undefined,
-					}}
-					aria-label={t("common.colorOption", { color: c })}
-					onClick={() => onChange(c)}
-				/>
-			))}
+		<div className="mt-1">
+			<ColorPicker
+				colors={PRESET_COLORS}
+				selectedColor={value}
+				onSelect={onChange}
+			/>
 		</div>
 	);
 }
@@ -166,7 +158,7 @@ export function TagManager() {
 							<X className="h-3.5 w-3.5" />
 						</Button>
 					</div>
-					<ColorPicker value={editColor} onChange={setEditColor} />
+					<TagColorPicker value={editColor} onChange={setEditColor} />
 					<TagProjectSelect
 						value={editProjectId}
 						onChange={setEditProjectId}
@@ -184,9 +176,10 @@ export function TagManager() {
 			<ContextMenu key={tag.id}>
 				<ContextMenuTrigger>
 					<div className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-accent/40 group">
-						<span
-							className="h-2.5 w-2.5 rounded-full shrink-0"
-							style={{ background: tag.color ?? "var(--muted-foreground)" }}
+						<GroupColorShape
+							color={tag.color ?? "var(--muted-foreground)"}
+							size={10}
+							className="shrink-0"
 						/>
 						<span className="flex-1 text-sm truncate">{tag.name}</span>
 						<div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -252,7 +245,7 @@ export function TagManager() {
 							autoFocus
 							onKeyDown={(e) => e.key === "Enter" && handleCreate()}
 						/>
-						<ColorPicker value={newColor} onChange={setNewColor} />
+						<TagColorPicker value={newColor} onChange={setNewColor} />
 						<TagProjectSelect value={newProjectId} onChange={setNewProjectId} />
 						<div className="flex gap-2 justify-end">
 							<Button

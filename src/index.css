@@ -467,3 +467,17 @@
 		cursor: pointer;
 	}
 }
+
+/* ── Drag-and-drop animations ──────────────────────────────── */
+@keyframes dnd-shake {
+	0%,
+	100% {
+		transform: rotate(-0.5deg) translateY(0px);
+	}
+	50% {
+		transform: rotate(0.5deg) translateY(-1px);
+	}
+}
+.dnd-dragging {
+	animation: dnd-shake 0.4s ease-in-out infinite;
+}

@@ -3,6 +3,7 @@ import { Command, useCommandState } from "cmdk";
 import { ArchiveIcon, CheckIcon, CircleIcon, SearchIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { GroupColorShape } from "@/components/ui/GroupColorShape";
 import { PRESET_ICONS } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { useProjectStore } from "@/store/projects";
@@ -338,9 +339,10 @@ export function GlobalSearch() {
 											className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm data-[selected=true]:bg-accent"
 										>
 											<span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
-												<span
-													className="size-2.5 rounded-full"
-													style={{ background: tag.color ?? "#71717a" }}
+												<GroupColorShape
+													color={tag.color ?? "#71717a"}
+													size={10}
+													className="shrink-0"
 												/>
 											</span>
 											<span className="truncate">{tag.name}</span>

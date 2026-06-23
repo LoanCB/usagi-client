@@ -169,6 +169,7 @@ describe("GlobalSearch — navigation", () => {
 					color: null,
 					icon: null,
 					sortOrder: 0,
+					groupId: null,
 					createdAt: new Date().toISOString(),
 					updatedAt: new Date().toISOString(),
 				},

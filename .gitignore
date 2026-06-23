@@ -31,3 +31,7 @@ docs/superpowers
 # Playwright
 test-results/
 playwright-report/
+
+# Android keystore — ne jamais commiter
+*.keystore
+*.jks

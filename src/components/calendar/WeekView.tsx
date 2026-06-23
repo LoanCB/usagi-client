@@ -6,6 +6,7 @@ import {
 	startOfWeek,
 } from "date-fns";
 import { enUS, fr } from "date-fns/locale";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
 	ContextMenu,
@@ -19,6 +20,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useSettingsStore } from "@/store/settings";
 import type { Task } from "@/types";
 
 interface WeekViewProps {
@@ -40,6 +42,7 @@ export function WeekView({
 }: WeekViewProps) {
 	const { t, i18n } = useTranslation();
 	const locale = i18n.language === "fr" ? fr : enUS;
+	const colorblindMode = useSettingsStore((s) => s.colorblindMode);
 
 	const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
 	const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -94,8 +97,11 @@ export function WeekView({
 												e.stopPropagation();
 												onTaskClick(task);
 											}}
-											className="text-xs truncate px-1.5 py-1 rounded bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 text-left w-full transition-colors"
+											className="text-xs truncate px-1.5 py-1 rounded bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 text-left w-full transition-colors flex items-center gap-1"
 										>
+											{colorblindMode && (
+												<AlertTriangle className="w-3 h-3 shrink-0" />
+											)}
 											{task.title}
 										</TooltipTrigger>
 										<TooltipContent side="left">{task.title}</TooltipContent>
@@ -109,8 +115,11 @@ export function WeekView({
 												e.stopPropagation();
 												onTaskClick(task);
 											}}
-											className="text-xs truncate px-1.5 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 text-left w-full transition-colors line-through opacity-70"
+											className="text-xs truncate px-1.5 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 text-left w-full transition-colors line-through opacity-70 flex items-center gap-1"
 										>
+											{colorblindMode && (
+												<CheckCircle2 className="w-3 h-3 shrink-0" />
+											)}
 											{task.title}
 										</TooltipTrigger>
 										<TooltipContent side="left">{task.title}</TooltipContent>

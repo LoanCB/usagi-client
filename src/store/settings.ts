@@ -39,6 +39,8 @@ interface SettingsStore {
 		visible: boolean,
 	): Promise<void>;
 	setColorblindMode(repo: TodoRepository, enabled: boolean): Promise<void>;
+	betaChannel: boolean;
+	setBetaChannel(repo: TodoRepository, enabled: boolean): Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -54,6 +56,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 	tagsVisible: true,
 	searchTriggerVisible: true,
 	colorblindMode: false,
+	betaChannel: false,
 
 	async loadSettings(repo) {
 		const raw = await repo.getSettings();
@@ -71,6 +74,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 		const tagsVisible = raw.tags_visible !== "false";
 		const searchTriggerVisible = raw.search_trigger_visible !== "false";
 		const colorblindMode = raw.colorblind_mode === "true";
+		const betaChannel = raw.beta_channel === "true";
 		set({
 			notificationsEnabled,
 			notificationTimes,
@@ -81,6 +85,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 			tagsVisible,
 			searchTriggerVisible,
 			colorblindMode,
+			betaChannel,
 		});
 	},
 
@@ -127,5 +132,10 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 	async setColorblindMode(repo, enabled) {
 		await repo.setSetting("colorblind_mode", String(enabled));
 		set({ colorblindMode: enabled });
+	},
+
+	async setBetaChannel(repo, enabled) {
+		await repo.setSetting("beta_channel", String(enabled));
+		set({ betaChannel: enabled });
 	},
 }));

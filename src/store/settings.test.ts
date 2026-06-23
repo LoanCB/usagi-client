@@ -263,3 +263,34 @@ describe("useSettingsStore colorblindMode", () => {
 		expect(useSettingsStore.getState().colorblindMode).toBe(false);
 	});
 });
+
+describe("useSettingsStore betaChannel", () => {
+	it("defaults betaChannel to false", () => {
+		expect(useSettingsStore.getState().betaChannel).toBe(false);
+	});
+
+	it("setBetaChannel updates state and persists to DB", async () => {
+		await useSettingsStore
+			.getState()
+			// biome-ignore lint/suspicious/noExplicitAny: partial mock
+			.setBetaChannel(mockRepo as any, true);
+		expect(useSettingsStore.getState().betaChannel).toBe(true);
+		expect(mockRepo.setSetting).toHaveBeenCalledWith("beta_channel", "true");
+	});
+
+	it("loadSettings restores betaChannel from persisted value", async () => {
+		mockRepo.getSettings.mockResolvedValueOnce({
+			beta_channel: "true",
+		});
+		// biome-ignore lint/suspicious/noExplicitAny: partial mock
+		await useSettingsStore.getState().loadSettings(mockRepo as any);
+		expect(useSettingsStore.getState().betaChannel).toBe(true);
+	});
+
+	it("loadSettings defaults betaChannel to false when key is absent", async () => {
+		mockRepo.getSettings.mockResolvedValueOnce({});
+		// biome-ignore lint/suspicious/noExplicitAny: partial mock
+		await useSettingsStore.getState().loadSettings(mockRepo as any);
+		expect(useSettingsStore.getState().betaChannel).toBe(false);
+	});
+});

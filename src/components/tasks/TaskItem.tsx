@@ -19,6 +19,7 @@ import {
 	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { GroupColorShape } from "@/components/ui/GroupColorShape";
 import { PRESET_ICONS } from "@/lib/icons";
 import { cn, formatDate, isOverdue } from "@/lib/utils";
 import { getRepository } from "@/store/repository";
@@ -270,9 +271,9 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 					<Badge
 						key={tag.id}
 						variant="secondary"
-						className="text-xs shrink-0 h-5"
+						className="text-xs shrink-0 h-5 flex items-center gap-1"
 						style={
-							tag.color && !colorblindMode
+							tag.color
 								? {
 										backgroundColor: `${tag.color}28`,
 										color: tag.color,
@@ -281,6 +282,13 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 								: undefined
 						}
 					>
+						{colorblindMode && tag.color && (
+							<GroupColorShape
+								color={tag.color}
+								size={8}
+								className="shrink-0"
+							/>
+						)}
 						{tag.name}
 					</Badge>
 				))}
@@ -321,13 +329,10 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 							checked={task.tags.some((t) => t.id === tag.id)}
 							onCheckedChange={(checked) => handleTagToggle(tag.id, checked)}
 						>
-							<span
-								className="h-2 w-2 rounded-full shrink-0"
-								style={{
-									background: colorblindMode
-										? "var(--muted-foreground)"
-										: (tag.color ?? "var(--muted-foreground)"),
-								}}
+							<GroupColorShape
+								color={tag.color ?? "var(--muted-foreground)"}
+								size={8}
+								className="shrink-0"
 							/>
 							<span className="truncate">{tag.name}</span>
 						</ContextMenuCheckboxItem>

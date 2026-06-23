@@ -9,8 +9,10 @@ import migrationSql from "@/db/migrations/001_initial.sql?raw";
 import migration002 from "@/db/migrations/002_add_description.sql?raw";
 import migration003 from "@/db/migrations/003_settings.sql?raw";
 import migration004 from "@/db/migrations/004_tags_project_scope.sql?raw";
+import migration005 from "@/db/migrations/005_project_groups.sql?raw";
 import { useOverdueNotifications } from "@/hooks/useOverdueNotifications";
 import { UpdaterContext, useUpdater } from "@/hooks/useUpdater";
+import { useProjectGroupStore } from "@/store/projectGroups";
 import { useProjectStore } from "@/store/projects";
 import { getRepository, setRepository } from "@/store/repository";
 import { useSettingsStore } from "@/store/settings";
@@ -22,8 +24,10 @@ import { ThemeProvider } from "@/theme/ThemeProvider";
 export function AppContent() {
 	const loadTasks = useTaskStore((s) => s.loadTasks);
 	const loadProjects = useProjectStore((s) => s.loadProjects);
+	const loadGroups = useProjectGroupStore((s) => s.loadGroups);
 	const loadTags = useTagStore((s) => s.loadTags);
 	const loadSettings = useSettingsStore((s) => s.loadSettings);
+	const betaChannel = useSettingsStore((s) => s.betaChannel);
 	const loadShortcuts = useShortcutsStore((s) => s.loadShortcuts);
 	const tasks = useTaskStore((s) => s.tasks);
 	useOverdueNotifications(tasks);
@@ -36,15 +40,23 @@ export function AppContent() {
 			await loadSettings(repo);
 			await loadShortcuts(repo);
 			loadProjects(repo);
+			loadGroups(repo);
 			loadTags(repo);
 			loadTasks(repo, {});
 		}
 		load();
-	}, [loadSettings, loadTasks, loadTags, loadShortcuts, loadProjects]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [
+		loadSettings,
+		loadTasks,
+		loadTags,
+		loadShortcuts,
+		loadProjects,
+		loadGroups,
+	]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	useEffect(() => {
-		updater.checkForUpdate();
-	}, [updater.checkForUpdate]); // eslint-disable-line react-hooks/exhaustive-deps
+		updater.checkForUpdate(betaChannel ? "beta" : "stable");
+	}, [updater.checkForUpdate, betaChannel]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	return (
 		<UpdaterContext.Provider value={updater}>
@@ -75,6 +87,7 @@ export default function App() {
 					migration002,
 					migration003,
 					migration004,
+					migration005,
 				]) {
 					for (const statement of migration
 						.split(";")

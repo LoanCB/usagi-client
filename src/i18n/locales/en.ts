@@ -189,6 +189,12 @@ const en = {
 		upToDate: "You're up to date",
 		updateAvailable: "An update is available",
 		updateCheckError: "Unable to check for updates",
+		betaChannel: "Use beta versions",
+		betaChannelWarning:
+			"Beta versions may contain bugs and are not recommended for daily use.",
+		betaUpdateAvailable: "v{{version}} (beta) is available",
+		betaViewOnGitHub: "View on GitHub",
+		dismissLater: "Later",
 	},
 	taskList: {
 		remaining_one: "{{count}} remaining",
@@ -231,6 +237,15 @@ const en = {
 		importError: "Invalid or corrupted file",
 		importDescription:
 			"Restore from a previously exported JSON file. You will choose to merge or replace your existing data.",
+	},
+	projectGroup: {
+		createTitle: "New group",
+		namePlaceholder: "Group name",
+		create: "Create",
+		edit: "Edit group",
+		rename: "Rename",
+		renamePlaceholder: "New name",
+		dissolve: "Dissolve group",
 	},
 	search: {
 		placeholder: "Search tasks, projects, tags…",

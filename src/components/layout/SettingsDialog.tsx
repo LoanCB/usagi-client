@@ -368,6 +368,8 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	);
 	const colorblindMode = useSettingsStore((s) => s.colorblindMode);
 	const setColorblindMode = useSettingsStore((s) => s.setColorblindMode);
+	const betaChannel = useSettingsStore((s) => s.betaChannel);
+	const setBetaChannel = useSettingsStore((s) => s.setBetaChannel);
 	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
 	const archivesVisible = useSettingsStore((s) => s.archivesVisible);
 	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
@@ -404,15 +406,27 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	const { checkForUpdate, status, update } = useUpdaterContext();
 
 	useEffect(() => {
-		getVersion()
-			.then(setAppVersion)
-			.catch(() => null);
+		const gitTag = import.meta.env.VITE_APP_GIT_TAG as string | undefined;
+		if (gitTag) {
+			setAppVersion(gitTag.replace(/^v/, ""));
+		} else {
+			getVersion()
+				.then(setAppVersion)
+				.catch(() => null);
+		}
 	}, []);
 
 	async function handleCheckForUpdate() {
 		setHasChecked(false);
-		await checkForUpdate();
+		await checkForUpdate(betaChannel ? "beta" : "stable");
 		setHasChecked(true);
+	}
+
+	async function handleBetaChannelChange(enabled: boolean) {
+		await setBetaChannel(getRepository(), enabled);
+		if (enabled) {
+			await checkForUpdate("beta");
+		}
 	}
 
 	function handleShortcut(action: ShortcutAction, s: SortShortcut) {
@@ -517,7 +531,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 		<>
 			<Dialog>
 				<DialogTrigger render={children} />
-				<DialogContent className="flex flex-col h-[min(85vh,52rem)] max-h-[500px] sm:max-w-[min(calc(100%-2rem),42rem)]">
+				<DialogContent className="flex flex-col h-[min(85vh,52rem)] max-h-[525px] sm:max-w-[min(calc(100%-2rem),48rem)]">
 					<DialogHeader className="border-b border-border pb-0">
 						<DialogTitle>{t("settings.title")}</DialogTitle>
 						<div className="flex mt-3" role="tablist">
@@ -952,47 +966,70 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 									<p className="text-xs text-destructive">{dataError}</p>
 								)}
 
-								<div className="rounded-lg border border-input p-4 flex items-center justify-between gap-4">
-									<div className="flex flex-col gap-0.5">
-										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-											{t("settings.application")}
-										</p>
-										{appVersion && (
-											<p className="text-sm text-muted-foreground">
-												v{appVersion}
+								<div className="rounded-lg border border-input p-4 flex flex-col gap-4">
+									<div className="flex items-center justify-between gap-4">
+										<div className="flex flex-col gap-0.5">
+											<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+												{t("settings.application")}
 											</p>
-										)}
-										{hasChecked && status === "idle" && (
-											<p className="text-xs text-green-600">
-												{t("settings.upToDate")}
-											</p>
-										)}
-										{hasChecked && status === "error" && !update && (
-											<p className="text-xs text-destructive">
-												{t("settings.updateCheckError")}
-											</p>
-										)}
-										{status === "available" && (
-											<p className="text-xs text-primary">
-												{t("settings.updateAvailable")}
+											{appVersion && (
+												<p className="text-sm text-muted-foreground">
+													v{appVersion}
+												</p>
+											)}
+											{hasChecked && status === "idle" && (
+												<p className="text-xs text-green-600">
+													{t("settings.upToDate")}
+												</p>
+											)}
+											{hasChecked && status === "error" && !update && (
+												<p className="text-xs text-destructive">
+													{t("settings.updateCheckError")}
+												</p>
+											)}
+											{status === "available" && (
+												<p className="text-xs text-primary">
+													{t("settings.updateAvailable")}
+												</p>
+											)}
+										</div>
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={handleCheckForUpdate}
+											disabled={
+												status === "downloading" || status === "checking"
+											}
+										>
+											{status === "checking" ? (
+												<>
+													<Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+													{t("settings.checkingForUpdates")}
+												</>
+											) : (
+												t("settings.checkForUpdates")
+											)}
+										</Button>
+									</div>
+
+									<div className="h-px bg-border" />
+
+									<div className="flex flex-col gap-2">
+										<div className="flex items-center justify-between cursor-pointer select-none">
+											<span className="text-sm text-foreground">
+												{t("settings.betaChannel")}
+											</span>
+											<Switch
+												checked={betaChannel}
+												onCheckedChange={handleBetaChannelChange}
+											/>
+										</div>
+										{betaChannel && (
+											<p className="text-xs text-amber-600">
+												{t("settings.betaChannelWarning")}
 											</p>
 										)}
 									</div>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={handleCheckForUpdate}
-										disabled={status === "downloading" || status === "checking"}
-									>
-										{status === "checking" ? (
-											<>
-												<Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-												{t("settings.checkingForUpdates")}
-											</>
-										) : (
-											t("settings.checkForUpdates")
-										)}
-									</Button>
 								</div>
 							</div>
 						)}
