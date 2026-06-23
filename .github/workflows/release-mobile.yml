@@ -1,9 +1,15 @@
 name: Release Mobile
 
+# Désactivé temporairement en attendant les clefs de signature
+# (Android keystore + compte Apple Developer).
+# Le déclenchement automatique sur tag `v*` est commenté ; le workflow
+# reste lançable manuellement via `workflow_dispatch`.
+# Pour réactiver : décommenter le bloc `push.tags` ci-dessous.
 on:
-  push:
-    tags:
-      - "v*"
+  # push:
+  #   tags:
+  #     - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -51,9 +57,24 @@ jobs:
       - name: Decode Android keystore
         env:
           ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
         run: |
-          echo "$ANDROID_KEYSTORE" | base64 -d > /tmp/bunly-release.keystore
-          echo "ANDROID_KEYSTORE_PATH=/tmp/bunly-release.keystore" >> $GITHUB_ENV
+          set -euo pipefail
+          KEYSTORE_PATH=/tmp/bunly-release.keystore
+          # `printf %s` (pas echo) + `base64 -d` tolérant aux retours de ligne :
+          # `echo` ajoute un \n et peut casser le décodage → keystore corrompu
+          # ("Tag number over 30 is not supported" côté keytool).
+          printf '%s' "$ANDROID_KEYSTORE" | base64 -d > "$KEYSTORE_PATH"
+          # Fail-fast lisible : vérifie tout de suite que le keystore est valide,
+          # plutôt qu'une KeytoolException cryptique au packaging 10 min plus tard.
+          if ! keytool -list -keystore "$KEYSTORE_PATH" \
+                -storepass "$ANDROID_STORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null 2>&1; then
+            echo "::error::Decoded keystore is invalid. Re-encode WITHOUT newlines: 'base64 -w0 release.keystore | pbcopy' (macOS) or 'base64 -w0 release.keystore' (linux), then update the ANDROID_KEYSTORE secret."
+            exit 1
+          fi
+          echo "Keystore decoded and validated"
+          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> $GITHUB_ENV
 
       - name: Set version from git tag
         shell: bash
