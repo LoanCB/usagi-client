@@ -1,38 +1,49 @@
-import { getVersion } from "@tauri-apps/api/app";
+import { type InvokeArgs, invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
-import {
-	check,
-	type DownloadEvent,
-	type Update,
-} from "@tauri-apps/plugin-updater";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useUpdater } from "./useUpdater";
 
-vi.mock("@tauri-apps/plugin-updater", () => ({
-	check: vi.fn(),
-}));
+vi.mock("@tauri-apps/api/core", () => {
+	// Minimal Channel stand-in: records the latest onmessage so install tests
+	// can drive progress events through it.
+	class Channel<T> {
+		onmessage: ((message: T) => void) | null = null;
+	}
+	return { invoke: vi.fn(), Channel };
+});
 
 vi.mock("@tauri-apps/plugin-process", () => ({
 	relaunch: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/app", () => ({
-	getVersion: vi.fn(),
-}));
-
 // Disable dev-mode guard so tests actually run the check
 vi.stubEnv("MODE", "production");
 
-const mockCheck = vi.mocked(check);
+const mockInvoke = vi.mocked(invoke);
 const mockRelaunch = vi.mocked(relaunch);
-const mockGetVersion = vi.mocked(getVersion);
 
-function makeMockUpdate(version = "2.0.0") {
-	return {
-		version,
-		body: "New features",
-		downloadAndInstall: vi.fn(),
+interface UpdateInfo {
+	version: string;
+	current_version: string;
+	notes: string | null;
+}
+
+function info(version: string): UpdateInfo {
+	return { version, current_version: "0.1.0", notes: null };
+}
+
+/** Route check_update results per endpoint, given to mockInvoke. */
+function checkResolver(map: {
+	beta?: UpdateInfo | null;
+	stable?: UpdateInfo | null;
+}) {
+	return (cmd: string, args?: InvokeArgs) => {
+		if (cmd !== "check_update") return Promise.resolve(undefined);
+		const endpoints =
+			((args as Record<string, unknown>)?.endpoints as string[]) ?? [];
+		const isBeta = endpoints.some((e) => e.includes("latest-beta"));
+		return Promise.resolve((isBeta ? map.beta : map.stable) ?? null);
 	};
 }
 
@@ -44,102 +55,138 @@ describe("useUpdater", () => {
 	it("starts with idle status", () => {
 		const { result } = renderHook(() => useUpdater());
 		expect(result.current.status).toBe("idle");
-		expect(result.current.update).toBeNull();
+		expect(result.current.available).toBeNull();
 		expect(result.current.progress).toBe(0);
 	});
 
-	it("sets status to available when update is found", async () => {
-		const mockUpdate = makeMockUpdate();
-		mockCheck.mockResolvedValue(mockUpdate as unknown as Update);
-
+	it("prioritizes beta over stable when both have an update", async () => {
+		mockInvoke.mockImplementation(
+			checkResolver({ beta: info("2026.1.1-beta9"), stable: info("26.2.0") }),
+		);
 		const { result } = renderHook(() => useUpdater());
 		await act(async () => {
-			await result.current.checkForUpdate();
+			await result.current.checkForUpdate(true);
 		});
-
 		expect(result.current.status).toBe("available");
-		expect(result.current.update).toBe(mockUpdate);
+		expect(result.current.available).toEqual({
+			version: "2026.1.1-beta9",
+			isBeta: true,
+		});
 	});
 
-	it("returns to idle when no update found", async () => {
-		mockCheck.mockResolvedValue(null);
-
+	it("falls back to stable when beta has no update", async () => {
+		mockInvoke.mockImplementation(
+			checkResolver({ beta: null, stable: info("26.2.0") }),
+		);
 		const { result } = renderHook(() => useUpdater());
 		await act(async () => {
-			await result.current.checkForUpdate();
+			await result.current.checkForUpdate(true);
 		});
+		expect(result.current.available).toEqual({
+			version: "26.2.0",
+			isBeta: false,
+		});
+	});
 
+	it("checks only the stable channel when beta is disabled", async () => {
+		mockInvoke.mockImplementation(checkResolver({ stable: info("26.2.0") }));
+		const { result } = renderHook(() => useUpdater());
+		await act(async () => {
+			await result.current.checkForUpdate(false);
+		});
+		expect(result.current.available).toEqual({
+			version: "26.2.0",
+			isBeta: false,
+		});
+		// Only the stable endpoint should have been queried.
+		const calledEndpoints = mockInvoke.mock.calls
+			.filter(([cmd]) => cmd === "check_update")
+			.flatMap(
+				([, args]) =>
+					((args as Record<string, unknown>)?.endpoints as string[]) ?? [],
+			);
+		expect(calledEndpoints.some((e) => e.includes("latest-beta"))).toBe(false);
+	});
+
+	it("returns to idle when no update is found", async () => {
+		mockInvoke.mockImplementation(checkResolver({ beta: null, stable: null }));
+		const { result } = renderHook(() => useUpdater());
+		await act(async () => {
+			await result.current.checkForUpdate(true);
+		});
 		expect(result.current.status).toBe("idle");
-		expect(result.current.update).toBeNull();
+		expect(result.current.available).toBeNull();
 	});
 
 	it("sets status to error when check throws", async () => {
-		mockCheck.mockRejectedValue(new Error("Network error"));
-
+		mockInvoke.mockRejectedValue(new Error("Network error"));
 		const { result } = renderHook(() => useUpdater());
 		await act(async () => {
-			await result.current.checkForUpdate();
+			await result.current.checkForUpdate(false);
 		});
-
 		expect(result.current.status).toBe("error");
+		expect(result.current.error).toBe("Network error");
 	});
 
-	it("dismiss resets status, update and progress to idle", async () => {
-		mockCheck.mockResolvedValue(makeMockUpdate() as unknown as Update);
-
+	it("dismiss resets status, available and progress to idle", async () => {
+		mockInvoke.mockImplementation(checkResolver({ stable: info("26.2.0") }));
 		const { result } = renderHook(() => useUpdater());
 		await act(async () => {
-			await result.current.checkForUpdate();
+			await result.current.checkForUpdate(false);
 		});
 		expect(result.current.status).toBe("available");
-		expect(result.current.update).not.toBeNull();
-
 		act(() => {
 			result.current.dismiss();
 		});
 		expect(result.current.status).toBe("idle");
-		expect(result.current.update).toBeNull();
+		expect(result.current.available).toBeNull();
 		expect(result.current.progress).toBe(0);
 	});
 
-	it("sets status to ready after downloadAndInstall finishes", async () => {
-		const mockUpdate = makeMockUpdate();
-		mockUpdate.downloadAndInstall.mockImplementation(
-			async (onEvent: (progress: DownloadEvent) => void) => {
-				onEvent({ event: "Started", data: { contentLength: 1000 } });
-				onEvent({ event: "Progress", data: { chunkLength: 500 } });
-				onEvent({ event: "Finished" });
-			},
-		);
-		mockCheck.mockResolvedValue(mockUpdate as unknown as Update);
-
+	it("streams progress and reaches ready after install finishes", async () => {
+		mockInvoke.mockImplementation(checkResolver({ stable: info("26.2.0") }));
 		const { result } = renderHook(() => useUpdater());
 		await act(async () => {
-			await result.current.checkForUpdate();
+			await result.current.checkForUpdate(false);
 		});
+
+		// install_update: drive progress through the Channel passed to invoke.
+		// These payloads MUST mirror the exact serde wire format of the Rust
+		// `DownloadEvent` enum (PascalCase `event` tag, camelCased `data`
+		// fields) — a mismatch here is what let the "stuck at 0%" bug slip
+		// through. Verified against serde_json output.
+		mockInvoke.mockImplementation((cmd: string, args?: InvokeArgs) => {
+			if (cmd !== "install_update") return Promise.resolve(undefined);
+			const ch = (args as Record<string, unknown>)?.onEvent as {
+				onmessage: ((m: unknown) => void) | null;
+			};
+			ch.onmessage?.({ event: "Started", data: { contentLength: 1000 } });
+			ch.onmessage?.({ event: "Progress", data: { chunkLength: 500 } });
+			ch.onmessage?.({ event: "Finished" });
+			return Promise.resolve(undefined);
+		});
+
 		await act(async () => {
 			await result.current.downloadAndInstall();
 		});
-
 		expect(result.current.status).toBe("ready");
 		expect(result.current.progress).toBe(100);
 	});
 
-	it("sets status to error when downloadAndInstall throws", async () => {
-		const mockUpdate = makeMockUpdate();
-		mockUpdate.downloadAndInstall.mockRejectedValue(
-			new Error("Download failed"),
-		);
-		mockCheck.mockResolvedValue(mockUpdate as unknown as Update);
-
+	it("sets status to error when install throws", async () => {
+		mockInvoke.mockImplementation(checkResolver({ stable: info("26.2.0") }));
 		const { result } = renderHook(() => useUpdater());
 		await act(async () => {
-			await result.current.checkForUpdate();
+			await result.current.checkForUpdate(false);
+		});
+		mockInvoke.mockImplementation((cmd: string) => {
+			if (cmd === "install_update")
+				return Promise.reject(new Error("Download failed"));
+			return Promise.resolve(undefined);
 		});
 		await act(async () => {
 			await result.current.downloadAndInstall();
 		});
-
 		expect(result.current.status).toBe("error");
 	});
 
@@ -150,98 +197,5 @@ describe("useUpdater", () => {
 			await result.current.relaunchApp();
 		});
 		expect(mockRelaunch).toHaveBeenCalledOnce();
-	});
-
-	it("sets betaVersion and status available when beta manifest has a newer minor version", async () => {
-		mockGetVersion.mockResolvedValue("1.0.0");
-		vi.stubGlobal(
-			"fetch",
-			vi.fn().mockResolvedValue({
-				ok: true,
-				json: () => Promise.resolve({ version: "1.1.0-beta1" }),
-			}),
-		);
-		const { result } = renderHook(() => useUpdater());
-		await act(async () => {
-			await result.current.checkForUpdate("beta");
-		});
-		expect(result.current.betaVersion).toBe("1.1.0-beta1");
-		expect(result.current.status).toBe("available");
-		expect(mockCheck).not.toHaveBeenCalled();
-	});
-
-	it("detects beta3 as newer than beta1 of the same base version", async () => {
-		vi.stubEnv("VITE_APP_GIT_TAG", "v2026.1.1-beta1");
-		vi.stubGlobal(
-			"fetch",
-			vi.fn().mockResolvedValue({
-				ok: true,
-				json: () => Promise.resolve({ version: "2026.1.1-beta3" }),
-			}),
-		);
-		const { result } = renderHook(() => useUpdater());
-		await act(async () => {
-			await result.current.checkForUpdate("beta");
-		});
-		expect(result.current.betaVersion).toBe("2026.1.1-beta3");
-		expect(result.current.status).toBe("available");
-	});
-
-	it("sets status idle when beta manifest version matches current beta version", async () => {
-		vi.stubEnv("VITE_APP_GIT_TAG", "v2026.1.1-beta3");
-		vi.stubGlobal(
-			"fetch",
-			vi.fn().mockResolvedValue({
-				ok: true,
-				json: () => Promise.resolve({ version: "2026.1.1-beta3" }),
-			}),
-		);
-		const { result } = renderHook(() => useUpdater());
-		await act(async () => {
-			await result.current.checkForUpdate("beta");
-		});
-		expect(result.current.betaVersion).toBeNull();
-		expect(result.current.status).toBe("idle");
-	});
-
-	it("sets status idle when beta manifest version matches current version", async () => {
-		mockGetVersion.mockResolvedValue("1.0.0");
-		vi.stubGlobal(
-			"fetch",
-			vi.fn().mockResolvedValue({
-				ok: true,
-				json: () => Promise.resolve({ version: "1.0.0" }),
-			}),
-		);
-		const { result } = renderHook(() => useUpdater());
-		await act(async () => {
-			await result.current.checkForUpdate("beta");
-		});
-		expect(result.current.betaVersion).toBeNull();
-		expect(result.current.status).toBe("idle");
-	});
-
-	it("sets status idle when beta endpoint returns 404 (no beta published yet)", async () => {
-		mockGetVersion.mockResolvedValue("1.0.0");
-		vi.stubGlobal(
-			"fetch",
-			vi.fn().mockResolvedValue({ ok: false, status: 404 }),
-		);
-		const { result } = renderHook(() => useUpdater());
-		await act(async () => {
-			await result.current.checkForUpdate("beta");
-		});
-		expect(result.current.betaVersion).toBeNull();
-		expect(result.current.status).toBe("idle");
-		expect(result.current.error).toBeNull();
-	});
-
-	it("calls check with no options when channel is stable", async () => {
-		mockCheck.mockResolvedValue(null);
-		const { result } = renderHook(() => useUpdater());
-		await act(async () => {
-			await result.current.checkForUpdate("stable");
-		});
-		expect(mockCheck).toHaveBeenCalledWith();
 	});
 });

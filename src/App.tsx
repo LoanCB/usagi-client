@@ -55,7 +55,7 @@ export function AppContent() {
 	]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	useEffect(() => {
-		updater.checkForUpdate(betaChannel ? "beta" : "stable");
+		updater.checkForUpdate(betaChannel);
 	}, [updater.checkForUpdate, betaChannel]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	return (

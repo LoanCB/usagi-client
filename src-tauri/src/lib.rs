@@ -29,6 +29,9 @@ fn send_app_notification(app: tauri::AppHandle, title: String, body: String) -> 
         .map_err(|e| e.to_string())
 }
 
+#[cfg(desktop)]
+mod updater;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -41,10 +44,18 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_updater::Builder::new().build());
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![
+            send_app_notification,
+            updater::check_update,
+            updater::install_update
+        ]);
+
+    #[cfg(not(desktop))]
+    let builder = builder.invoke_handler(tauri::generate_handler![send_app_notification]);
 
     builder
-        .invoke_handler(tauri::generate_handler![send_app_notification])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

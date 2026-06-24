@@ -4,5 +4,16 @@
 	"description": "Desktop-only capability",
 	"platforms": ["macOS", "windows", "linux"],
 	"windows": ["main"],
-	"permissions": ["updater:default", "process:default"]
+	"permissions": [
+		"updater:default",
+		"process:default",
+		{
+			"identifier": "http:default",
+			"allow": [
+				{ "url": "https://github.com/**" },
+				{ "url": "https://objects.githubusercontent.com/**" },
+				{ "url": "https://*.githubusercontent.com/**" }
+			]
+		}
+	]
 }

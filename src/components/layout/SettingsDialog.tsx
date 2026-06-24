@@ -403,7 +403,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 	>("general");
 	const [appVersion, setAppVersion] = useState<string | null>(null);
 	const [hasChecked, setHasChecked] = useState(false);
-	const { checkForUpdate, status, update } = useUpdaterContext();
+	const { checkForUpdate, status } = useUpdaterContext();
 
 	useEffect(() => {
 		const gitTag = import.meta.env.VITE_APP_GIT_TAG as string | undefined;
@@ -418,14 +418,14 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 
 	async function handleCheckForUpdate() {
 		setHasChecked(false);
-		await checkForUpdate(betaChannel ? "beta" : "stable");
+		await checkForUpdate(betaChannel);
 		setHasChecked(true);
 	}
 
 	async function handleBetaChannelChange(enabled: boolean) {
 		await setBetaChannel(getRepository(), enabled);
 		if (enabled) {
-			await checkForUpdate("beta");
+			await checkForUpdate(true);
 		}
 	}
 
@@ -982,7 +982,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 													{t("settings.upToDate")}
 												</p>
 											)}
-											{hasChecked && status === "error" && !update && (
+											{hasChecked && status === "error" && (
 												<p className="text-xs text-destructive">
 													{t("settings.updateCheckError")}
 												</p>
