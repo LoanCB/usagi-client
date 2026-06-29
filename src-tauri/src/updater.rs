@@ -51,6 +51,90 @@ fn parse_endpoints(endpoints: Vec<String>) -> Result<Vec<Url>, String> {
         .collect()
 }
 
+/// Rewrite a manifest endpoint so it points at the variant matching how the app
+/// was installed.
+///
+/// The Tauri updater manifest has a single `linux-x86_64` platform key, but a
+/// Linux release ships incompatible install formats (AppImage vs `.deb`): the
+/// running binary is patched at bundle time with its own type, so a `.deb`
+/// install runs `install_deb`, which rejects anything that is not a real `.deb`
+/// with `InvalidUpdaterFormat`. CI therefore publishes a parallel manifest whose
+/// `linux-x86_64` entry points at the signed `.deb`; this maps the default
+/// (AppImage) endpoint to that variant when — and only when — the current binary
+/// is a `.deb` bundle.
+///
+/// The transform inserts `-deb` before the trailing `.json` (e.g.
+/// `latest.json` → `latest-deb.json`, `latest-beta.json` → `latest-beta-deb.json`).
+/// Any non-`.deb` bundle type (AppImage, rpm, unknown, or non-Linux) is left
+/// untouched.
+fn manifest_endpoint_for_bundle(endpoint: &str, is_deb: bool) -> String {
+    if !is_deb {
+        return endpoint.to_string();
+    }
+    match endpoint.strip_suffix(".json") {
+        Some(stem) => format!("{stem}-deb.json"),
+        None => endpoint.to_string(),
+    }
+}
+
+/// Whether the running binary was installed from a Debian package.
+fn current_bundle_is_deb() -> bool {
+    matches!(
+        tauri::utils::platform::bundle_type(),
+        Some(tauri::utils::config::BundleType::Deb)
+    )
+}
+
+/// Map the incoming endpoints to the variant matching the current install
+/// format. The frontend always sends the default (AppImage/stable) manifest URL;
+/// `.deb` installs are transparently redirected to the `-deb` manifest.
+fn resolve_endpoints(endpoints: Vec<String>) -> Vec<String> {
+    let is_deb = current_bundle_is_deb();
+    endpoints
+        .iter()
+        .map(|e| manifest_endpoint_for_bundle(e, is_deb))
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::manifest_endpoint_for_bundle;
+
+    #[test]
+    fn deb_install_redirects_stable_manifest() {
+        assert_eq!(
+            manifest_endpoint_for_bundle(
+                "https://github.com/LoanCB/usagi-client/releases/latest/download/latest.json",
+                true,
+            ),
+            "https://github.com/LoanCB/usagi-client/releases/latest/download/latest-deb.json"
+        );
+    }
+
+    #[test]
+    fn deb_install_redirects_beta_manifest() {
+        assert_eq!(
+            manifest_endpoint_for_bundle(
+                "https://github.com/LoanCB/usagi-client/releases/download/latest-beta/latest-beta.json",
+                true,
+            ),
+            "https://github.com/LoanCB/usagi-client/releases/download/latest-beta/latest-beta-deb.json"
+        );
+    }
+
+    #[test]
+    fn non_deb_install_keeps_endpoint_unchanged() {
+        let url = "https://github.com/LoanCB/usagi-client/releases/latest/download/latest.json";
+        assert_eq!(manifest_endpoint_for_bundle(url, false), url);
+    }
+
+    #[test]
+    fn deb_install_leaves_non_json_endpoint_unchanged() {
+        let url = "https://example.com/updates";
+        assert_eq!(manifest_endpoint_for_bundle(url, true), url);
+    }
+}
+
 /// Check the given endpoint(s) for an available update. Returns `None` when the
 /// installed version is already up to date (or no manifest is published yet).
 #[tauri::command]
@@ -58,7 +142,7 @@ pub async fn check_update(
     app: tauri::AppHandle,
     endpoints: Vec<String>,
 ) -> Result<Option<UpdateInfo>, String> {
-    let urls = parse_endpoints(endpoints)?;
+    let urls = parse_endpoints(resolve_endpoints(endpoints))?;
     let updater = app
         .updater_builder()
         .endpoints(urls)
@@ -85,7 +169,7 @@ pub async fn install_update(
     endpoints: Vec<String>,
     on_event: Channel<DownloadEvent>,
 ) -> Result<(), String> {
-    let urls = parse_endpoints(endpoints)?;
+    let urls = parse_endpoints(resolve_endpoints(endpoints))?;
     let updater = app
         .updater_builder()
         .endpoints(urls)
