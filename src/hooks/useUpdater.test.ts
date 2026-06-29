@@ -108,6 +108,45 @@ describe("useUpdater", () => {
 		expect(calledEndpoints.some((e) => e.includes("latest-beta"))).toBe(false);
 	});
 
+	it("uses beta when stable channel fails to respond", async () => {
+		// One channel being unreachable (e.g. a stable release predating the
+		// per-format manifests, so latest-deb.json 404s) must not sink the whole
+		// check: the channel that did answer should still drive the result.
+		mockInvoke.mockImplementation((cmd: string, args?: InvokeArgs) => {
+			if (cmd !== "check_update") return Promise.resolve(undefined);
+			const endpoints =
+				((args as Record<string, unknown>)?.endpoints as string[]) ?? [];
+			const isBeta = endpoints.some((e) => e.includes("latest-beta"));
+			return isBeta
+				? Promise.resolve(info("2026.1.1-beta13"))
+				: Promise.reject(
+						new Error("Could not fetch a valid release JSON from the remote"),
+					);
+		});
+		const { result } = renderHook(() => useUpdater());
+		await act(async () => {
+			await result.current.checkForUpdate(true);
+		});
+		expect(result.current.status).toBe("available");
+		expect(result.current.available).toEqual({
+			version: "2026.1.1-beta13",
+			isBeta: true,
+		});
+	});
+
+	it("errors only when every channel fails", async () => {
+		mockInvoke.mockImplementation((cmd: string) =>
+			cmd === "check_update"
+				? Promise.reject(new Error("Network error"))
+				: Promise.resolve(undefined),
+		);
+		const { result } = renderHook(() => useUpdater());
+		await act(async () => {
+			await result.current.checkForUpdate(true);
+		});
+		expect(result.current.status).toBe("error");
+	});
+
 	it("returns to idle when no update is found", async () => {
 		mockInvoke.mockImplementation(checkResolver({ beta: null, stable: null }));
 		const { result } = renderHook(() => useUpdater());

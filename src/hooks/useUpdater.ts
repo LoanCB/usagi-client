@@ -61,16 +61,33 @@ export function useUpdater(): UpdaterState {
 			// we do NOT compare versions across channels — Rust already decided
 			// each is newer than the installed version. Beta simply wins when both
 			// have an update.
-			const [beta, stable] = await Promise.all([
-				betaEnabled
-					? invoke<UpdateInfo | null>("check_update", {
-							endpoints: [BETA_ENDPOINT],
-						})
-					: Promise.resolve(null),
-				invoke<UpdateInfo | null>("check_update", {
-					endpoints: [STABLE_ENDPOINT],
-				}),
+			//
+			// The channels are independent: a manifest that 404s or fails to parse
+			// on one channel must NOT sink the other. (This happens during the
+			// rollout of per-format manifests — a stable release predating the fix
+			// has no latest-deb.json, so a .deb install's stable check 404s while
+			// its beta check succeeds.) We fire both concurrently, settle them
+			// independently, and surface an error only if *every* channel we
+			// queried failed. Only channels we use are queried, so each settled
+			// result maps to a real network call.
+			const betaPromise = betaEnabled
+				? invoke<UpdateInfo | null>("check_update", {
+						endpoints: [BETA_ENDPOINT],
+					})
+				: null;
+			const stablePromise = invoke<UpdateInfo | null>("check_update", {
+				endpoints: [STABLE_ENDPOINT],
+			});
+
+			const [betaResult, stableResult] = await Promise.allSettled([
+				betaPromise ?? Promise.resolve(null),
+				stablePromise,
 			]);
+
+			const queried = betaPromise ? [betaResult, stableResult] : [stableResult];
+			const beta = betaResult?.status === "fulfilled" ? betaResult.value : null;
+			const stable =
+				stableResult.status === "fulfilled" ? stableResult.value : null;
 
 			if (beta) {
 				setAvailable({ version: beta.version, isBeta: true });
@@ -78,7 +95,19 @@ export function useUpdater(): UpdaterState {
 			} else if (stable) {
 				setAvailable({ version: stable.version, isBeta: false });
 				setStatus("available");
+			} else if (queried.every((r) => r.status === "rejected")) {
+				// Every channel we queried failed — report the first failure.
+				const firstRejection = queried.find(
+					(r): r is PromiseRejectedResult => r.status === "rejected",
+				);
+				const reason = firstRejection?.reason;
+				const message =
+					reason instanceof Error ? reason.message : String(reason);
+				console.error("[updater] checkForUpdate failed:", message);
+				setError(message);
+				setStatus("error");
 			} else {
+				// At least one channel responded successfully with "no update".
 				setStatus("idle");
 			}
 		} catch (err) {
