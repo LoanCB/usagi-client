@@ -85,6 +85,48 @@ fn current_bundle_is_deb() -> bool {
     )
 }
 
+/// Full version of the running binary, captured at compile time from the git
+/// tag CI exposes as `VITE_APP_GIT_TAG` (e.g. `v2026.1.1-beta15`). `None` for
+/// local/dev builds where the variable is unset.
+const FULL_VERSION_TAG: Option<&str> = option_env!("VITE_APP_GIT_TAG");
+
+/// Decide whether `release` is newer than what is installed.
+///
+/// The native updater compares `release.version` against the binary's
+/// `package_info().version`, but CI mangles that version for WiX/MSI: the year
+/// is truncated (`2026` → `26`) and any `-betaN` suffix is *stripped entirely*.
+/// So every beta of `2026.1.1` compiles to the same `26.1.1`, while the beta
+/// manifest advertises the full `2026.1.1-betaN`. The default comparison
+/// (`2026.1.1-beta15 > 26.1.1`) is therefore always true — the app re-offers the
+/// version it is already running, forever.
+///
+/// We must compare like with like. Stable manifests advertise the *mangled*
+/// version (`26.3.0`) so they are compared against the mangled binary version,
+/// exactly as the native updater does. Beta manifests advertise the full
+/// `2026.1.1-betaN` (carrying a pre-release identifier), so they are compared
+/// against the full installed git tag — the only value that distinguishes one
+/// beta from another. Comparing a mangled stable release against the full tag
+/// (`26.3.0 > 2026.2.0`) would wrongly suppress every stable update, so the
+/// release version's shape decides the basis: pre-release ⇒ beta ⇒ full tag.
+fn release_is_newer(
+    binary_version: &semver::Version,
+    full_tag: Option<&str>,
+    release_version: &semver::Version,
+) -> bool {
+    let installed_full = full_tag
+        .map(|t| t.trim_start_matches('v'))
+        .and_then(|t| semver::Version::parse(t).ok());
+
+    match installed_full {
+        // Beta channel: the manifest version carries a pre-release suffix, so
+        // compare full tag to full release version.
+        Some(installed) if !release_version.pre.is_empty() => *release_version > installed,
+        // Stable channel (or unparseable tag): compare against the mangled
+        // binary version, matching the native comparator.
+        _ => release_version > binary_version,
+    }
+}
+
 /// Map the incoming endpoints to the variant matching the current install
 /// format. The frontend always sends the default (AppImage/stable) manifest URL;
 /// `.deb` installs are transparently redirected to the `-deb` manifest.
@@ -98,7 +140,86 @@ fn resolve_endpoints(endpoints: Vec<String>) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::manifest_endpoint_for_bundle;
+    use super::{manifest_endpoint_for_bundle, release_is_newer};
+    use semver::Version;
+
+    fn v(s: &str) -> Version {
+        Version::parse(s).unwrap()
+    }
+
+    #[test]
+    fn beta_offers_strictly_newer_beta() {
+        // Installed beta14, manifest advertises beta15 → update.
+        assert!(release_is_newer(
+            &v("26.1.1"),
+            Some("2026.1.1-beta14"),
+            &v("2026.1.1-beta15"),
+        ));
+    }
+
+    #[test]
+    fn beta_does_not_reoffer_the_installed_beta() {
+        // The bug: installed beta15, manifest advertises beta15. The native
+        // comparator saw 2026.1.1-beta15 > 26.1.1 (mangled binary) and looped
+        // forever. With the full installed tag, equal versions → no update.
+        assert!(!release_is_newer(
+            &v("26.1.1"),
+            Some("2026.1.1-beta15"),
+            &v("2026.1.1-beta15"),
+        ));
+    }
+
+    #[test]
+    fn beta_does_not_offer_an_older_beta() {
+        assert!(!release_is_newer(
+            &v("26.1.1"),
+            Some("2026.1.1-beta15"),
+            &v("2026.1.1-beta14"),
+        ));
+    }
+
+    #[test]
+    fn beta_tag_with_v_prefix_is_parsed() {
+        // VITE_APP_GIT_TAG carries the leading "v" (e.g. "v2026.1.1-beta15").
+        assert!(!release_is_newer(
+            &v("26.1.1"),
+            Some("v2026.1.1-beta15"),
+            &v("2026.1.1-beta15"),
+        ));
+    }
+
+    #[test]
+    fn falls_back_to_binary_version_when_no_tag() {
+        // Dev builds / stable installs without a full tag: behave like the
+        // native comparator (release.version > current binary version).
+        assert!(release_is_newer(&v("26.1.1"), None, &v("26.2.0")));
+        assert!(!release_is_newer(&v("26.2.0"), None, &v("26.2.0")));
+    }
+
+    #[test]
+    fn falls_back_when_tag_is_unparseable() {
+        assert!(release_is_newer(&v("26.1.1"), Some("not-a-version"), &v("26.2.0")));
+    }
+
+    #[test]
+    fn stable_update_compares_against_binary_not_full_tag() {
+        // Stable manifests advertise the *mangled* version (e.g. 26.3.0), while
+        // the full tag is 2026.x. Comparing the mangled release against the full
+        // tag (26.3.0 > 2026.2.0) would be false and stable updates would never
+        // be offered. The release version's shape must dictate which installed
+        // version it is compared against.
+        assert!(release_is_newer(
+            &v("26.2.0"),
+            Some("v2026.2.0"),
+            &v("26.3.0"),
+        ));
+        // Already on the latest stable → no update.
+        assert!(!release_is_newer(
+            &v("26.2.0"),
+            Some("v2026.2.0"),
+            &v("26.2.0"),
+        ));
+    }
 
     #[test]
     fn deb_install_redirects_stable_manifest() {
@@ -135,6 +256,24 @@ mod tests {
     }
 }
 
+/// Build an updater for the given endpoints, redirecting `.deb` installs to the
+/// `-deb` manifest and installing the version comparator that handles the
+/// mangled beta versioning (see `release_is_newer`).
+fn build_updater(
+    app: &tauri::AppHandle,
+    endpoints: Vec<String>,
+) -> Result<tauri_plugin_updater::Updater, String> {
+    let urls = parse_endpoints(resolve_endpoints(endpoints))?;
+    app.updater_builder()
+        .endpoints(urls)
+        .map_err(|e| e.to_string())?
+        .version_comparator(|current, release| {
+            release_is_newer(&current, FULL_VERSION_TAG, &release.version)
+        })
+        .build()
+        .map_err(|e| e.to_string())
+}
+
 /// Check the given endpoint(s) for an available update. Returns `None` when the
 /// installed version is already up to date (or no manifest is published yet).
 #[tauri::command]
@@ -142,13 +281,7 @@ pub async fn check_update(
     app: tauri::AppHandle,
     endpoints: Vec<String>,
 ) -> Result<Option<UpdateInfo>, String> {
-    let urls = parse_endpoints(resolve_endpoints(endpoints))?;
-    let updater = app
-        .updater_builder()
-        .endpoints(urls)
-        .map_err(|e| e.to_string())?
-        .build()
-        .map_err(|e| e.to_string())?;
+    let updater = build_updater(&app, endpoints)?;
 
     match updater.check().await.map_err(|e| e.to_string())? {
         Some(update) => Ok(Some(UpdateInfo {
@@ -169,13 +302,7 @@ pub async fn install_update(
     endpoints: Vec<String>,
     on_event: Channel<DownloadEvent>,
 ) -> Result<(), String> {
-    let urls = parse_endpoints(resolve_endpoints(endpoints))?;
-    let updater = app
-        .updater_builder()
-        .endpoints(urls)
-        .map_err(|e| e.to_string())?
-        .build()
-        .map_err(|e| e.to_string())?;
+    let updater = build_updater(&app, endpoints)?;
 
     let update = updater
         .check()
