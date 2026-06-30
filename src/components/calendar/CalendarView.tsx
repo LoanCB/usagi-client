@@ -1,5 +1,6 @@
 import { addMonths, addWeeks, subMonths, subWeeks } from "date-fns";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { useResizable } from "@/hooks/useResizable";
 import { groupTasksByDate } from "@/lib/calendarUtils";
@@ -13,11 +14,77 @@ import { DayDetailPanel } from "./DayDetailPanel";
 import { MonthView } from "./MonthView";
 import { WeekView } from "./WeekView";
 
+// The calendar's navigation state moves as one unit: changing the period or the
+// view mode always clears the selected day, and opening a day also bumps the
+// quick-add focus trigger. Grouping these into a reducer keeps those linked
+// updates in a single render instead of fanning out into several.
+type CalendarNavState = {
+	viewMode: CalendarViewMode;
+	currentDate: Date;
+	selectedDay: string | null;
+	quickAddFocusTrigger: number;
+};
+
+type CalendarNavAction =
+	| { type: "prev" }
+	| { type: "next" }
+	| { type: "setViewMode"; mode: CalendarViewMode }
+	| { type: "setDate"; date: Date }
+	| { type: "toggleDay"; date: string }
+	| { type: "openDay"; date: string }
+	| { type: "closeDay" };
+
+function calendarNavReducer(
+	state: CalendarNavState,
+	action: CalendarNavAction,
+): CalendarNavState {
+	switch (action.type) {
+		case "prev":
+			return {
+				...state,
+				currentDate:
+					state.viewMode === "month"
+						? subMonths(state.currentDate, 1)
+						: subWeeks(state.currentDate, 1),
+				selectedDay: null,
+			};
+		case "next":
+			return {
+				...state,
+				currentDate:
+					state.viewMode === "month"
+						? addMonths(state.currentDate, 1)
+						: addWeeks(state.currentDate, 1),
+				selectedDay: null,
+			};
+		case "setViewMode":
+			return { ...state, viewMode: action.mode, selectedDay: null };
+		case "setDate":
+			return { ...state, currentDate: action.date, selectedDay: null };
+		case "toggleDay":
+			return {
+				...state,
+				selectedDay: state.selectedDay === action.date ? null : action.date,
+			};
+		case "openDay":
+			return {
+				...state,
+				selectedDay: action.date,
+				quickAddFocusTrigger: state.quickAddFocusTrigger + 1,
+			};
+		case "closeDay":
+			return { ...state, selectedDay: null };
+	}
+}
+
 export function CalendarView() {
-	const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
-	const [currentDate, setCurrentDate] = useState(() => new Date());
-	const [selectedDay, setSelectedDay] = useState<string | null>(null);
-	const [quickAddFocusTrigger, setQuickAddFocusTrigger] = useState(0);
+	const [nav, dispatch] = useReducer(calendarNavReducer, undefined, () => ({
+		viewMode: "month" as CalendarViewMode,
+		currentDate: new Date(),
+		selectedDay: null,
+		quickAddFocusTrigger: 0,
+	}));
+	const { viewMode, currentDate, selectedDay, quickAddFocusTrigger } = nav;
 
 	const { loadTasks } = useTaskStore();
 	const tasks = useTaskStore((s) => s.tasks);
@@ -32,12 +99,14 @@ export function CalendarView() {
 		"completed" | "overdue" | "pending" | undefined
 	>(undefined);
 
-	const { width, isDragging, onMouseDown, onDoubleClick } = useResizable({
-		storageKey: "calendar-day-panel-width",
-		defaultWidth: 280,
-		minWidth: 200,
-		maxWidth: 480,
-	});
+	const { t } = useTranslation();
+	const { width, isDragging, onMouseDown, onDoubleClick, onKeyDown } =
+		useResizable({
+			storageKey: "calendar-day-panel-width",
+			defaultWidth: 280,
+			minWidth: 200,
+			maxWidth: 480,
+		});
 
 	useEffect(() => {
 		loadTasks(getRepository(), { allTasks: true });
@@ -71,26 +140,19 @@ export function CalendarView() {
 	);
 
 	function handlePrev() {
-		setCurrentDate((d) =>
-			viewMode === "month" ? subMonths(d, 1) : subWeeks(d, 1),
-		);
-		setSelectedDay(null);
+		dispatch({ type: "prev" });
 	}
 
 	function handleNext() {
-		setCurrentDate((d) =>
-			viewMode === "month" ? addMonths(d, 1) : addWeeks(d, 1),
-		);
-		setSelectedDay(null);
+		dispatch({ type: "next" });
 	}
 
 	function handleDayClick(date: string) {
-		setSelectedDay((prev) => (prev === date ? null : date));
+		dispatch({ type: "toggleDay", date });
 	}
 
 	function handleOpenDay(date: string) {
-		setSelectedDay(date);
-		setQuickAddFocusTrigger((n) => n + 1);
+		dispatch({ type: "openDay", date });
 	}
 
 	function handleTaskClick(task: Task) {
@@ -98,8 +160,7 @@ export function CalendarView() {
 	}
 
 	function handleDateChange(date: Date) {
-		setCurrentDate(date);
-		setSelectedDay(null);
+		dispatch({ type: "setDate", date });
 	}
 
 	useEffect(() => {
@@ -117,7 +178,7 @@ export function CalendarView() {
 				!e.shiftKey &&
 				selectedDay
 			) {
-				setSelectedDay(null);
+				dispatch({ type: "closeDay" });
 			}
 		}
 		globalThis.addEventListener("keydown", handleKeyDown);
@@ -129,10 +190,7 @@ export function CalendarView() {
 			<CalendarHeader
 				currentDate={currentDate}
 				viewMode={viewMode}
-				onViewModeChange={(mode) => {
-					setViewMode(mode);
-					setSelectedDay(null);
-				}}
+				onViewModeChange={(mode) => dispatch({ type: "setViewMode", mode })}
 				onPrev={handlePrev}
 				onNext={handleNext}
 				onDateChange={handleDateChange}
@@ -169,13 +227,15 @@ export function CalendarView() {
 						<ResizeHandle
 							onMouseDown={onMouseDown}
 							onDoubleClick={onDoubleClick}
+							onKeyDown={onKeyDown}
 							isDragging={isDragging}
+							ariaLabel={t("common.resizePanel")}
 						/>
 						<DayDetailPanel
 							day={selectedDay}
 							entry={grouped.get(selectedDay)}
 							width={width}
-							onClose={() => setSelectedDay(null)}
+							onClose={() => dispatch({ type: "closeDay" })}
 							onTaskClick={handleTaskClick}
 							focusTrigger={quickAddFocusTrigger}
 							projectFilter={calendarProjectFilter}

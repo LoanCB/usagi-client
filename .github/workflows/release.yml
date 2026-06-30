@@ -108,6 +108,16 @@ jobs:
             pnpm tauri signer sign "$TARBALL"
           fi
 
+          # Sign the .deb too. The updater manifest has a single linux-x86_64 key
+          # but a .deb-installed app runs install_deb, which only accepts a real
+          # .deb — so we publish a parallel "-deb" manifest pointing at the signed
+          # package (see create-updater-manifest below).
+          DEB=$(find "src-tauri/target/release/bundle/deb" -name "*.deb" 2>/dev/null | head -1)
+          if [ -n "$DEB" ] && [ ! -f "${DEB}.sig" ]; then
+            echo "Signing $(basename "$DEB")"
+            pnpm tauri signer sign "$DEB"
+          fi
+
       - name: Generate Windows updater artifacts
         if: matrix.os == 'windows-latest'
         shell: pwsh
@@ -146,6 +156,7 @@ jobs:
             src-tauri/target/release/bundle/nsis/*.nsis.zip
             src-tauri/target/release/bundle/nsis/*.nsis.zip.sig
             src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/deb/*.deb.sig
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/appimage/*.AppImage.tar.gz
             src-tauri/target/release/bundle/appimage/*.AppImage.tar.gz.sig
@@ -172,9 +183,11 @@ jobs:
         run: |
           if [[ "$TAG" == *"-beta"* ]]; then
             echo "manifest_name=latest-beta.json" >> $GITHUB_OUTPUT
+            echo "deb_manifest_name=latest-beta-deb.json" >> $GITHUB_OUTPUT
             echo "is_beta=true" >> $GITHUB_OUTPUT
           else
             echo "manifest_name=latest.json" >> $GITHUB_OUTPUT
+            echo "deb_manifest_name=latest-deb.json" >> $GITHUB_OUTPUT
             echo "is_beta=false" >> $GITHUB_OUTPUT
           fi
 
@@ -183,6 +196,7 @@ jobs:
           TAG: ${{ github.ref_name }}
           GITHUB_REPO: LoanCB/usagi-client
           MANIFEST_NAME: ${{ steps.tag_type.outputs.manifest_name }}
+          DEB_MANIFEST_NAME: ${{ steps.tag_type.outputs.deb_manifest_name }}
           IS_BETA: ${{ steps.tag_type.outputs.is_beta }}
         run: |
           node << 'EOF'
@@ -274,13 +288,39 @@ jobs:
           const manifestName = process.env.MANIFEST_NAME;
           fs.writeFileSync(manifestName, JSON.stringify(manifest, null, 2));
           console.log(`Generated ${manifestName}:\n` + JSON.stringify(manifest, null, 2));
+
+          // Linux ships two incompatible install formats under one platform key.
+          // A .deb-installed app runs install_deb (rejects non-.deb payloads), so
+          // it must NOT be served the AppImage. We publish a parallel "-deb"
+          // manifest — identical except linux-x86_64 points at the signed .deb —
+          // and the app redirects to it at runtime when bundle_type() == Deb.
+          const deb = find('.deb');
+          const debManifestName = process.env.DEB_MANIFEST_NAME;
+          if (deb) {
+            const debManifest = {
+              ...manifest,
+              platforms: {
+                ...manifest.platforms,
+                'linux-x86_64': {
+                  url: `${baseUrl}/${path.basename(deb)}`,
+                  signature: readSig('.deb.sig'),
+                },
+              },
+            };
+            fs.writeFileSync(debManifestName, JSON.stringify(debManifest, null, 2));
+            console.log(`Generated ${debManifestName}:\n` + JSON.stringify(debManifest, null, 2));
+          } else {
+            console.log(`No .deb found — skipping ${debManifestName}`);
+          }
           EOF
 
       - name: Upload updater manifest
         uses: actions/upload-artifact@v4
         with:
           name: updater-manifest
-          path: ${{ steps.tag_type.outputs.manifest_name }}
+          path: |
+            ${{ steps.tag_type.outputs.manifest_name }}
+            ${{ steps.tag_type.outputs.deb_manifest_name }}
           if-no-files-found: error
 
   release:
@@ -331,14 +371,15 @@ jobs:
           git tag -f latest-beta
           git push origin latest-beta --force
 
-          # Create or update the latest-beta release with the manifest
-          # This makes latest-beta.json accessible at a stable URL regardless of which beta is latest
+          # Create or update the latest-beta release with the manifests.
+          # This makes latest-beta.json (AppImage) and latest-beta-deb.json (.deb)
+          # accessible at stable URLs regardless of which beta is latest.
           if gh release view latest-beta &>/dev/null; then
-            gh release upload latest-beta artifacts/latest-beta.json --clobber
+            gh release upload latest-beta artifacts/latest-beta.json artifacts/latest-beta-deb.json --clobber
           else
             gh release create latest-beta \
               --title "Latest Beta (auto-updated)" \
               --notes "This release is automatically updated to always point to the latest beta. Do not install manually." \
               --prerelease \
-              artifacts/latest-beta.json
+              artifacts/latest-beta.json artifacts/latest-beta-deb.json
           fi

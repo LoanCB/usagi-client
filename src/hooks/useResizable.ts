@@ -12,7 +12,11 @@ interface UseResizableResult {
 	isDragging: boolean;
 	onMouseDown: (e: React.MouseEvent) => void;
 	onDoubleClick: () => void;
+	onKeyDown: (e: React.KeyboardEvent) => void;
 }
+
+// Width change per arrow-key press when the resize separator has keyboard focus.
+const KEYBOARD_RESIZE_STEP = 16;
 
 function readStoredWidth(storageKey: string, defaultWidth: number): number {
 	const stored = localStorage.getItem(storageKey);
@@ -83,5 +87,22 @@ export function useResizable({
 		localStorage.setItem(storageKey, String(defaultWidth));
 	}, [defaultWidth, storageKey]);
 
-	return { width, isDragging, onMouseDown, onDoubleClick };
+	const onKeyDown = useCallback(
+		(e: React.KeyboardEvent) => {
+			// Mirror the drag behaviour: dragging the handle left grows the panel,
+			// so ArrowLeft grows it and ArrowRight shrinks it. Home resets.
+			let next: number;
+			if (e.key === "ArrowLeft") next = width + KEYBOARD_RESIZE_STEP;
+			else if (e.key === "ArrowRight") next = width - KEYBOARD_RESIZE_STEP;
+			else if (e.key === "Home") next = defaultWidth;
+			else return;
+			e.preventDefault();
+			const clamped = Math.min(maxWidth, Math.max(minWidth, next));
+			setWidth(clamped);
+			localStorage.setItem(storageKey, String(clamped));
+		},
+		[width, defaultWidth, minWidth, maxWidth, storageKey],
+	);
+
+	return { width, isDragging, onMouseDown, onDoubleClick, onKeyDown };
 }

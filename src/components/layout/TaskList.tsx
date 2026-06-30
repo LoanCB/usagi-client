@@ -16,7 +16,15 @@ import {
 import { format } from "date-fns";
 import { enUS, fr } from "date-fns/locale";
 import { Plus, Search, X } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useEffectEvent,
+	useMemo,
+	useReducer,
+	useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { FilterBar } from "@/components/tasks/FilterBar";
 import { QuickAddTask } from "@/components/tasks/QuickAddTask";
@@ -31,7 +39,7 @@ import { getRepository } from "@/store/repository";
 import { useShortcutsStore } from "@/store/shortcuts";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
-import type { Task } from "@/types";
+import type { Project, Task } from "@/types";
 
 function DropLine() {
 	return (
@@ -76,8 +84,321 @@ function byProjectName(projectMap: Map<string, string>) {
 	};
 }
 
-export function TaskList() {
+type SortDir = "asc" | "desc" | null;
+
+// The three sort directions are mutually exclusive — activating one always
+// clears the other two, and a drag-reorder resets all three — so they live in
+// one reducer that enforces that invariant. Likewise the two drag-tracking ids
+// are set and cleared together. Each was previously a fan-out of two or three
+// setState calls per interaction.
+type TaskSortState = { urgency: SortDir; date: SortDir; project: SortDir };
+
+type TaskSortAction =
+	| { type: "cycleUrgency" }
+	| { type: "cycleDate" }
+	| { type: "cycleProject" }
+	| { type: "reset" };
+
+const initialTaskSort: TaskSortState = {
+	urgency: null,
+	date: null,
+	project: null,
+};
+
+function taskSortReducer(
+	state: TaskSortState,
+	action: TaskSortAction,
+): TaskSortState {
+	switch (action.type) {
+		case "cycleUrgency":
+			if (state.urgency === "desc") return initialTaskSort;
+			return {
+				urgency: state.urgency === null ? "asc" : "desc",
+				date: null,
+				project: null,
+			};
+		case "cycleDate":
+			if (state.date === "desc") return initialTaskSort;
+			return {
+				urgency: null,
+				date: state.date === null ? "asc" : "desc",
+				project: null,
+			};
+		case "cycleProject":
+			if (state.project === "desc") return initialTaskSort;
+			return {
+				urgency: null,
+				date: null,
+				project: state.project === null ? "asc" : "desc",
+			};
+		case "reset":
+			return initialTaskSort;
+	}
+}
+
+type TaskDragState = { activeId: string | null; overId: string | null };
+
+type TaskDragAction =
+	| { type: "start"; id: string }
+	| { type: "over"; id: string | null }
+	| { type: "end" };
+
+const initialTaskDrag: TaskDragState = { activeId: null, overId: null };
+
+function taskDragReducer(
+	state: TaskDragState,
+	action: TaskDragAction,
+): TaskDragState {
+	switch (action.type) {
+		case "start":
+			return { ...state, activeId: action.id };
+		case "over":
+			return { ...state, overId: action.id };
+		case "end":
+			return initialTaskDrag;
+	}
+}
+
+// The list header: title, today's date, search box, new-task button, and the
+// progress stats. Counts are derived from the task list it's given.
+function TaskListHeader({
+	title,
+	showProgress,
+	tasks,
+	search,
+	onSearchChange,
+	formProjectId,
+}: {
+	readonly title: string;
+	readonly showProgress: boolean;
+	readonly tasks: Task[];
+	readonly search: string;
+	readonly onSearchChange: (value: string) => void;
+	readonly formProjectId: string | null;
+}) {
 	const { t, i18n } = useTranslation();
+	const totalCount = tasks.length;
+	const completedCount = tasks.filter((task) => task.completedAt).length;
+	const remainingCount = totalCount - completedCount;
+	const locale = i18n.language === "fr" ? fr : enUS;
+	const dateLabel = format(new Date(), "EEEE d MMMM", { locale });
+
+	return (
+		<div className="glass-header px-5 pt-5 pb-3 shrink-0">
+			<div className="flex items-center justify-between mb-1">
+				<div>
+					<h2 className="font-bold text-xl tracking-tight">{title}</h2>
+					{showProgress && (
+						<div className="flex items-center gap-2 mt-1">
+							<span className="text-xs text-muted-foreground capitalize">
+								{dateLabel}
+							</span>
+							<span className="text-xs px-2.5 py-0.5 rounded-full bg-primary/15 text-primary font-semibold border border-primary/30">
+								{t("taskList.remaining", { count: remainingCount })}
+							</span>
+						</div>
+					)}
+				</div>
+				<div className="flex items-center gap-2">
+					{/* Search */}
+					<div className="glass-stat flex items-center gap-2 rounded-xl px-3 py-1.5">
+						<Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+						<input
+							type="text"
+							value={search}
+							onChange={(e) => onSearchChange(e.target.value)}
+							placeholder={t("task.search")}
+							aria-label={t("task.search")}
+							className="w-48 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
+						/>
+						<button
+							type="button"
+							onClick={() => onSearchChange("")}
+							className={`shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors ${search ? "visible" : "invisible"}`}
+							aria-label="Clear search"
+							tabIndex={search ? 0 : -1}
+						>
+							<X className="h-3.5 w-3.5" />
+						</button>
+					</div>
+					{/* New task */}
+					<TaskForm projectId={formProjectId}>
+						<button
+							type="button"
+							aria-label={t("task.new")}
+							className="glass-stat flex h-[35px] w-[35px] shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:text-foreground"
+						>
+							<Plus className="h-4 w-4" />
+						</button>
+					</TaskForm>
+				</div>
+			</div>
+
+			{/* Stats cards */}
+			{showProgress && (
+				<div className="flex gap-2 mt-3">
+					{[
+						{
+							label: t("taskList.statPending"),
+							value: remainingCount,
+							className: "text-primary",
+						},
+						{
+							label: t("taskList.statDone"),
+							value: completedCount,
+							className: "text-[var(--priority-low)]",
+						},
+						{
+							label: t("taskList.statTotal"),
+							value: totalCount,
+							className: "text-muted-foreground",
+						},
+					].map((s) => (
+						<div
+							key={s.label}
+							className="glass-stat flex flex-1 items-center gap-2.5 rounded-xl px-4 py-2.5"
+						>
+							<span className={`text-xl font-bold ${s.className}`}>
+								{s.value}
+							</span>
+							<span className="text-xs text-muted-foreground font-medium">
+								{s.label}
+							</span>
+						</div>
+					))}
+				</div>
+			)}
+
+			{showProgress && (
+				<div
+					role="progressbar"
+					aria-label={t("taskList.progressLabel")}
+					aria-valuenow={completedCount}
+					aria-valuemin={0}
+					aria-valuemax={totalCount}
+					aria-valuetext={`${completedCount} / ${totalCount}`}
+					className="mt-3 h-1 rounded-full bg-primary/15 overflow-hidden"
+				>
+					<div
+						className="h-full rounded-full bg-primary transition-all duration-300"
+						style={{
+							width:
+								totalCount > 0
+									? `${(completedCount / totalCount) * 100}%`
+									: "0%",
+						}}
+					/>
+				</div>
+			)}
+		</div>
+	);
+}
+
+// The scrollable task list: applies the search filter, then renders the empty
+// state, a flat search-result list, or the drag-and-drop reorderable list with
+// its drop indicator.
+function TaskListBody({
+	search,
+	displayedTasks,
+	selectedProjectId,
+	projects,
+	onDeleteRequest,
+	sensors,
+	activeId,
+	overId,
+	onDragStart,
+	onDragOver,
+	onDragEnd,
+}: {
+	readonly search: string;
+	readonly displayedTasks: Task[];
+	readonly selectedProjectId: string | null | undefined;
+	readonly projects: Project[];
+	readonly onDeleteRequest: (id: string) => void;
+	readonly sensors: ReturnType<typeof useSensors>;
+	readonly activeId: string | null;
+	readonly overId: string | null;
+	readonly onDragStart: (event: DragStartEvent) => void;
+	readonly onDragOver: (event: DragOverEvent) => void;
+	readonly onDragEnd: (event: DragEndEvent) => void;
+}) {
+	const { t } = useTranslation();
+	const filteredTasks = search.trim()
+		? displayedTasks.filter((task) =>
+				task.title.toLowerCase().includes(search.toLowerCase()),
+			)
+		: displayedTasks;
+
+	if (filteredTasks.length === 0) {
+		return (
+			<p className="text-center text-muted-foreground text-sm py-12">
+				{t("task.noTasks")}
+			</p>
+		);
+	}
+
+	const projectFor = (task: Task) =>
+		selectedProjectId === undefined
+			? projects.find((p) => p.id === task.projectId)
+			: undefined;
+
+	if (search.trim()) {
+		return (
+			<div>
+				{filteredTasks.map((task) => (
+					<TaskItem
+						key={task.id}
+						task={task}
+						project={projectFor(task)}
+						onDeleteRequest={onDeleteRequest}
+					/>
+				))}
+			</div>
+		);
+	}
+
+	const ai = filteredTasks.findIndex((t) => t.id === activeId);
+	const oi = filteredTasks.findIndex((t) => t.id === overId);
+	let insertBefore: number | null = null;
+	if (activeId && overId && activeId !== overId && ai !== -1 && oi !== -1) {
+		insertBefore = ai < oi ? oi + 1 : oi;
+	}
+
+	const sortableItems: ReactNode[] = [];
+	filteredTasks.forEach((task, i) => {
+		if (insertBefore === i) sortableItems.push(<DropLine key="drop-line" />);
+		sortableItems.push(
+			<TaskItem
+				key={task.id}
+				task={task}
+				project={projectFor(task)}
+				onDeleteRequest={onDeleteRequest}
+			/>,
+		);
+	});
+	if (insertBefore === filteredTasks.length)
+		sortableItems.push(<DropLine key="drop-line" />);
+
+	return (
+		<DndContext
+			sensors={sensors}
+			collisionDetection={closestCenter}
+			onDragStart={onDragStart}
+			onDragOver={onDragOver}
+			onDragEnd={onDragEnd}
+		>
+			<SortableContext
+				items={filteredTasks.map((t) => t.id)}
+				strategy={verticalListSortingStrategy}
+			>
+				{sortableItems}
+			</SortableContext>
+		</DndContext>
+	);
+}
+
+export function TaskList() {
+	const { t } = useTranslation();
 	const { tasks, loadTasks, reorderTasks, deleteTask } = useTaskStore();
 	const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 	const projects = useProjectStore((s) => s.projects);
@@ -86,13 +407,10 @@ export function TaskList() {
 
 	const currentProject = projects.find((p) => p.id === selectedProjectId);
 	const [search, setSearch] = useState("");
-	const [activeId, setActiveId] = useState<string | null>(null);
-	const [overId, setOverId] = useState<string | null>(null);
-	const [sortDir, setSortDir] = useState<"asc" | "desc" | null>(null);
-	const [sortDateDir, setSortDateDir] = useState<"asc" | "desc" | null>(null);
-	const [sortProjectDir, setSortProjectDir] = useState<"asc" | "desc" | null>(
-		null,
-	);
+	const [drag, dragDispatch] = useReducer(taskDragReducer, initialTaskDrag);
+	const { activeId, overId } = drag;
+	const [sort, sortDispatch] = useReducer(taskSortReducer, initialTaskSort);
+	const { urgency: sortDir, date: sortDateDir, project: sortProjectDir } = sort;
 
 	function getTitle() {
 		if (selectedProjectId === null) return t("nav.inbox");
@@ -136,104 +454,80 @@ export function TaskList() {
 		sortDir !== null || sortDateDir !== null || sortProjectDir !== null;
 
 	function resetSort() {
-		setSortDir(null);
-		setSortDateDir(null);
-		setSortProjectDir(null);
+		sortDispatch({ type: "reset" });
 	}
 
-	function sortByUrgency() {
-		if (sortDir === "desc") {
-			setSortDir(null);
-			return;
-		}
-		setSortDir(sortDir === null ? "asc" : "desc");
-		setSortDateDir(null);
-		setSortProjectDir(null);
-	}
+	const sortByUrgency = useCallback(() => {
+		sortDispatch({ type: "cycleUrgency" });
+	}, []);
 
-	function sortByDueDate() {
-		if (sortDateDir === "desc") {
-			setSortDateDir(null);
-			return;
-		}
-		setSortDateDir(sortDateDir === null ? "asc" : "desc");
-		setSortDir(null);
-		setSortProjectDir(null);
-	}
+	const sortByDueDate = useCallback(() => {
+		sortDispatch({ type: "cycleDate" });
+	}, []);
 
-	function sortByProject() {
-		if (sortProjectDir === "desc") {
-			setSortProjectDir(null);
+	const sortByProject = useCallback(() => {
+		sortDispatch({ type: "cycleProject" });
+	}, []);
+
+	// An Effect Event reads the latest props/state without being a reactive dep,
+	// so the global keydown listener subscribes once instead of re-subscribing
+	// every time the sort callbacks or selection change.
+	const onGlobalKeyDown = useEffectEvent((e: KeyboardEvent) => {
+		if (
+			e.target instanceof HTMLInputElement ||
+			e.target instanceof HTMLTextAreaElement
+		)
+			return;
+
+		// Escape (no modifiers) closes task detail
+		if (
+			e.key === "Escape" &&
+			!e.metaKey &&
+			!e.ctrlKey &&
+			!e.altKey &&
+			!e.shiftKey &&
+			selectedTaskId
+		) {
+			setSelectedTask(null);
 			return;
 		}
-		setSortProjectDir(sortProjectDir === null ? "asc" : "desc");
-		setSortDir(null);
-		setSortDateDir(null);
-	}
+
+		const { sortUrgency, sortDueDate, sortProject } =
+			useShortcutsStore.getState();
+		if (matchesShortcut(e, sortUrgency)) {
+			e.preventDefault();
+			sortByUrgency();
+			return;
+		}
+		if (matchesShortcut(e, sortDueDate)) {
+			e.preventDefault();
+			sortByDueDate();
+			return;
+		}
+		if (matchesShortcut(e, sortProject) && selectedProjectId === undefined) {
+			e.preventDefault();
+			sortByProject();
+		}
+	});
 
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
-			if (
-				e.target instanceof HTMLInputElement ||
-				e.target instanceof HTMLTextAreaElement
-			)
-				return;
-
-			// Escape (no modifiers) closes task detail
-			if (
-				e.key === "Escape" &&
-				!e.metaKey &&
-				!e.ctrlKey &&
-				!e.altKey &&
-				!e.shiftKey &&
-				selectedTaskId
-			) {
-				setSelectedTask(null);
-				return;
-			}
-
-			const { sortUrgency, sortDueDate, sortProject } =
-				useShortcutsStore.getState();
-			if (matchesShortcut(e, sortUrgency)) {
-				e.preventDefault();
-				sortByUrgency();
-				return;
-			}
-			if (matchesShortcut(e, sortDueDate)) {
-				e.preventDefault();
-				sortByDueDate();
-				return;
-			}
-			if (matchesShortcut(e, sortProject) && selectedProjectId === undefined) {
-				e.preventDefault();
-				sortByProject();
-			}
+			onGlobalKeyDown(e);
 		}
 		globalThis.addEventListener("keydown", handleKeyDown);
 		return () => globalThis.removeEventListener("keydown", handleKeyDown);
-	}, [
-		selectedTaskId,
-		setSelectedTask,
-		// biome-ignore lint/correctness/useExhaustiveDependencies: inline functions, sort state managed via Zustand .getState()
-		sortByUrgency,
-		// biome-ignore lint/correctness/useExhaustiveDependencies: inline functions, sort state managed via Zustand .getState()
-		sortByDueDate,
-		// biome-ignore lint/correctness/useExhaustiveDependencies: inline functions, sort state managed via Zustand .getState()
-		sortByProject,
-		selectedProjectId,
-	]);
+	}, []);
 
 	function handleDragStart(event: DragStartEvent) {
-		setActiveId(event.active.id as string);
+		dragDispatch({ type: "start", id: event.active.id as string });
 	}
 
 	function handleDragOver(event: DragOverEvent) {
-		setOverId((event.over?.id as string) ?? null);
+		dragDispatch({ type: "over", id: (event.over?.id as string) ?? null });
 	}
 
 	function handleDragEnd(event: DragEndEvent) {
-		setActiveId(null);
-		setOverId(null);
+		dragDispatch({ type: "end" });
 		const { active, over } = event;
 		if (!over || active.id === over.id) return;
 
@@ -255,128 +549,16 @@ export function TaskList() {
 
 	return (
 		<div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-			{/* Header */}
-			{(() => {
-				const showProgress =
-					selectedProjectId === "today" || selectedProjectId === undefined;
-				const totalCount = tasks.length;
-				const completedCount = tasks.filter((t) => t.completedAt).length;
-				const remainingCount = totalCount - completedCount;
-				const locale = i18n.language === "fr" ? fr : enUS;
-				const dateLabel = format(new Date(), "EEEE d MMMM", { locale });
-
-				return (
-					<div className="glass-header px-5 pt-5 pb-3 shrink-0">
-						<div className="flex items-center justify-between mb-1">
-							<div>
-								<h2 className="font-bold text-xl tracking-tight">
-									{getTitle()}
-								</h2>
-								{showProgress && (
-									<div className="flex items-center gap-2 mt-1">
-										<span className="text-xs text-muted-foreground capitalize">
-											{dateLabel}
-										</span>
-										<span className="text-xs px-2.5 py-0.5 rounded-full bg-primary/15 text-primary font-semibold border border-primary/30">
-											{t("taskList.remaining", { count: remainingCount })}
-										</span>
-									</div>
-								)}
-							</div>
-							<div className="flex items-center gap-2">
-								{/* Search */}
-								<div className="glass-stat flex items-center gap-2 rounded-xl px-3 py-1.5">
-									<Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
-									<input
-										type="text"
-										value={search}
-										onChange={(e) => setSearch(e.target.value)}
-										placeholder={t("task.search")}
-										aria-label={t("task.search")}
-										className="w-48 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
-									/>
-									<button
-										type="button"
-										onClick={() => setSearch("")}
-										className={`shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors ${search ? "visible" : "invisible"}`}
-										aria-label="Clear search"
-										tabIndex={search ? 0 : -1}
-									>
-										<X className="h-3.5 w-3.5" />
-									</button>
-								</div>
-								{/* New task */}
-								<TaskForm projectId={formProjectId}>
-									<button
-										type="button"
-										aria-label={t("task.new")}
-										className="glass-stat flex h-[35px] w-[35px] shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:text-foreground"
-									>
-										<Plus className="h-4 w-4" />
-									</button>
-								</TaskForm>
-							</div>
-						</div>
-
-						{/* Stats cards */}
-						{showProgress && (
-							<div className="flex gap-2 mt-3">
-								{[
-									{
-										label: t("taskList.statPending"),
-										value: remainingCount,
-										className: "text-primary",
-									},
-									{
-										label: t("taskList.statDone"),
-										value: completedCount,
-										className: "text-[var(--priority-low)]",
-									},
-									{
-										label: t("taskList.statTotal"),
-										value: totalCount,
-										className: "text-muted-foreground",
-									},
-								].map((s) => (
-									<div
-										key={s.label}
-										className="glass-stat flex flex-1 items-center gap-2.5 rounded-xl px-4 py-2.5"
-									>
-										<span className={`text-xl font-bold ${s.className}`}>
-											{s.value}
-										</span>
-										<span className="text-xs text-muted-foreground font-medium">
-											{s.label}
-										</span>
-									</div>
-								))}
-							</div>
-						)}
-
-						{showProgress && (
-							<div
-								role="progressbar"
-								aria-label={t("taskList.progressLabel")}
-								aria-valuenow={completedCount}
-								aria-valuemin={0}
-								aria-valuemax={totalCount}
-								aria-valuetext={`${completedCount} / ${totalCount}`}
-								className="mt-3 h-1 rounded-full bg-primary/15 overflow-hidden"
-							>
-								<div
-									className="h-full rounded-full bg-primary transition-all duration-300"
-									style={{
-										width:
-											totalCount > 0
-												? `${(completedCount / totalCount) * 100}%`
-												: "0%",
-									}}
-								/>
-							</div>
-						)}
-					</div>
-				);
-			})()}
+			<TaskListHeader
+				title={getTitle()}
+				showProgress={
+					selectedProjectId === "today" || selectedProjectId === undefined
+				}
+				tasks={tasks}
+				search={search}
+				onSearchChange={setSearch}
+				formProjectId={formProjectId}
+			/>
 
 			<FilterBar
 				sortDir={sortDir}
@@ -392,90 +574,19 @@ export function TaskList() {
 			/>
 
 			<ScrollArea className="flex-1 min-h-0">
-				{(() => {
-					const filteredTasks = search.trim()
-						? displayedTasks.filter((t) =>
-								t.title.toLowerCase().includes(search.toLowerCase()),
-							)
-						: displayedTasks;
-
-					if (filteredTasks.length === 0) {
-						return (
-							<p className="text-center text-muted-foreground text-sm py-12">
-								{t("task.noTasks")}
-							</p>
-						);
-					}
-
-					if (search.trim()) {
-						return (
-							<div>
-								{filteredTasks.map((task) => (
-									<TaskItem
-										key={task.id}
-										task={task}
-										project={
-											selectedProjectId === undefined
-												? projects.find((p) => p.id === task.projectId)
-												: undefined
-										}
-										onDeleteRequest={setConfirmDeleteId}
-									/>
-								))}
-							</div>
-						);
-					}
-
-					const ai = filteredTasks.findIndex((t) => t.id === activeId);
-					const oi = filteredTasks.findIndex((t) => t.id === overId);
-					let insertBefore: number | null = null;
-					if (
-						activeId &&
-						overId &&
-						activeId !== overId &&
-						ai !== -1 &&
-						oi !== -1
-					) {
-						insertBefore = ai < oi ? oi + 1 : oi;
-					}
-
-					const sortableItems: ReactNode[] = [];
-					filteredTasks.forEach((task, i) => {
-						if (insertBefore === i)
-							sortableItems.push(<DropLine key="drop-line" />);
-						sortableItems.push(
-							<TaskItem
-								key={task.id}
-								task={task}
-								project={
-									selectedProjectId === undefined
-										? projects.find((p) => p.id === task.projectId)
-										: undefined
-								}
-								onDeleteRequest={setConfirmDeleteId}
-							/>,
-						);
-					});
-					if (insertBefore === filteredTasks.length)
-						sortableItems.push(<DropLine key="drop-line" />);
-
-					return (
-						<DndContext
-							sensors={sensors}
-							collisionDetection={closestCenter}
-							onDragStart={handleDragStart}
-							onDragOver={handleDragOver}
-							onDragEnd={handleDragEnd}
-						>
-							<SortableContext
-								items={filteredTasks.map((t) => t.id)}
-								strategy={verticalListSortingStrategy}
-							>
-								{sortableItems}
-							</SortableContext>
-						</DndContext>
-					);
-				})()}
+				<TaskListBody
+					search={search}
+					displayedTasks={displayedTasks}
+					selectedProjectId={selectedProjectId}
+					projects={projects}
+					onDeleteRequest={setConfirmDeleteId}
+					sensors={sensors}
+					activeId={activeId}
+					overId={overId}
+					onDragStart={handleDragStart}
+					onDragOver={handleDragOver}
+					onDragEnd={handleDragEnd}
+				/>
 			</ScrollArea>
 			<QuickAddTask projectId={formProjectId} />
 			<ConfirmDeleteDialog

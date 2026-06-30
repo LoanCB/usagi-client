@@ -1,27 +1,26 @@
-import { getVersion } from "@tauri-apps/api/app";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { check, type Update } from "@tauri-apps/plugin-updater";
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, use, useCallback, useState } from "react";
 
+const STABLE_ENDPOINT =
+	"https://github.com/LoanCB/usagi-client/releases/latest/download/latest.json";
 const BETA_ENDPOINT =
 	"https://github.com/LoanCB/usagi-client/releases/download/latest-beta/latest-beta.json";
 
-function isNewer(candidate: string, current: string): boolean {
-	const parse = (v: string) => {
-		const [base, pre] = v.split(/-(?=[a-zA-Z])/);
-		const nums = base.split(".").map(Number);
-		// pre-release number: "beta3" → 3, no pre-release → Infinity (stable > any beta)
-		const preNum = pre ? Number(pre.replace(/\D/g, "") || "0") : Infinity;
-		return { nums, preNum };
-	};
-	const a = parse(candidate);
-	const b = parse(current);
-	for (let i = 0; i < Math.max(a.nums.length, b.nums.length); i++) {
-		const diff = (a.nums[i] ?? 0) - (b.nums[i] ?? 0);
-		if (diff !== 0) return diff > 0;
-	}
-	// Same base version: compare pre-release numbers (Infinity = stable wins)
-	return a.preNum > b.preNum;
+interface UpdateInfo {
+	version: string;
+	current_version: string;
+	notes: string | null;
+}
+
+type DownloadEvent =
+	| { event: "Started"; data: { contentLength: number | null } }
+	| { event: "Progress"; data: { chunkLength: number } }
+	| { event: "Finished" };
+
+export interface AvailableUpdate {
+	version: string;
+	isBeta: boolean;
 }
 
 export type UpdateStatus =
@@ -34,11 +33,10 @@ export type UpdateStatus =
 
 export interface UpdaterState {
 	status: UpdateStatus;
-	update: Update | null;
-	betaVersion: string | null;
+	available: AvailableUpdate | null;
 	progress: number;
 	error: string | null;
-	checkForUpdate: (channel?: "stable" | "beta") => Promise<void>;
+	checkForUpdate: (betaEnabled: boolean) => Promise<void>;
 	downloadAndInstall: () => Promise<void>;
 	dismiss: () => void;
 	relaunchApp: () => Promise<void>;
@@ -46,48 +44,71 @@ export interface UpdaterState {
 
 export function useUpdater(): UpdaterState {
 	const [status, setStatus] = useState<UpdateStatus>("idle");
-	const [update, setUpdate] = useState<Update | null>(null);
-	const [betaVersion, setBetaVersion] = useState<string | null>(null);
+	const [available, setAvailable] = useState<AvailableUpdate | null>(null);
 	const [progress, setProgress] = useState(0);
 	const [error, setError] = useState<string | null>(null);
 
-	const checkForUpdate = useCallback(async (channel?: "stable" | "beta") => {
+	const checkForUpdate = useCallback(async (betaEnabled: boolean) => {
 		if (import.meta.env.MODE !== "production") return;
 		setStatus("checking");
 		setError(null);
-		setUpdate(null);
-		setBetaVersion(null);
+		setAvailable(null);
 		try {
-			if (channel === "beta") {
-				const gitTag = (
-					import.meta.env.VITE_APP_GIT_TAG as string | undefined
-				)?.replace(/^v/, "");
-				const [manifest, currentVersion] = await Promise.all([
-					fetch(BETA_ENDPOINT).then((r) => {
-						if (r.status === 404) return null;
-						if (!r.ok) throw new Error(`HTTP ${r.status}`);
-						return r.json() as Promise<{ version: string }>;
-					}),
-					gitTag ? Promise.resolve(gitTag) : getVersion(),
-				]);
-				if (!manifest) {
-					setStatus("idle");
-					return;
-				}
-				if (isNewer(manifest.version, currentVersion)) {
-					setBetaVersion(manifest.version);
-					setStatus("available");
-				} else {
-					setStatus("idle");
-				}
+			// "Beta + stable, beta prioritized": when beta is on, query both
+			// channels in parallel. The stable and beta manifests use
+			// intentionally non-comparable version formats (stable is mangled for
+			// WiX, e.g. "26.2.0"; beta is full CalVer, e.g. "2026.1.1-beta9"), so
+			// we do NOT compare versions across channels — Rust already decided
+			// each is newer than the installed version. Beta simply wins when both
+			// have an update.
+			//
+			// The channels are independent: a manifest that 404s or fails to parse
+			// on one channel must NOT sink the other. (This happens during the
+			// rollout of per-format manifests — a stable release predating the fix
+			// has no latest-deb.json, so a .deb install's stable check 404s while
+			// its beta check succeeds.) We fire both concurrently, settle them
+			// independently, and surface an error only if *every* channel we
+			// queried failed. Only channels we use are queried, so each settled
+			// result maps to a real network call.
+			const betaPromise = betaEnabled
+				? invoke<UpdateInfo | null>("check_update", {
+						endpoints: [BETA_ENDPOINT],
+					})
+				: null;
+			const stablePromise = invoke<UpdateInfo | null>("check_update", {
+				endpoints: [STABLE_ENDPOINT],
+			});
+
+			const [betaResult, stableResult] = await Promise.allSettled([
+				betaPromise ?? Promise.resolve(null),
+				stablePromise,
+			]);
+
+			const queried = betaPromise ? [betaResult, stableResult] : [stableResult];
+			const beta = betaResult?.status === "fulfilled" ? betaResult.value : null;
+			const stable =
+				stableResult.status === "fulfilled" ? stableResult.value : null;
+
+			if (beta) {
+				setAvailable({ version: beta.version, isBeta: true });
+				setStatus("available");
+			} else if (stable) {
+				setAvailable({ version: stable.version, isBeta: false });
+				setStatus("available");
+			} else if (queried.every((r) => r.status === "rejected")) {
+				// Every channel we queried failed — report the first failure.
+				const firstRejection = queried.find(
+					(r): r is PromiseRejectedResult => r.status === "rejected",
+				);
+				const reason = firstRejection?.reason;
+				const message =
+					reason instanceof Error ? reason.message : String(reason);
+				console.error("[updater] checkForUpdate failed:", message);
+				setError(message);
+				setStatus("error");
 			} else {
-				const available = await check();
-				if (available) {
-					setUpdate(available);
-					setStatus("available");
-				} else {
-					setStatus("idle");
-				}
+				// At least one channel responded successfully with "no update".
+				setStatus("idle");
 			}
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
@@ -98,7 +119,7 @@ export function useUpdater(): UpdaterState {
 	}, []);
 
 	const downloadAndInstall = useCallback(async () => {
-		if (!update) {
+		if (!available) {
 			setError("No update available");
 			setStatus("error");
 			return;
@@ -109,16 +130,21 @@ export function useUpdater(): UpdaterState {
 		try {
 			let received = 0;
 			let total = 0;
-			await update.downloadAndInstall((event) => {
-				if (event.event === "Started") {
-					total = event.data.contentLength ?? 0;
-				} else if (event.event === "Progress") {
-					received += event.data.chunkLength;
+			const onEvent = new Channel<DownloadEvent>();
+			onEvent.onmessage = (message) => {
+				if (message.event === "Started") {
+					total = message.data.contentLength ?? 0;
+				} else if (message.event === "Progress") {
+					received += message.data.chunkLength;
 					if (total > 0) setProgress(Math.round((received / total) * 100));
-				} else if (event.event === "Finished") {
+				} else if (message.event === "Finished") {
 					setProgress(100);
 					setStatus("ready");
 				}
+			};
+			await invoke("install_update", {
+				endpoints: [available.isBeta ? BETA_ENDPOINT : STABLE_ENDPOINT],
+				onEvent,
 			});
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
@@ -126,12 +152,11 @@ export function useUpdater(): UpdaterState {
 			setError(message);
 			setStatus("error");
 		}
-	}, [update]);
+	}, [available]);
 
 	const dismiss = useCallback(() => {
 		setStatus("idle");
-		setUpdate(null);
-		setBetaVersion(null);
+		setAvailable(null);
 		setProgress(0);
 		setError(null);
 	}, []);
@@ -142,8 +167,7 @@ export function useUpdater(): UpdaterState {
 
 	return {
 		status,
-		update,
-		betaVersion,
+		available,
 		progress,
 		error,
 		checkForUpdate,
@@ -156,7 +180,7 @@ export function useUpdater(): UpdaterState {
 export const UpdaterContext = createContext<UpdaterState | null>(null);
 
 export function useUpdaterContext(): UpdaterState {
-	const ctx = useContext(UpdaterContext);
+	const ctx = use(UpdaterContext);
 	if (!ctx)
 		throw new Error(
 			"useUpdaterContext must be used inside UpdaterContext.Provider",

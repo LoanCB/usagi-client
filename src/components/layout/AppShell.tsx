@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { ArchiveView } from "@/components/layout/ArchiveView";
 import { TagManager } from "@/components/tags/TagManager";
@@ -14,16 +15,29 @@ import { Sidebar } from "./Sidebar";
 import { TaskDetail } from "./TaskDetail";
 import { TaskList } from "./TaskList";
 
+function MainPanel({
+	selectedProjectId,
+}: {
+	selectedProjectId: string | null | undefined;
+}) {
+	if (selectedProjectId === "tags") return <TagManager />;
+	if (selectedProjectId === "calendar") return <CalendarView />;
+	if (selectedProjectId === "archives") return <ArchiveView />;
+	return <TaskList />;
+}
+
 export function AppShell() {
+	const { t } = useTranslation();
 	const { selectedTaskId, selectedProjectId } = useUIStore();
 	const parallaxEnabled = useSettingsStore((s) => s.parallaxEnabled);
 	const glassmorphismEnabled = useSettingsStore((s) => s.glassmorphismEnabled);
-	const { width, isDragging, onMouseDown, onDoubleClick } = useResizable({
-		storageKey: "task-detail-width",
-		defaultWidth: 320,
-		minWidth: 240,
-		maxWidth: 600,
-	});
+	const { width, isDragging, onMouseDown, onDoubleClick, onKeyDown } =
+		useResizable({
+			storageKey: "task-detail-width",
+			defaultWidth: 320,
+			minWidth: 240,
+			maxWidth: 600,
+		});
 	const { setOrbRef } = useOrbParallax(parallaxEnabled && glassmorphismEnabled);
 	const toggleSearch = useSearchStore((s) => s.toggle);
 
@@ -47,13 +61,6 @@ export function AppShell() {
 		selectedTaskId &&
 		selectedProjectId !== "tags" &&
 		selectedProjectId !== "archives";
-
-	function renderMainPanel() {
-		if (selectedProjectId === "tags") return <TagManager />;
-		if (selectedProjectId === "calendar") return <CalendarView />;
-		if (selectedProjectId === "archives") return <ArchiveView />;
-		return <TaskList />;
-	}
 
 	return (
 		<div className="app-shell relative flex h-screen overflow-hidden text-foreground">
@@ -89,13 +96,15 @@ export function AppShell() {
 
 			<div className="relative z-10 flex h-full w-full overflow-hidden">
 				<Sidebar />
-				{renderMainPanel()}
+				<MainPanel selectedProjectId={selectedProjectId} />
 				{showDetail && (
 					<>
 						<ResizeHandle
 							onMouseDown={onMouseDown}
 							onDoubleClick={onDoubleClick}
+							onKeyDown={onKeyDown}
 							isDragging={isDragging}
+							ariaLabel={t("common.resizePanel")}
 						/>
 						<TaskDetail width={width} />
 					</>

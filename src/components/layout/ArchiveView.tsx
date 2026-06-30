@@ -1,12 +1,12 @@
 import { RotateCcw, Search, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CalendarProjectFilter } from "@/components/calendar/CalendarProjectFilter";
+import { ArchiveDateFilter } from "@/components/layout/ArchiveDateFilter";
 import {
-	ArchiveDateFilter,
 	type DateRange,
 	inRange,
-} from "@/components/layout/ArchiveDateFilter";
+} from "@/components/layout/archive-date-range";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,6 +15,45 @@ import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import { useTaskStore } from "@/store/tasks";
 
+// The four archive filters are one cohesive criteria object — they're always
+// read together by the `filteredTasks` memo — so they live in a single reducer
+// instead of four separate useState slices.
+type ArchiveFilters = {
+	search: string;
+	projectId: string | null | undefined;
+	archivedRange: DateRange;
+	dueRange: DateRange;
+};
+
+type ArchiveFilterAction =
+	| { type: "setSearch"; value: string }
+	| { type: "setProject"; value: string | null | undefined }
+	| { type: "setArchivedRange"; value: DateRange }
+	| { type: "setDueRange"; value: DateRange };
+
+const initialFilters: ArchiveFilters = {
+	search: "",
+	projectId: undefined,
+	archivedRange: { from: null, to: null },
+	dueRange: { from: null, to: null },
+};
+
+function archiveFilterReducer(
+	state: ArchiveFilters,
+	action: ArchiveFilterAction,
+): ArchiveFilters {
+	switch (action.type) {
+		case "setSearch":
+			return { ...state, search: action.value };
+		case "setProject":
+			return { ...state, projectId: action.value };
+		case "setArchivedRange":
+			return { ...state, archivedRange: action.value };
+		case "setDueRange":
+			return { ...state, dueRange: action.value };
+	}
+}
+
 export function ArchiveView() {
 	const { archivedTasks, loadArchivedTasks, unarchiveTask, deleteTask } =
 		useTaskStore();
@@ -22,18 +61,13 @@ export function ArchiveView() {
 	const { t, i18n } = useTranslation();
 	const repo = getRepository();
 	const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-	const [search, setSearch] = useState("");
-	const [filterProjectId, setFilterProjectId] = useState<
-		string | null | undefined
-	>(undefined);
-	const [archivedDateRange, setArchivedDateRange] = useState<DateRange>({
-		from: null,
-		to: null,
-	});
-	const [dueDateRange, setDueDateRange] = useState<DateRange>({
-		from: null,
-		to: null,
-	});
+	const [filters, dispatch] = useReducer(archiveFilterReducer, initialFilters);
+	const {
+		search,
+		projectId: filterProjectId,
+		archivedRange: archivedDateRange,
+		dueRange: dueDateRange,
+	} = filters;
 
 	const today = useMemo(() => todayIso(), []);
 
@@ -80,14 +114,16 @@ export function ArchiveView() {
 					<input
 						type="text"
 						value={search}
-						onChange={(e) => setSearch(e.target.value)}
+						onChange={(e) =>
+							dispatch({ type: "setSearch", value: e.target.value })
+						}
 						placeholder={t("task.search")}
 						aria-label={t("task.search")}
 						className="w-32 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
 					/>
 					<button
 						type="button"
-						onClick={() => setSearch("")}
+						onClick={() => dispatch({ type: "setSearch", value: "" })}
 						className={`shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors ${search ? "visible" : "invisible"}`}
 						aria-label="Clear search"
 						tabIndex={search ? 0 : -1}
@@ -97,13 +133,17 @@ export function ArchiveView() {
 				</div>
 				<CalendarProjectFilter
 					value={filterProjectId}
-					onChange={setFilterProjectId}
+					onChange={(value) => dispatch({ type: "setProject", value })}
 				/>
 				<ArchiveDateFilter
 					archivedRange={archivedDateRange}
-					onArchivedRangeChange={setArchivedDateRange}
+					onArchivedRangeChange={(value) =>
+						dispatch({ type: "setArchivedRange", value })
+					}
 					dueDateRange={dueDateRange}
-					onDueDateRangeChange={setDueDateRange}
+					onDueDateRangeChange={(value) =>
+						dispatch({ type: "setDueRange", value })
+					}
 				/>
 			</div>
 			<ScrollArea className="flex-1 min-h-0">

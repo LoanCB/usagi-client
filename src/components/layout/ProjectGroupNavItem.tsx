@@ -54,7 +54,10 @@ export function ProjectGroupNavItem({
 		if (editOpen) {
 			setEditName(group.name);
 			setEditColor(group.color);
-			setTimeout(() => inputRef.current?.focus(), 50);
+			// Capture and clear the focus timer so a quick open→close doesn't fire
+			// inputRef.current?.focus() against an unmounted input.
+			const id = setTimeout(() => inputRef.current?.focus(), 50);
+			return () => clearTimeout(id);
 		}
 	}, [editOpen, group.name, group.color]);
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inRange } from "@/components/layout/ArchiveDateFilter";
+import { inRange } from "@/components/layout/archive-date-range";
 
 const TODAY = "2026-06-02";
 

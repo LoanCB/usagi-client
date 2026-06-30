@@ -26,7 +26,7 @@ import {
 	Tags,
 	Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import logoUrl from "@/assets/logo.png";
 import { DropIndicator } from "@/components/layout/DropIndicator";
@@ -212,6 +212,43 @@ interface ProjectNavItemProps {
 	readonly itemRef?: (el: HTMLDivElement | null) => void;
 }
 
+// The three overlays (row menu, edit dialog, delete dialog) move together:
+// choosing "edit" or "delete" from the menu must also close the menu. A reducer
+// encodes that invariant and collapses each two-setState transition into one
+// dispatch / one render.
+type NavOverlays = { menu: boolean; edit: boolean; delete: boolean };
+
+type NavOverlayAction =
+	| { type: "setMenu"; value: boolean }
+	| { type: "openEdit" }
+	| { type: "setEdit"; value: boolean }
+	| { type: "openDelete" }
+	| { type: "setDelete"; value: boolean };
+
+const initialNavOverlays: NavOverlays = {
+	menu: false,
+	edit: false,
+	delete: false,
+};
+
+function navOverlayReducer(
+	state: NavOverlays,
+	action: NavOverlayAction,
+): NavOverlays {
+	switch (action.type) {
+		case "setMenu":
+			return { ...state, menu: action.value };
+		case "openEdit":
+			return { ...state, menu: false, edit: true };
+		case "setEdit":
+			return { ...state, edit: action.value };
+		case "openDelete":
+			return { ...state, menu: false, delete: true };
+		case "setDelete":
+			return { ...state, delete: action.value };
+	}
+}
+
 function ProjectNavItem({
 	project,
 	active,
@@ -227,9 +264,11 @@ function ProjectNavItem({
 		isDragging,
 	} = useDraggable({ id: `project:${project.id}` });
 
-	const [menuOpen, setMenuOpen] = useState(false);
-	const [editOpen, setEditOpen] = useState(false);
-	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [overlays, dispatch] = useReducer(
+		navOverlayReducer,
+		initialNavOverlays,
+	);
+	const { menu: menuOpen, edit: editOpen, delete: deleteOpen } = overlays;
 	const [tagName, setTagName] = useState("");
 	const [tagColor, setTagColor] = useState<string>(PRESET_COLORS[5]);
 	const tagInputRef = useRef<HTMLInputElement>(null);
@@ -240,7 +279,7 @@ function ProjectNavItem({
 	async function handleConfirmDelete(
 		options: import("@/components/projects/DeleteProjectDialog").DeleteProjectOptions,
 	) {
-		setDeleteOpen(false);
+		dispatch({ type: "setDelete", value: false });
 		const repo = getRepository();
 		const {
 			tagAction,
@@ -358,7 +397,7 @@ function ProjectNavItem({
 		<TooltipProvider delay={collapsed ? 300 : 600}>
 			<Tooltip>
 				<TooltipTrigger
-					render={<button type="button" />}
+					render={<button type="button" aria-label={project.name} />}
 					className={cn(
 						"group flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm transition-colors",
 						"border-l-2 border-transparent",
@@ -376,7 +415,10 @@ function ProjectNavItem({
 					{!collapsed && (
 						<>
 							<span className="truncate flex-1 text-left">{project.name}</span>
-							<DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+							<DropdownMenu
+								open={menuOpen}
+								onOpenChange={(value) => dispatch({ type: "setMenu", value })}
+							>
 								<DropdownMenuTrigger
 									className="opacity-0 group-hover:opacity-100 focus:opacity-100 h-5 w-5 flex items-center justify-center rounded hover:bg-sidebar-foreground/10 transition-opacity shrink-0"
 									onClick={(e) => e.stopPropagation()}
@@ -390,10 +432,7 @@ function ProjectNavItem({
 											<button
 												type="button"
 												className="w-full flex items-center gap-2"
-												onClick={() => {
-													setMenuOpen(false);
-													setEditOpen(true);
-												}}
+												onClick={() => dispatch({ type: "openEdit" })}
 											>
 												<Pencil className="h-4 w-4" />
 												{t("common.edit")}
@@ -420,10 +459,7 @@ function ProjectNavItem({
 									<DropdownMenuSeparator />
 									<DropdownMenuItem
 										variant="destructive"
-										onClick={() => {
-											setMenuOpen(false);
-											setDeleteOpen(true);
-										}}
+										onClick={() => dispatch({ type: "openDelete" })}
 									>
 										<Trash2 className="h-4 w-4" />
 										{t("common.delete")}
@@ -454,11 +490,7 @@ function ProjectNavItem({
 				<ContextMenu>
 					<ContextMenuTrigger>{projectButton}</ContextMenuTrigger>
 					<ContextMenuContent>
-						<ContextMenuItem
-							onClick={() => {
-								setEditOpen(true);
-							}}
-						>
+						<ContextMenuItem onClick={() => dispatch({ type: "openEdit" })}>
 							<Pencil className="h-3.5 w-3.5" />
 							{t("common.edit")}
 						</ContextMenuItem>
@@ -482,9 +514,7 @@ function ProjectNavItem({
 						<ContextMenuSeparator />
 						<ContextMenuItem
 							variant="destructive"
-							onClick={() => {
-								setDeleteOpen(true);
-							}}
+							onClick={() => dispatch({ type: "openDelete" })}
 						>
 							<Trash2 className="h-3.5 w-3.5" />
 							{t("common.delete")}
@@ -495,13 +525,13 @@ function ProjectNavItem({
 			<ProjectForm
 				project={project}
 				open={editOpen}
-				onOpenChange={setEditOpen}
+				onOpenChange={(value) => dispatch({ type: "setEdit", value })}
 			/>
 			<DeleteProjectDialog
 				project={project}
 				open={deleteOpen}
 				onConfirm={handleConfirmDelete}
-				onCancel={() => setDeleteOpen(false)}
+				onCancel={() => dispatch({ type: "setDelete", value: false })}
 			/>
 		</div>
 	);
@@ -517,25 +547,11 @@ type DropState =
 	| { intent: "join-group"; groupId: string }
 	| null;
 
-export function Sidebar() {
-	const { t } = useTranslation();
-	const {
-		sidebarCollapsed,
-		setSidebarCollapsed,
-		selectedProjectId,
-		setSelectedProject,
-		collapsedGroupIds,
-	} = useUIStore();
+function useSidebarDnd() {
+	const collapsedGroupIds = useUIStore((s) => s.collapsedGroupIds);
 	const projects = useProjectStore((s) => s.projects);
 	const { reorderProjects, assignToGroup } = useProjectStore();
 	const groups = useProjectGroupStore((s) => s.groups);
-	const allCount = useTaskStore((s) => s.allCount);
-	const todayCount = useTaskStore((s) => s.todayCount);
-	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
-	const archivesVisible = useSettingsStore((s) => s.archivesVisible);
-	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
-	const searchTriggerVisible = useSettingsStore((s) => s.searchTriggerVisible);
-	const openSearch = useSearchStore((s) => s.open);
 
 	const sidebarItems = useMemo((): SidebarItem[] => {
 		const items: SidebarItem[] = [];
@@ -592,7 +608,10 @@ export function Sidebar() {
 		projectB: Project;
 	} | null>(null);
 	const [dropState, setDropState] = useState<DropState>(null);
-	const itemRectsRef = useRef<Map<string, DOMRect>>(new Map());
+	const itemRectsRef = useRef<Map<string, DOMRect>>(null as never);
+	if (itemRectsRef.current === null) {
+		itemRectsRef.current = new Map<string, DOMRect>();
+	}
 	const hasFreshRectsRef = useRef(false);
 	const { reorderGroups } = useProjectGroupStore();
 
@@ -653,31 +672,32 @@ export function Sidebar() {
 		// Build expanded group rects: from group header top to last visible child bottom
 		// This lets the dashed border cover the whole group container
 		const groupBounds = new Map<string, { top: number; bottom: number }>();
+		const groupDndIdById = new Map<string, string>();
 		for (const item of sidebarItems) {
 			if (item.type !== "group") continue;
 			const groupDndId = item.dndId;
 			const groupRect = itemRectsRef.current.get(groupDndId);
 			if (!groupRect) continue;
+			const groupId = item.group.id;
+			groupDndIdById.set(groupId, groupDndId);
 			let bottom = groupRect.bottom;
 			// If group is expanded, extend bottom to last child
-			if (!collapsedGroupIds.has(item.group.id)) {
+			if (!collapsedGroupIds.has(groupId)) {
 				for (const p of item.projects) {
 					const childRect = itemRectsRef.current.get(`project:${p.id}`);
 					if (childRect && childRect.bottom > bottom) bottom = childRect.bottom;
 				}
 			}
-			groupBounds.set(item.group.id, { top: groupRect.top, bottom });
+			groupBounds.set(groupId, { top: groupRect.top, bottom });
 		}
 
 		// Check if pointer is inside a group's expanded container
 		for (const [groupId, bounds] of groupBounds) {
 			if (pointerY >= bounds.top && pointerY <= bounds.bottom) {
 				// Check if it's near the very top edge → reorder before the group
-				const groupItem = sidebarItems.find(
-					(i) => i.type === "group" && i.group.id === groupId,
-				);
-				const groupRect = groupItem
-					? itemRectsRef.current.get(groupItem.dndId)
+				const groupDndId = groupDndIdById.get(groupId);
+				const groupRect = groupDndId
+					? itemRectsRef.current.get(groupDndId)
 					: null;
 				if (groupRect && pointerY < groupRect.top + groupRect.height * 0.25) {
 					setDropState({ intent: "reorder", beforeId: `group:${groupId}` });
@@ -835,16 +855,139 @@ export function Sidebar() {
 			const adjusted = newIdx > oldIdx ? newIdx - 1 : newIdx;
 			const reordered = arrayMove(topLevelIds, oldIdx, adjusted);
 
-			const newGroupOrder = reordered
-				.filter((id) => id.startsWith("group:"))
-				.map((id) => id.slice(6));
-			const newProjectOrder = reordered
-				.filter((id) => id.startsWith("project:"))
-				.map((id) => id.slice(8));
+			const newGroupOrder: string[] = [];
+			const newProjectOrder: string[] = [];
+			for (const id of reordered) {
+				if (id.startsWith("group:")) {
+					newGroupOrder.push(id.slice(6));
+				} else if (id.startsWith("project:")) {
+					newProjectOrder.push(id.slice(8));
+				}
+			}
 			if (newGroupOrder.length > 0) reorderGroups(repo, newGroupOrder);
 			if (newProjectOrder.length > 0) reorderProjects(repo, newProjectOrder);
 		}
 	}
+
+	return {
+		sidebarItems,
+		sensors,
+		activeProjectId,
+		pendingGroupProjects,
+		setPendingGroupProjects,
+		dropState,
+		makeItemRef,
+		handleDragStart,
+		handleDragMove,
+		handleDragEnd,
+	};
+}
+
+interface SidebarNavProps {
+	readonly collapsed: boolean;
+	readonly selectedProjectId: string | null | undefined;
+	readonly setSelectedProject: (id: string | null | undefined) => void;
+	readonly todayCount: number;
+	readonly allCount: number;
+	readonly tagsVisible: boolean;
+	readonly calendarVisible: boolean;
+	readonly archivesVisible: boolean;
+}
+
+function SidebarNav({
+	collapsed,
+	selectedProjectId,
+	setSelectedProject,
+	todayCount,
+	allCount,
+	tagsVisible,
+	calendarVisible,
+	archivesVisible,
+}: SidebarNavProps) {
+	const { t } = useTranslation();
+	return (
+		<div className="space-y-1.5 pb-2">
+			{!collapsed && (
+				<p className="px-3 py-1 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
+					{t("nav.views")}
+				</p>
+			)}
+			<NavItem
+				icon={<Calendar className="h-4 w-4" />}
+				label={t("nav.today")}
+				active={selectedProjectId === "today"}
+				collapsed={collapsed}
+				onClick={() => setSelectedProject("today")}
+				count={todayCount}
+			/>
+			<NavItem
+				icon={<ListChecks className="h-4 w-4" />}
+				label={t("nav.allTasks")}
+				active={selectedProjectId === undefined}
+				collapsed={collapsed}
+				onClick={() => setSelectedProject(undefined)}
+				count={allCount}
+			/>
+			{tagsVisible && (
+				<NavItem
+					icon={<Tags className="h-4 w-4" />}
+					label={t("nav.tags")}
+					active={selectedProjectId === "tags"}
+					collapsed={collapsed}
+					onClick={() => setSelectedProject("tags")}
+				/>
+			)}
+			{calendarVisible && (
+				<NavItem
+					icon={<CalendarDays className="h-4 w-4" />}
+					label={t("nav.calendar")}
+					active={selectedProjectId === "calendar"}
+					collapsed={collapsed}
+					onClick={() => setSelectedProject("calendar")}
+				/>
+			)}
+			{archivesVisible && (
+				<NavItem
+					icon={<ArchiveX className="h-4 w-4" />}
+					label={t("nav.archives")}
+					active={selectedProjectId === "archives"}
+					collapsed={collapsed}
+					onClick={() => setSelectedProject("archives")}
+				/>
+			)}
+		</div>
+	);
+}
+
+export function Sidebar() {
+	const { t } = useTranslation();
+	const {
+		sidebarCollapsed,
+		setSidebarCollapsed,
+		selectedProjectId,
+		setSelectedProject,
+	} = useUIStore();
+	const projects = useProjectStore((s) => s.projects);
+	const allCount = useTaskStore((s) => s.allCount);
+	const todayCount = useTaskStore((s) => s.todayCount);
+	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
+	const archivesVisible = useSettingsStore((s) => s.archivesVisible);
+	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
+	const searchTriggerVisible = useSettingsStore((s) => s.searchTriggerVisible);
+	const openSearch = useSearchStore((s) => s.open);
+
+	const {
+		sidebarItems,
+		sensors,
+		activeProjectId,
+		pendingGroupProjects,
+		setPendingGroupProjects,
+		dropState,
+		makeItemRef,
+		handleDragStart,
+		handleDragMove,
+		handleDragEnd,
+	} = useSidebarDnd();
 
 	useEffect(() => {
 		if (
@@ -911,7 +1054,9 @@ export function Sidebar() {
 						<TooltipProvider delay={300}>
 							<Tooltip>
 								<TooltipTrigger
-									render={<button type="button" />}
+									render={
+										<button type="button" aria-label={t("search.trigger")} />
+									}
 									onClick={openSearch}
 									className="flex w-full items-center justify-center rounded-md py-2 text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground/70"
 								>
@@ -939,56 +1084,16 @@ export function Sidebar() {
 			)}
 
 			<ScrollArea className="flex-1 px-2">
-				<div className="space-y-1.5 pb-2">
-					{!sidebarCollapsed && (
-						<p className="px-3 py-1 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
-							{t("nav.views")}
-						</p>
-					)}
-					<NavItem
-						icon={<Calendar className="h-4 w-4" />}
-						label={t("nav.today")}
-						active={selectedProjectId === "today"}
-						collapsed={sidebarCollapsed}
-						onClick={() => setSelectedProject("today")}
-						count={todayCount}
-					/>
-					<NavItem
-						icon={<ListChecks className="h-4 w-4" />}
-						label={t("nav.allTasks")}
-						active={selectedProjectId === undefined}
-						collapsed={sidebarCollapsed}
-						onClick={() => setSelectedProject(undefined)}
-						count={allCount}
-					/>
-					{tagsVisible && (
-						<NavItem
-							icon={<Tags className="h-4 w-4" />}
-							label={t("nav.tags")}
-							active={selectedProjectId === "tags"}
-							collapsed={sidebarCollapsed}
-							onClick={() => setSelectedProject("tags")}
-						/>
-					)}
-					{calendarVisible && (
-						<NavItem
-							icon={<CalendarDays className="h-4 w-4" />}
-							label={t("nav.calendar")}
-							active={selectedProjectId === "calendar"}
-							collapsed={sidebarCollapsed}
-							onClick={() => setSelectedProject("calendar")}
-						/>
-					)}
-					{archivesVisible && (
-						<NavItem
-							icon={<ArchiveX className="h-4 w-4" />}
-							label={t("nav.archives")}
-							active={selectedProjectId === "archives"}
-							collapsed={sidebarCollapsed}
-							onClick={() => setSelectedProject("archives")}
-						/>
-					)}
-				</div>
+				<SidebarNav
+					collapsed={sidebarCollapsed}
+					selectedProjectId={selectedProjectId}
+					setSelectedProject={setSelectedProject}
+					todayCount={todayCount}
+					allCount={allCount}
+					tagsVisible={tagsVisible}
+					calendarVisible={calendarVisible}
+					archivesVisible={archivesVisible}
+				/>
 
 				<Separator className="my-2 bg-sidebar-border" />
 

@@ -31,6 +31,38 @@ export function CreateGroupDialog({
 	onConfirm,
 	onCancel,
 }: CreateGroupDialogProps) {
+	return (
+		<Dialog
+			open={open}
+			onOpenChange={(o) => {
+				if (!o) onCancel();
+			}}
+		>
+			<DialogContent showCloseButton={false}>
+				{/* The dialog content unmounts when closed (Base UI keepMounted=false),
+				    so CreateGroupForm remounts fresh on each open. That lets useState
+				    initializers seed the empty name and a freshly-picked color — no
+				    effect resetting state on the `open` prop, no stale-value flash. */}
+				<CreateGroupForm
+					projectA={projectA}
+					projectB={projectB}
+					onConfirm={onConfirm}
+					onCancel={onCancel}
+				/>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+function CreateGroupForm({
+	projectA,
+	projectB,
+	onConfirm,
+	onCancel,
+}: Pick<
+	CreateGroupDialogProps,
+	"projectA" | "projectB" | "onConfirm" | "onCancel"
+>) {
 	const { t } = useTranslation();
 	const groups = useProjectGroupStore((s) => s.groups);
 	const { createGroup } = useProjectGroupStore();
@@ -40,12 +72,11 @@ export function CreateGroupDialog({
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
-		if (open) {
-			setName("");
-			setColor(pickGroupColor(groups));
-			setTimeout(() => inputRef.current?.focus(), 50);
-		}
-	}, [open, groups]);
+		// Focus after the open animation settles. Cleared on unmount so a quick
+		// open→close can't focus a detached input.
+		const id = setTimeout(() => inputRef.current?.focus(), 50);
+		return () => clearTimeout(id);
+	}, []);
 
 	async function handleConfirm() {
 		if (!name.trim()) return;
@@ -60,46 +91,39 @@ export function CreateGroupDialog({
 	}
 
 	return (
-		<Dialog
-			open={open}
-			onOpenChange={(o) => {
-				if (!o) onCancel();
-			}}
-		>
-			<DialogContent showCloseButton={false}>
-				<DialogHeader>
-					<DialogTitle>
-						{t("projectGroup.createTitle", "Nouveau groupe")}
-					</DialogTitle>
-				</DialogHeader>
+		<>
+			<DialogHeader>
+				<DialogTitle>
+					{t("projectGroup.createTitle", "Nouveau groupe")}
+				</DialogTitle>
+			</DialogHeader>
 
-				<div className="flex flex-col gap-4 py-2">
-					<Input
-						ref={inputRef}
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-						placeholder={t("projectGroup.namePlaceholder", "Nom du groupe")}
-						onKeyDown={(e) => {
-							if (e.key === "Enter") handleConfirm();
-						}}
-					/>
+			<div className="flex flex-col gap-4 py-2">
+				<Input
+					ref={inputRef}
+					value={name}
+					onChange={(e) => setName(e.target.value)}
+					placeholder={t("projectGroup.namePlaceholder", "Nom du groupe")}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") handleConfirm();
+					}}
+				/>
 
-					<ColorPicker
-						colors={GROUP_COLORS}
-						selectedColor={color}
-						onSelect={setColor}
-					/>
-				</div>
+				<ColorPicker
+					colors={GROUP_COLORS}
+					selectedColor={color}
+					onSelect={setColor}
+				/>
+			</div>
 
-				<DialogFooter>
-					<Button variant="outline" onClick={onCancel}>
-						{t("common.cancel", "Annuler")}
-					</Button>
-					<Button onClick={handleConfirm} disabled={!name.trim()}>
-						{t("projectGroup.create", "Créer")}
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+			<DialogFooter>
+				<Button variant="outline" onClick={onCancel}>
+					{t("common.cancel", "Annuler")}
+				</Button>
+				<Button onClick={handleConfirm} disabled={!name.trim()}>
+					{t("projectGroup.create", "Créer")}
+				</Button>
+			</DialogFooter>
+		</>
 	);
 }
