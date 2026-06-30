@@ -1,8 +1,10 @@
 import {
 	createContext,
 	type ReactNode,
-	useContext,
+	use,
+	useCallback,
 	useEffect,
+	useMemo,
 	useState,
 } from "react";
 import { contrastTheme } from "./themes/contrast";
@@ -30,7 +32,7 @@ const ThemeContext = createContext<ThemeContextValue>({
 });
 
 export function useTheme() {
-	return useContext(ThemeContext);
+	return use(ThemeContext);
 }
 
 function applyTheme(theme: Theme) {
@@ -105,14 +107,14 @@ export function ThemeProvider({
 		applyTheme(resolveTheme(mode, prefersDark));
 	}, [mode]);
 
-	function setMode(newMode: ThemeMode) {
+	const setMode = useCallback((newMode: ThemeMode) => {
 		localStorage.setItem("theme-mode", newMode);
 		setModeState(newMode);
-	}
+	}, []);
+
+	const value = useMemo(() => ({ mode, setMode }), [mode, setMode]);
 
 	return (
-		<ThemeContext.Provider value={{ mode, setMode }}>
-			{children}
-		</ThemeContext.Provider>
+		<ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 	);
 }

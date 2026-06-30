@@ -99,7 +99,13 @@ jobs:
           jq --arg version "$BUNDLE_VERSION" '.version = $version' src-tauri/tauri.conf.json > tmp.json
           mv tmp.json src-tauri/tauri.conf.json
 
-      - run: pnpm install --frozen-lockfile
+      # --ignore-scripts: this install sits between secret-bearing steps (the
+      # decoded Android keystore above, the signing secrets below). Blocking
+      # dependency lifecycle scripts here keeps untrusted postinstall code from
+      # running near those secrets. Safe for this project: esbuild resolves its
+      # prebuilt binary from the @esbuild/<platform> package at runtime (no
+      # postinstall needed) and msw's postinstall is a no-op.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build Android APK (sideload)
         # ANDROID_KEYSTORE_PATH is available via $GITHUB_ENV from the "Decode Android keystore" step above

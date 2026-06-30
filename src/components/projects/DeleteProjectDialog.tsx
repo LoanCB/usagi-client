@@ -7,7 +7,7 @@ import {
 	Trash2Icon,
 	XIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,14 +60,294 @@ export function DeleteProjectDialog({
 	onConfirm,
 	onCancel,
 }: DeleteProjectDialogProps) {
+	return (
+		<Dialog
+			open={open}
+			onOpenChange={(v) => !v && onCancel()}
+			disablePointerDismissal
+		>
+			<DialogContent
+				className="sm:max-w-[460px] gap-0 p-0 rounded-[18px] bg-background/85 supports-backdrop-filter:backdrop-blur-2xl ring-border overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.18)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.55)]"
+				showCloseButton={false}
+			>
+				{/* Content unmounts on close (Base UI keepMounted=false), so the form
+				    remounts per open: useState seeds the default tag/task actions and the
+				    summary re-fetches for the current project — no effect resetting six
+				    pieces of state off the `open` prop, no stale-value flash. */}
+				<DeleteProjectForm
+					project={project}
+					onConfirm={onConfirm}
+					onCancel={onCancel}
+				/>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+// The four deletion choices are one configuration object — they're validated
+// together by `canConfirm` and handed to `onConfirm` as a unit — so they live
+// in a single reducer. The async summary and the two disclosure toggles are
+// independent and stay as their own useState.
+type DeleteChoices = {
+	tagAction: TagAction;
+	taskAction: TaskAction;
+	targetProjectId: string | undefined;
+	targetTagProjectId: string | undefined;
+};
+
+type DeleteChoiceAction =
+	| { type: "setTagAction"; value: TagAction }
+	| { type: "setTaskAction"; value: TaskAction }
+	| { type: "setTargetProject"; value: string | undefined }
+	| { type: "setTargetTagProject"; value: string | undefined };
+
+const initialDeleteChoices: DeleteChoices = {
+	tagAction: "delete",
+	taskAction: "inbox",
+	targetProjectId: undefined,
+	targetTagProjectId: undefined,
+};
+
+function deleteChoicesReducer(
+	state: DeleteChoices,
+	action: DeleteChoiceAction,
+): DeleteChoices {
+	switch (action.type) {
+		case "setTagAction":
+			return { ...state, tagAction: action.value };
+		case "setTaskAction":
+			return { ...state, taskAction: action.value };
+		case "setTargetProject":
+			return { ...state, targetProjectId: action.value };
+		case "setTargetTagProject":
+			return { ...state, targetTagProjectId: action.value };
+	}
+}
+
+// The "move tasks/tags to another project" picker — identical in both the task
+// and tag sections, so it lives in one place.
+function TargetProjectSelect({
+	visible,
+	value,
+	onChange,
+	projects,
+	placeholder,
+}: {
+	readonly visible: boolean;
+	readonly value: string | undefined;
+	readonly onChange: (value: string | undefined) => void;
+	readonly projects: Project[];
+	readonly placeholder: string;
+}) {
+	return (
+		<div className={cn("mt-1.5", !visible && "invisible")}>
+			<Select value={value} onValueChange={(v) => onChange(v ?? undefined)}>
+				<SelectTrigger
+					size="sm"
+					className="w-full"
+					onClick={(e) => e.stopPropagation()}
+				>
+					<SelectValue placeholder={placeholder}>
+						{value ? projects.find((p) => p.id === value)?.name : null}
+					</SelectValue>
+				</SelectTrigger>
+				<SelectContent alignItemWithTrigger={false}>
+					{projects.map((p) => (
+						<SelectItem key={p.id} value={p.id}>
+							{p.name}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+		</div>
+	);
+}
+
+// "What happens to this project's tasks?" — reassign to inbox, move to another
+// project, or archive them.
+function TaskActionSection({
+	summary,
+	totalTaskCount,
+	expanded,
+	onToggleExpanded,
+	taskAction,
+	targetProjectId,
+	otherProjects,
+	dispatch,
+}: {
+	readonly summary: ProjectDeleteSummary;
+	readonly totalTaskCount: number;
+	readonly expanded: boolean;
+	readonly onToggleExpanded: () => void;
+	readonly taskAction: TaskAction;
+	readonly targetProjectId: string | undefined;
+	readonly otherProjects: Project[];
+	readonly dispatch: React.Dispatch<DeleteChoiceAction>;
+}) {
+	const { t } = useTranslation();
+	return (
+		<section className="flex flex-col gap-2">
+			<p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+				{t("project.deleteTasksSection")}
+			</p>
+
+			{summary.pendingTasks.length > 0 && (
+				<DisclosureList
+					open={expanded}
+					onToggle={onToggleExpanded}
+					showLabel={t("project.disclosureShow", {
+						count: summary.pendingTasks.length,
+					})}
+					hideLabel={t("project.disclosureHide")}
+					items={summary.pendingTasks.map((task) => ({
+						key: task.id,
+						content: task.title,
+					}))}
+				/>
+			)}
+
+			{totalTaskCount > 0 && (
+				<div className="flex flex-col gap-1.5 mt-1">
+					<RadioCard
+						checked={taskAction === "inbox"}
+						onSelect={() => dispatch({ type: "setTaskAction", value: "inbox" })}
+						icon={<InboxIcon className="w-[15px] h-[15px]" />}
+						label={t("project.taskActionInbox")}
+						desc={t("project.taskActionInboxDesc")}
+					/>
+					<RadioCard
+						checked={taskAction === "project"}
+						onSelect={() =>
+							dispatch({ type: "setTaskAction", value: "project" })
+						}
+						icon={<FolderSyncIcon className="w-[15px] h-[15px]" />}
+						label={t("project.taskActionProject")}
+						desc={t("project.taskActionProjectDesc")}
+					>
+						<TargetProjectSelect
+							visible={taskAction === "project"}
+							value={targetProjectId}
+							onChange={(value) =>
+								dispatch({ type: "setTargetProject", value })
+							}
+							projects={otherProjects}
+							placeholder={t("project.taskActionProjectPlaceholder")}
+						/>
+					</RadioCard>
+					<RadioCard
+						checked={taskAction === "delete"}
+						onSelect={() =>
+							dispatch({ type: "setTaskAction", value: "delete" })
+						}
+						icon={<Trash2Icon className="w-[15px] h-[15px]" />}
+						label={t("project.taskActionDelete")}
+						desc={t("project.taskActionDeleteDesc")}
+						danger
+					/>
+				</div>
+			)}
+		</section>
+	);
+}
+
+// "What happens to this project's tags?" — make them generic, move to another
+// project, or delete them.
+function TagActionSection({
+	summary,
+	expanded,
+	onToggleExpanded,
+	tagAction,
+	targetTagProjectId,
+	otherProjects,
+	dispatch,
+}: {
+	readonly summary: ProjectDeleteSummary;
+	readonly expanded: boolean;
+	readonly onToggleExpanded: () => void;
+	readonly tagAction: TagAction;
+	readonly targetTagProjectId: string | undefined;
+	readonly otherProjects: Project[];
+	readonly dispatch: React.Dispatch<DeleteChoiceAction>;
+}) {
+	const { t } = useTranslation();
+	return (
+		<section className="flex flex-col gap-2">
+			<p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+				{t("project.deleteTagsSection")}
+			</p>
+
+			<DisclosureList
+				open={expanded}
+				onToggle={onToggleExpanded}
+				showLabel={t("project.disclosureShow", { count: summary.tags.length })}
+				hideLabel={t("project.disclosureHide")}
+				items={summary.tags.map((tag) => ({
+					key: tag.id,
+					content: (
+						<span
+							className="text-[11px] px-2 py-0.5 rounded-full font-medium text-white"
+							style={{
+								background: tag.color ?? "var(--color-muted-foreground)",
+							}}
+						>
+							{tag.name}
+						</span>
+					),
+					raw: true,
+				}))}
+			/>
+
+			<div className="flex flex-col gap-1.5 mt-1">
+				<RadioCard
+					checked={tagAction === "generic"}
+					onSelect={() => dispatch({ type: "setTagAction", value: "generic" })}
+					icon={<TagsIcon className="w-[15px] h-[15px]" />}
+					label={t("project.tagActionGeneric")}
+					desc={t("project.tagActionGenericDesc")}
+				/>
+				<RadioCard
+					checked={tagAction === "project"}
+					onSelect={() => dispatch({ type: "setTagAction", value: "project" })}
+					icon={<FolderSyncIcon className="w-[15px] h-[15px]" />}
+					label={t("project.tagActionProject")}
+					desc={t("project.tagActionProjectDesc")}
+				>
+					<TargetProjectSelect
+						visible={tagAction === "project"}
+						value={targetTagProjectId}
+						onChange={(value) =>
+							dispatch({ type: "setTargetTagProject", value })
+						}
+						projects={otherProjects}
+						placeholder={t("project.taskActionProjectPlaceholder")}
+					/>
+				</RadioCard>
+				<RadioCard
+					checked={tagAction === "delete"}
+					onSelect={() => dispatch({ type: "setTagAction", value: "delete" })}
+					icon={<Trash2Icon className="w-[15px] h-[15px]" />}
+					label={t("project.tagActionDelete")}
+					desc={t("project.tagActionDeleteDesc")}
+					danger
+				/>
+			</div>
+		</section>
+	);
+}
+
+function DeleteProjectForm({
+	project,
+	onConfirm,
+	onCancel,
+}: Pick<DeleteProjectDialogProps, "project" | "onConfirm" | "onCancel">) {
 	const { t } = useTranslation();
 	const [summary, setSummary] = useState<ProjectDeleteSummary | null>(null);
-	const [tagAction, setTagAction] = useState<TagAction>("delete");
-	const [taskAction, setTaskAction] = useState<TaskAction>("inbox");
-	const [targetProjectId, setTargetProjectId] = useState<string | undefined>();
-	const [targetTagProjectId, setTargetTagProjectId] = useState<
-		string | undefined
-	>();
+	const [choices, dispatch] = useReducer(
+		deleteChoicesReducer,
+		initialDeleteChoices,
+	);
+	const { tagAction, taskAction, targetProjectId, targetTagProjectId } =
+		choices;
 	const [tasksExpanded, setTasksExpanded] = useState(false);
 	const [tagsExpanded, setTagsExpanded] = useState(false);
 
@@ -75,19 +355,16 @@ export function DeleteProjectDialog({
 	const otherProjects = allProjects.filter((p) => p.id !== project.id);
 
 	useEffect(() => {
-		if (!open) return;
-		setTagAction("delete");
-		setTaskAction("inbox");
-		setTargetProjectId(undefined);
-		setTargetTagProjectId(undefined);
-		setTasksExpanded(false);
-		setTagsExpanded(false);
+		// Load the deletion summary once on mount. `active` guards against a
+		// state update if the dialog closes (unmounts) before the fetch resolves.
+		let active = true;
 		const repo = getRepository();
 		Promise.all([
 			repo.getTags(project.id),
 			repo.getTasks({ projectId: project.id, allTasks: true }),
 			repo.getArchivedTasks(),
 		]).then(([tags, allTasks, archivedAll]) => {
+			if (!active) return;
 			setSummary({
 				tags: tags.filter((tag) => tag.projectId === project.id),
 				pendingTasks: allTasks.filter((t) => t.completedAt === null),
@@ -95,7 +372,10 @@ export function DeleteProjectDialog({
 				archivedTasks: archivedAll.filter((t) => t.projectId === project.id),
 			});
 		});
-	}, [open, project.id]);
+		return () => {
+			active = false;
+		};
+	}, [project.id]);
 
 	const totalTaskCount = summary
 		? summary.pendingTasks.length +
@@ -120,267 +400,96 @@ export function DeleteProjectDialog({
 	}
 
 	return (
-		<Dialog
-			open={open}
-			onOpenChange={(v) => !v && onCancel()}
-			disablePointerDismissal
-		>
-			<DialogContent
-				className="sm:max-w-[460px] gap-0 p-0 rounded-[18px] bg-background/85 supports-backdrop-filter:backdrop-blur-2xl ring-border overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.18)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.55)]"
-				showCloseButton={false}
-			>
-				{/* HEADER */}
-				<div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 border-b border-border">
-					<div className="flex items-center gap-3">
-						<div className="w-10 h-10 shrink-0 rounded-[10px] bg-destructive/15 border border-destructive/30 flex items-center justify-center text-destructive">
-							<AlertTriangleIcon className="w-4 h-4" />
-						</div>
-						<div>
-							<DialogTitle className="text-[17px] font-bold tracking-[-0.3px] flex items-center gap-1.5 flex-wrap">
-								<span>{t("common.delete")}</span>
-
-								<span>{project.name}</span>
-							</DialogTitle>
-							<DialogDescription className="text-xs mt-0.5">
-								{t("project.deleteWarning")}
-							</DialogDescription>
-						</div>
+		<>
+			{/* HEADER */}
+			<div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 border-b border-border">
+				<div className="flex items-center gap-3">
+					<div className="w-10 h-10 shrink-0 rounded-[10px] bg-destructive/15 border border-destructive/30 flex items-center justify-center text-destructive">
+						<AlertTriangleIcon className="w-4 h-4" />
 					</div>
-					<button
-						type="button"
-						onClick={onCancel}
-						className="shrink-0 w-7 h-7 rounded-[7px] bg-foreground/5 hover:bg-foreground/10 transition-colors flex items-center justify-center text-muted-foreground cursor-pointer"
-					>
-						<XIcon className="w-3.5 h-3.5" />
-					</button>
+					<div>
+						<DialogTitle className="text-[17px] font-bold tracking-[-0.3px] flex items-center gap-1.5 flex-wrap">
+							<span>{t("common.delete")}</span>
+
+							<span>{project.name}</span>
+						</DialogTitle>
+						<DialogDescription className="text-xs mt-0.5">
+							{t("project.deleteWarning")}
+						</DialogDescription>
+					</div>
 				</div>
+				<button
+					type="button"
+					onClick={onCancel}
+					className="shrink-0 w-7 h-7 rounded-[7px] bg-foreground/5 hover:bg-foreground/10 transition-colors flex items-center justify-center text-muted-foreground cursor-pointer"
+				>
+					<XIcon className="w-3.5 h-3.5" />
+				</button>
+			</div>
 
-				{/* BODY */}
-				{summary && (
-					<div className="px-6 py-4 overflow-y-auto max-h-[60vh] flex flex-col gap-5">
-						{/* Stats Row */}
-						<div className="grid grid-cols-3 gap-2">
-							<StatChip
-								count={summary.pendingTasks.length}
-								label={t("project.statActive")}
-								variant="accent"
-							/>
-							<StatChip
-								count={summary.completedTasks.length}
-								label={t("project.statDone")}
-								variant="green"
-							/>
-							<StatChip
-								count={summary.archivedTasks.length}
-								label={t("project.statArchived")}
-								variant="muted"
-							/>
-						</div>
-
-						{/* Tasks Section */}
-						<section className="flex flex-col gap-2">
-							<p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-								{t("project.deleteTasksSection")}
-							</p>
-
-							{summary.pendingTasks.length > 0 && (
-								<DisclosureList
-									open={tasksExpanded}
-									onToggle={() => setTasksExpanded((v) => !v)}
-									showLabel={t("project.disclosureShow", {
-										count: summary.pendingTasks.length,
-									})}
-									hideLabel={t("project.disclosureHide")}
-									items={summary.pendingTasks.map((task) => ({
-										key: task.id,
-										content: task.title,
-									}))}
-								/>
-							)}
-
-							{totalTaskCount > 0 && (
-								<div className="flex flex-col gap-1.5 mt-1">
-									<RadioCard
-										checked={taskAction === "inbox"}
-										onSelect={() => setTaskAction("inbox")}
-										icon={<InboxIcon className="w-[15px] h-[15px]" />}
-										label={t("project.taskActionInbox")}
-										desc={t("project.taskActionInboxDesc")}
-									/>
-									<RadioCard
-										checked={taskAction === "project"}
-										onSelect={() => setTaskAction("project")}
-										icon={<FolderSyncIcon className="w-[15px] h-[15px]" />}
-										label={t("project.taskActionProject")}
-										desc={t("project.taskActionProjectDesc")}
-									>
-										<div
-											className={cn(
-												"mt-1.5",
-												taskAction !== "project" && "invisible",
-											)}
-										>
-											<Select
-												value={targetProjectId}
-												onValueChange={(v) =>
-													setTargetProjectId(v ?? undefined)
-												}
-											>
-												<SelectTrigger
-													size="sm"
-													className="w-full"
-													onClick={(e) => e.stopPropagation()}
-												>
-													<SelectValue
-														placeholder={t(
-															"project.taskActionProjectPlaceholder",
-														)}
-													>
-														{targetProjectId
-															? otherProjects.find(
-																	(p) => p.id === targetProjectId,
-																)?.name
-															: null}
-													</SelectValue>
-												</SelectTrigger>
-												<SelectContent alignItemWithTrigger={false}>
-													{otherProjects.map((p) => (
-														<SelectItem key={p.id} value={p.id}>
-															{p.name}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										</div>
-									</RadioCard>
-									<RadioCard
-										checked={taskAction === "delete"}
-										onSelect={() => setTaskAction("delete")}
-										icon={<Trash2Icon className="w-[15px] h-[15px]" />}
-										label={t("project.taskActionDelete")}
-										desc={t("project.taskActionDeleteDesc")}
-										danger
-									/>
-								</div>
-							)}
-						</section>
-
-						{/* Tags Section */}
-						{summary.tags.length > 0 && (
-							<section className="flex flex-col gap-2">
-								<p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-									{t("project.deleteTagsSection")}
-								</p>
-
-								<DisclosureList
-									open={tagsExpanded}
-									onToggle={() => setTagsExpanded((v) => !v)}
-									showLabel={t("project.disclosureShow", {
-										count: summary.tags.length,
-									})}
-									hideLabel={t("project.disclosureHide")}
-									items={summary.tags.map((tag) => ({
-										key: tag.id,
-										content: (
-											<span
-												className="text-[11px] px-2 py-0.5 rounded-full font-medium text-white"
-												style={{
-													background:
-														tag.color ?? "var(--color-muted-foreground)",
-												}}
-											>
-												{tag.name}
-											</span>
-										),
-										raw: true,
-									}))}
-								/>
-
-								<div className="flex flex-col gap-1.5 mt-1">
-									<RadioCard
-										checked={tagAction === "generic"}
-										onSelect={() => setTagAction("generic")}
-										icon={<TagsIcon className="w-[15px] h-[15px]" />}
-										label={t("project.tagActionGeneric")}
-										desc={t("project.tagActionGenericDesc")}
-									/>
-									<RadioCard
-										checked={tagAction === "project"}
-										onSelect={() => setTagAction("project")}
-										icon={<FolderSyncIcon className="w-[15px] h-[15px]" />}
-										label={t("project.tagActionProject")}
-										desc={t("project.tagActionProjectDesc")}
-									>
-										<div
-											className={cn(
-												"mt-1.5",
-												tagAction !== "project" && "invisible",
-											)}
-										>
-											<Select
-												value={targetTagProjectId}
-												onValueChange={(v) =>
-													setTargetTagProjectId(v ?? undefined)
-												}
-											>
-												<SelectTrigger
-													size="sm"
-													className="w-full"
-													onClick={(e) => e.stopPropagation()}
-												>
-													<SelectValue
-														placeholder={t(
-															"project.taskActionProjectPlaceholder",
-														)}
-													>
-														{targetTagProjectId
-															? otherProjects.find(
-																	(p) => p.id === targetTagProjectId,
-																)?.name
-															: null}
-													</SelectValue>
-												</SelectTrigger>
-												<SelectContent alignItemWithTrigger={false}>
-													{otherProjects.map((p) => (
-														<SelectItem key={p.id} value={p.id}>
-															{p.name}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										</div>
-									</RadioCard>
-									<RadioCard
-										checked={tagAction === "delete"}
-										onSelect={() => setTagAction("delete")}
-										icon={<Trash2Icon className="w-[15px] h-[15px]" />}
-										label={t("project.tagActionDelete")}
-										desc={t("project.tagActionDeleteDesc")}
-										danger
-									/>
-								</div>
-							</section>
-						)}
+			{/* BODY */}
+			{summary && (
+				<div className="px-6 py-4 overflow-y-auto max-h-[60vh] flex flex-col gap-5">
+					{/* Stats Row */}
+					<div className="grid grid-cols-3 gap-2">
+						<StatChip
+							count={summary.pendingTasks.length}
+							label={t("project.statActive")}
+							variant="accent"
+						/>
+						<StatChip
+							count={summary.completedTasks.length}
+							label={t("project.statDone")}
+							variant="green"
+						/>
+						<StatChip
+							count={summary.archivedTasks.length}
+							label={t("project.statArchived")}
+							variant="muted"
+						/>
 					</div>
-				)}
 
-				{/* FOOTER */}
-				<DialogFooter className="mx-0 mb-0 rounded-b-[18px] px-6 py-3.5 bg-muted/30 flex-row justify-end gap-2">
-					<Button variant="outline" size="sm" onClick={onCancel}>
-						{t("common.cancel")}
-					</Button>
-					<Button
-						size="sm"
-						className="bg-gradient-to-br from-rose-600 to-rose-700 text-white border-rose-500/40 hover:from-rose-500 hover:to-rose-600 shadow-[0_4px_12px_rgba(244,63,94,0.3)] hover:shadow-[0_6px_16px_rgba(244,63,94,0.45)] transition-all duration-150"
-						onClick={handleConfirm}
-						disabled={!canConfirm}
-					>
-						<Trash2Icon className="w-3.5 h-3.5" />
-						{t("common.delete")}
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+					<TaskActionSection
+						summary={summary}
+						totalTaskCount={totalTaskCount}
+						expanded={tasksExpanded}
+						onToggleExpanded={() => setTasksExpanded((v) => !v)}
+						taskAction={taskAction}
+						targetProjectId={targetProjectId}
+						otherProjects={otherProjects}
+						dispatch={dispatch}
+					/>
+
+					{summary.tags.length > 0 && (
+						<TagActionSection
+							summary={summary}
+							expanded={tagsExpanded}
+							onToggleExpanded={() => setTagsExpanded((v) => !v)}
+							tagAction={tagAction}
+							targetTagProjectId={targetTagProjectId}
+							otherProjects={otherProjects}
+							dispatch={dispatch}
+						/>
+					)}
+				</div>
+			)}
+
+			{/* FOOTER */}
+			<DialogFooter className="mx-0 mb-0 rounded-b-[18px] px-6 py-3.5 bg-muted/30 flex-row justify-end gap-2">
+				<Button variant="outline" size="sm" onClick={onCancel}>
+					{t("common.cancel")}
+				</Button>
+				<Button
+					size="sm"
+					className="bg-gradient-to-br from-rose-600 to-rose-700 text-white border-rose-500/40 hover:from-rose-500 hover:to-rose-600 shadow-[0_4px_12px_rgba(244,63,94,0.3)] hover:shadow-[0_6px_16px_rgba(244,63,94,0.45)] transition-all duration-150"
+					onClick={handleConfirm}
+					disabled={!canConfirm}
+				>
+					<Trash2Icon className="w-3.5 h-3.5" />
+					{t("common.delete")}
+				</Button>
+			</DialogFooter>
+		</>
 	);
 }
 

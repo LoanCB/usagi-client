@@ -12,28 +12,18 @@ import { Input } from "@/components/ui/input";
 import { getRepository } from "@/store/repository";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
-import type { Priority } from "@/types";
+import type { Priority, Task } from "@/types";
 
 interface TaskDetailProps {
 	readonly width: number;
 }
 
 export function TaskDetail({ width }: TaskDetailProps) {
-	const {
-		tasks,
-		updateTask,
-		completeTask,
-		uncompleteTask,
-		deleteTask,
-		archiveTask,
-	} = useTaskStore();
-	const { selectedTaskId, setSelectedTask } = useUIStore();
-	const { t } = useTranslation();
+	const tasks = useTaskStore((s) => s.tasks);
+	const { selectedTaskId } = useUIStore();
 
 	const taskInList = tasks.find((t) => t.id === selectedTaskId) ?? null;
-	const [fetchedTask, setFetchedTask] = useState<(typeof tasks)[0] | null>(
-		null,
-	);
+	const [fetchedTask, setFetchedTask] = useState<Task | null>(null);
 	const task = taskInList ?? fetchedTask;
 
 	useEffect(() => {
@@ -46,30 +36,42 @@ export function TaskDetail({ width }: TaskDetailProps) {
 			.then((t) => setFetchedTask(t));
 	}, [selectedTaskId, taskInList]);
 
-	const [title, setTitle] = useState(task?.title ?? "");
-	const [description, setDescription] = useState("");
-	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-
-	useEffect(() => {
-		setTitle(task?.title ?? "");
-		setDescription(task?.description ?? "");
-	}, [task?.title, task?.description]);
-
 	if (!task) return null;
 
-	const repo = getRepository();
+	// `key` remounts the editor when the selected task changes, which re-seeds
+	// the editable title/description from the new task — no effect mirroring
+	// props into state (the React-idiomatic "reset state when a prop changes").
+	return <TaskDetailContent key={task.id} task={task} width={width} />;
+}
 
+function TaskDetailContent({
+	task,
+	width,
+}: {
+	readonly task: Task;
+	readonly width: number;
+}) {
+	const { updateTask, completeTask, uncompleteTask, deleteTask, archiveTask } =
+		useTaskStore();
+	const { setSelectedTask } = useUIStore();
+	const { t } = useTranslation();
+
+	const [title, setTitle] = useState(task.title);
+	const [description, setDescription] = useState(task.description ?? "");
+	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+	const repo = getRepository();
 	const taskId = task.id;
 
 	async function handleTitleBlur() {
-		if (title.trim() && title !== task?.title) {
+		if (title.trim() && title !== task.title) {
 			await updateTask(repo, taskId, { title: title.trim() });
 		}
 	}
 
 	async function handleDescriptionBlur() {
 		const value = description.trim();
-		const stored = task?.description ?? "";
+		const stored = task.description ?? "";
 		if (value !== stored) {
 			await updateTask(repo, taskId, { description: value || null });
 		}
@@ -92,7 +94,7 @@ export function TaskDetail({ width }: TaskDetailProps) {
 	}
 
 	async function handleToggleComplete() {
-		if (task?.completedAt) await uncompleteTask(repo, taskId);
+		if (task.completedAt) await uncompleteTask(repo, taskId);
 		else await completeTask(repo, taskId);
 	}
 

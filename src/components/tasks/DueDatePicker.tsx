@@ -1,7 +1,8 @@
 import { CalendarIcon, X } from "lucide-react";
 import { fr } from "react-day-picker/locale";
 import { useTranslation } from "react-i18next";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Calendar } from "@/components/ui/calendar";
 import {
 	Popover,

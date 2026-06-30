@@ -7,7 +7,8 @@ import {
 	Tag,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
 	DropdownMenu,
 	DropdownMenuContent,

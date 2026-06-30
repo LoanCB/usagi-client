@@ -11,6 +11,7 @@ const en = {
 		icon: "Icon",
 		colorOption: "Color {{color}}",
 		iconOption: "Icon {{name}}",
+		resizePanel: "Resize panel",
 	},
 	nav: {
 		views: "Views",

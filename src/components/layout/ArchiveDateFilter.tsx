@@ -3,7 +3,8 @@ import { useMemo, useState } from "react";
 import type { DateRange as RdpRange } from "react-day-picker";
 import { fr } from "react-day-picker/locale";
 import { useTranslation } from "react-i18next";
-import { buttonVariants } from "@/components/ui/button";
+import type { DateRange } from "@/components/layout/archive-date-range";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Calendar } from "@/components/ui/calendar";
 import {
 	Popover,
@@ -11,20 +12,6 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn, formatDate, todayIso } from "@/lib/utils";
-
-export type DateRange = { from: string | null; to: string | null };
-
-export function inRange(
-	date: string | null,
-	range: DateRange,
-	today: string,
-): boolean {
-	if (!range.from && !range.to) return true;
-	if (!date) return false;
-	const from = range.from ?? "0000-01-01";
-	const to = range.to ?? today;
-	return date >= from && date <= to;
-}
 
 function dateToIso(date: Date): string {
 	const y = date.getFullYear();

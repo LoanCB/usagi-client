@@ -110,12 +110,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 		const prev = get().tasks;
 		set((s) => {
 			const byId = new Map(s.tasks.map((t) => [t.id, t]));
-			const reordered = orderedIds
-				.map((id, i) => {
-					const t = byId.get(id);
-					return t ? { ...t, sortOrder: i } : null;
-				})
-				.filter(Boolean) as Task[];
+			const reordered = orderedIds.flatMap((id, i) => {
+				const t = byId.get(id);
+				return t ? [{ ...t, sortOrder: i }] : [];
+			});
 			const rest = s.tasks.filter((t) => !orderedIds.includes(t.id));
 			return { tasks: [...reordered, ...rest] };
 		});

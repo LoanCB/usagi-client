@@ -89,10 +89,10 @@ export default function App() {
 					migration004,
 					migration005,
 				]) {
-					for (const statement of migration
-						.split(";")
-						.map((s) => s.trim())
-						.filter(Boolean)) {
+					for (const statement of migration.split(";").flatMap((s) => {
+						const trimmed = s.trim();
+						return trimmed ? [trimmed] : [];
+					})) {
 						await db.execute(statement).catch(() => {
 							// Ignore "duplicate column" errors from ALTER TABLE on subsequent runs
 						});

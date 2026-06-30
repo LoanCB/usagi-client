@@ -3,7 +3,7 @@ import {
 	isPermissionGranted,
 	requestPermission,
 } from "@tauri-apps/plugin-notification";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { getOverdueTasks } from "@/lib/overdue";
 import { useSettingsStore } from "@/store/settings";
@@ -29,34 +29,39 @@ export function useOverdueNotifications(tasks: Task[]): void {
 		tasksRef.current = tasks;
 	});
 
-	async function dispatch(currentTasks: Task[]) {
-		const overdue = getOverdueTasks(currentTasks);
-		if (overdue.length === 0) return;
+	const dispatch = useCallback(
+		async (currentTasks: Task[]) => {
+			const overdue = getOverdueTasks(currentTasks);
+			if (overdue.length === 0) return;
 
-		let permitted = await isPermissionGranted();
-		if (!permitted) {
-			permitted = (await requestPermission()) === "granted";
-		}
-		if (!permitted) return;
-
-		try {
-			if (overdue.length > 2) {
-				await invoke("send_app_notification", {
-					title: t("notifications.overdueTitle"),
-					body: t("notifications.overdueBody", { count: overdue.length }),
-				});
-			} else {
-				for (const task of overdue) {
-					await invoke("send_app_notification", {
-						title: t("notifications.overdueTaskBody"),
-						body: task.title,
-					});
-				}
+			let permitted = await isPermissionGranted();
+			if (!permitted) {
+				permitted = (await requestPermission()) === "granted";
 			}
-		} catch (err) {
-			console.error("[notifications] send_app_notification failed:", err);
-		}
-	}
+			if (!permitted) return;
+
+			try {
+				if (overdue.length > 2) {
+					await invoke("send_app_notification", {
+						title: t("notifications.overdueTitle"),
+						body: t("notifications.overdueBody", { count: overdue.length }),
+					});
+				} else {
+					await Promise.all(
+						overdue.map((task) =>
+							invoke("send_app_notification", {
+								title: t("notifications.overdueTaskBody"),
+								body: task.title,
+							}),
+						),
+					);
+				}
+			} catch (err) {
+				console.error("[notifications] send_app_notification failed:", err);
+			}
+		},
+		[t],
+	);
 
 	// Fire once after tasks first load on launch
 	useEffect(() => {
@@ -64,7 +69,6 @@ export function useOverdueNotifications(tasks: Task[]): void {
 		if (tasks.length === 0 || hasNotifiedOnLaunch.current) return;
 		hasNotifiedOnLaunch.current = true;
 		dispatch(tasks);
-		// biome-ignore lint/correctness/useExhaustiveDependencies: tasksRef avoids restarting effect on every task change
 	}, [tasks, notificationsEnabled, dispatch]);
 
 	// Poll every 60s; fire at each configured time (±TOLERANCE_MINUTES)
@@ -97,6 +101,7 @@ export function useOverdueNotifications(tasks: Task[]): void {
 		}, 60_000);
 
 		return () => clearInterval(interval);
-		// biome-ignore lint/correctness/useExhaustiveDependencies: tasksRef.current accessed at call time, not tracked as dep
+		// tasksRef.current is read at call time inside the interval, so `tasks`
+		// is intentionally not a dependency (it would needlessly restart the timer).
 	}, [notificationsEnabled, notificationTimes, dispatch]);
 }

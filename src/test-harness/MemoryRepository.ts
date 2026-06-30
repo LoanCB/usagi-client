@@ -212,9 +212,10 @@ export class MemoryRepository implements TodoRepository {
 
 		for (const task of data.tasks) {
 			// Resolve tag references from imported tags map
-			const resolvedTags = task.tags
-				.map((t) => this.tags.get(t.id) ?? t)
-				.filter(Boolean);
+			const resolvedTags = task.tags.flatMap((t) => {
+				const resolved = this.tags.get(t.id) ?? t;
+				return resolved ? [resolved] : [];
+			});
 			this.tasks.set(task.id, { ...task, tags: resolvedTags });
 		}
 	}
@@ -252,16 +253,15 @@ export class MemoryRepository implements TodoRepository {
 	}
 
 	async deleteProject(id: string): Promise<void> {
-		const projectTagIds = Array.from(this.tags.values())
-			.filter((t) => t.projectId === id)
-			.map((t) => t.id);
+		const projectTagIds = new Set<string>();
+		for (const t of this.tags.values()) {
+			if (t.projectId === id) projectTagIds.add(t.id);
+		}
 		for (const tagId of projectTagIds) {
 			this.tags.delete(tagId);
 		}
 		for (const [tid, task] of this.tasks) {
-			const filteredTags = task.tags.filter(
-				(t) => !projectTagIds.includes(t.id),
-			);
+			const filteredTags = task.tags.filter((t) => !projectTagIds.has(t.id));
 			this.tasks.set(tid, { ...task, tags: filteredTags });
 		}
 		this.projects.delete(id);

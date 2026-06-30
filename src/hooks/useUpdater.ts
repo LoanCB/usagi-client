@@ -1,6 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, use, useCallback, useState } from "react";
 
 const STABLE_ENDPOINT =
 	"https://github.com/LoanCB/usagi-client/releases/latest/download/latest.json";
@@ -180,7 +180,7 @@ export function useUpdater(): UpdaterState {
 export const UpdaterContext = createContext<UpdaterState | null>(null);
 
 export function useUpdaterContext(): UpdaterState {
-	const ctx = useContext(UpdaterContext);
+	const ctx = use(UpdaterContext);
 	if (!ctx)
 		throw new Error(
 			"useUpdaterContext must be used inside UpdaterContext.Provider",

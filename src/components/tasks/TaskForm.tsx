@@ -1,10 +1,11 @@
 import { CalendarIcon, X } from "lucide-react";
-import React, { type ReactElement, useState } from "react";
+import React, { type ReactElement, useReducer } from "react";
 import { fr } from "react-day-picker/locale";
 import { useTranslation } from "react-i18next";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
 import { TagSelector } from "@/components/tasks/TagSelector";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Calendar } from "@/components/ui/calendar";
 import {
 	Dialog,
@@ -36,15 +37,83 @@ interface TaskFormProps {
 	readonly projectId?: string | null;
 }
 
+// The whole new-task form is one unit of state: submitting resets every field
+// at once and the date controls flip two flags together, so a reducer keeps
+// those linked updates in a single render instead of a cascade of setState.
+type TaskFormState = {
+	open: boolean;
+	title: string;
+	description: string;
+	priority: Priority;
+	dueDate: string | null;
+	tagIds: string[];
+	showDatePicker: boolean;
+	calendarOpen: boolean;
+};
+
+type TaskFormAction =
+	| { type: "setOpen"; value: boolean }
+	| { type: "setTitle"; value: string }
+	| { type: "setDescription"; value: string }
+	| { type: "setPriority"; value: Priority }
+	| { type: "setTagIds"; value: string[] }
+	| { type: "setCalendarOpen"; value: boolean }
+	| { type: "showDatePicker" }
+	| { type: "pickDate"; value: string | null }
+	| { type: "removeDueDate" }
+	| { type: "reset" };
+
+const initialTaskForm: TaskFormState = {
+	open: false,
+	title: "",
+	description: "",
+	priority: "none",
+	dueDate: null,
+	tagIds: [],
+	showDatePicker: false,
+	calendarOpen: false,
+};
+
+function taskFormReducer(
+	state: TaskFormState,
+	action: TaskFormAction,
+): TaskFormState {
+	switch (action.type) {
+		case "setOpen":
+			return { ...state, open: action.value };
+		case "setTitle":
+			return { ...state, title: action.value };
+		case "setDescription":
+			return { ...state, description: action.value };
+		case "setPriority":
+			return { ...state, priority: action.value };
+		case "setTagIds":
+			return { ...state, tagIds: action.value };
+		case "setCalendarOpen":
+			return { ...state, calendarOpen: action.value };
+		case "showDatePicker":
+			return { ...state, showDatePicker: true, calendarOpen: true };
+		case "pickDate":
+			return { ...state, dueDate: action.value, calendarOpen: false };
+		case "removeDueDate":
+			return { ...state, dueDate: null, showDatePicker: false };
+		case "reset":
+			return initialTaskForm;
+	}
+}
+
 export function TaskForm({ children, projectId = null }: TaskFormProps) {
-	const [open, setOpen] = useState(false);
-	const [title, setTitle] = useState("");
-	const [description, setDescription] = useState("");
-	const [priority, setPriority] = useState<Priority>("none");
-	const [dueDate, setDueDate] = useState<string | null>(null);
-	const [tagIds, setTagIds] = useState<string[]>([]);
-	const [showDatePicker, setShowDatePicker] = useState(false);
-	const [calendarOpen, setCalendarOpen] = useState(false);
+	const [form, dispatch] = useReducer(taskFormReducer, initialTaskForm);
+	const {
+		open,
+		title,
+		description,
+		priority,
+		dueDate,
+		tagIds,
+		showDatePicker,
+		calendarOpen,
+	} = form;
 	const createTask = useTaskStore((s) => s.createTask);
 	const { t, i18n } = useTranslation();
 
@@ -59,18 +128,14 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
 			dueDate: dueDate || null,
 			tagIds,
 		});
-		setTitle("");
-		setDescription("");
-		setPriority("none");
-		setDueDate(null);
-		setShowDatePicker(false);
-		setCalendarOpen(false);
-		setTagIds([]);
-		setOpen(false);
+		dispatch({ type: "reset" });
 	}
 
 	return (
-		<Dialog open={open} onOpenChange={(isOpen) => setOpen(isOpen)}>
+		<Dialog
+			open={open}
+			onOpenChange={(isOpen) => dispatch({ type: "setOpen", value: isOpen })}
+		>
 			<DialogTrigger render={children} />
 			<DialogContent className="sm:max-w-lg">
 				<DialogHeader>
@@ -80,26 +145,30 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
 					<Input
 						placeholder={t("task.titlePlaceholder")}
 						value={title}
-						onChange={(e) => setTitle(e.target.value)}
+						onChange={(e) =>
+							dispatch({ type: "setTitle", value: e.target.value })
+						}
 						autoFocus
 					/>
 					<div className="h-48 overflow-hidden rounded-md border border-input flex flex-col">
 						<RichTextEditor
 							value={description}
-							onChange={setDescription}
+							onChange={(value) => dispatch({ type: "setDescription", value })}
 							onBlur={() => {}}
 							placeholder={t("task.descriptionPlaceholder")}
 						/>
 					</div>
 					<TagSelector
 						selectedTagIds={tagIds}
-						onChange={setTagIds}
+						onChange={(value) => dispatch({ type: "setTagIds", value })}
 						projectId={projectId}
 					/>
 					<div className="flex gap-3">
 						<Select
 							value={priority}
-							onValueChange={(v) => setPriority(v as Priority)}
+							onValueChange={(v) =>
+								dispatch({ type: "setPriority", value: v as Priority })
+							}
 						>
 							<SelectTrigger className="flex-1">
 								<SelectValue placeholder={t("priority.label")}>
@@ -122,7 +191,12 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
 						</Select>
 						{showDatePicker ? (
 							<div className="flex flex-1 gap-1 items-center">
-								<Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+								<Popover
+									open={calendarOpen}
+									onOpenChange={(value) =>
+										dispatch({ type: "setCalendarOpen", value })
+									}
+								>
 									<PopoverTrigger
 										className={cn(
 											buttonVariants({ variant: "ghost" }),
@@ -155,11 +229,13 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
 														"0",
 													);
 													const d = String(date.getDate()).padStart(2, "0");
-													setDueDate(`${y}-${mo}-${d}`);
+													dispatch({
+														type: "pickDate",
+														value: `${y}-${mo}-${d}`,
+													});
 												} else {
-													setDueDate(null);
+													dispatch({ type: "pickDate", value: null });
 												}
-												setCalendarOpen(false);
 											}}
 											locale={i18n.language === "fr" ? fr : undefined}
 										/>
@@ -169,10 +245,7 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
 									type="button"
 									variant="ghost"
 									size="icon"
-									onClick={() => {
-										setDueDate(null);
-										setShowDatePicker(false);
-									}}
+									onClick={() => dispatch({ type: "removeDueDate" })}
 									aria-label={t("dueDate.remove")}
 								>
 									<X className="h-4 w-4" />
@@ -183,10 +256,7 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
 								type="button"
 								variant="ghost"
 								className="flex-1 justify-start text-muted-foreground"
-								onClick={() => {
-									setShowDatePicker(true);
-									setCalendarOpen(true);
-								}}
+								onClick={() => dispatch({ type: "showDatePicker" })}
 							>
 								+ {t("task.addDate")}
 							</Button>
@@ -196,7 +266,7 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
 						<Button
 							type="button"
 							variant="outline"
-							onClick={() => setOpen(false)}
+							onClick={() => dispatch({ type: "setOpen", value: false })}
 						>
 							{t("common.cancel")}
 						</Button>

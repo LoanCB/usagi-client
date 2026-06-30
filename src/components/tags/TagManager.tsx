@@ -1,5 +1,5 @@
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { useReducer } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { ColorPicker } from "@/components/ui/ColorPicker";
@@ -64,28 +64,125 @@ function TagProjectSelect({
 	);
 }
 
+// Each tag form is one cohesive unit: `startEdit` populates all five edit
+// fields at once and `handleCreate` resets all four new-tag fields together, so
+// each form gets its own reducer rather than scattering setState calls.
+type TagEditState = {
+	id: string | null;
+	name: string;
+	color: string;
+	projectId: string | null;
+	constrained: boolean;
+};
+
+type TagEditAction =
+	| { type: "start"; tag: Tag }
+	| { type: "setName"; value: string }
+	| { type: "setColor"; value: string }
+	| { type: "setProjectId"; value: string | null }
+	| { type: "setConstrained"; value: boolean }
+	| { type: "close" };
+
+const initialTagEdit: TagEditState = {
+	id: null,
+	name: "",
+	color: PRESET_COLORS[5],
+	projectId: null,
+	constrained: false,
+};
+
+function tagEditReducer(
+	state: TagEditState,
+	action: TagEditAction,
+): TagEditState {
+	switch (action.type) {
+		case "start":
+			return {
+				id: action.tag.id,
+				name: action.tag.name,
+				color: action.tag.color ?? PRESET_COLORS[5],
+				projectId: action.tag.projectId,
+				constrained: false,
+			};
+		case "setName":
+			return { ...state, name: action.value };
+		case "setColor":
+			return { ...state, color: action.value };
+		case "setProjectId":
+			return { ...state, projectId: action.value };
+		case "setConstrained":
+			return { ...state, constrained: action.value };
+		case "close":
+			return { ...state, id: null };
+	}
+}
+
+type TagDraftState = {
+	show: boolean;
+	name: string;
+	color: string;
+	projectId: string | null;
+};
+
+type TagDraftAction =
+	| { type: "open" }
+	| { type: "setName"; value: string }
+	| { type: "setColor"; value: string }
+	| { type: "setProjectId"; value: string | null }
+	| { type: "close" }
+	| { type: "reset" };
+
+const initialTagDraft: TagDraftState = {
+	show: false,
+	name: "",
+	color: PRESET_COLORS[5],
+	projectId: null,
+};
+
+function tagDraftReducer(
+	state: TagDraftState,
+	action: TagDraftAction,
+): TagDraftState {
+	switch (action.type) {
+		case "open":
+			return { ...state, show: true };
+		case "setName":
+			return { ...state, name: action.value };
+		case "setColor":
+			return { ...state, color: action.value };
+		case "setProjectId":
+			return { ...state, projectId: action.value };
+		case "close":
+			return { ...state, show: false };
+		case "reset":
+			return initialTagDraft;
+	}
+}
+
 export function TagManager() {
 	const { t } = useTranslation();
 	const { tags, createTag, updateTag, deleteTag } = useTagStore();
 	const { projects } = useProjectStore();
-	const [editingId, setEditingId] = useState<string | null>(null);
-	const [editName, setEditName] = useState("");
-	const [editColor, setEditColor] = useState<string>(PRESET_COLORS[5]);
-	const [editProjectId, setEditProjectId] = useState<string | null>(null);
-	const [editConstrained, setEditConstrained] = useState(false);
-	const [newName, setNewName] = useState("");
-	const [newColor, setNewColor] = useState<string>(PRESET_COLORS[5]);
-	const [newProjectId, setNewProjectId] = useState<string | null>(null);
-	const [showNew, setShowNew] = useState(false);
+	const [edit, editDispatch] = useReducer(tagEditReducer, initialTagEdit);
+	const {
+		id: editingId,
+		name: editName,
+		color: editColor,
+		projectId: editProjectId,
+		constrained: editConstrained,
+	} = edit;
+	const [draft, draftDispatch] = useReducer(tagDraftReducer, initialTagDraft);
+	const {
+		show: showNew,
+		name: newName,
+		color: newColor,
+		projectId: newProjectId,
+	} = draft;
 
 	async function startEdit(tag: Tag) {
-		setEditingId(tag.id);
-		setEditName(tag.name);
-		setEditColor(tag.color ?? PRESET_COLORS[5]);
-		setEditProjectId(tag.projectId);
-		setEditConstrained(false);
+		editDispatch({ type: "start", tag });
 		const constrained = await getRepository().isTagUsedInProjectTasks(tag.id);
-		setEditConstrained(constrained);
+		editDispatch({ type: "setConstrained", value: constrained });
 	}
 
 	async function commitEdit() {
@@ -95,7 +192,7 @@ export function TagManager() {
 			color: editColor,
 			projectId: editProjectId,
 		});
-		setEditingId(null);
+		editDispatch({ type: "close" });
 	}
 
 	async function handleCreate() {
@@ -105,19 +202,14 @@ export function TagManager() {
 			color: newColor,
 			projectId: newProjectId,
 		});
-		setNewName("");
-		setNewColor(PRESET_COLORS[5]);
-		setNewProjectId(null);
-		setShowNew(false);
+		draftDispatch({ type: "reset" });
 	}
 
 	const genericTags = tags.filter((t) => t.projectId === null);
-	const projectGroups = projects
-		.map((p) => ({
-			project: p,
-			tags: tags.filter((t) => t.projectId === p.id),
-		}))
-		.filter((g) => g.tags.length > 0);
+	const projectGroups = projects.flatMap((p) => {
+		const projectTags = tags.filter((t) => t.projectId === p.id);
+		return projectTags.length > 0 ? [{ project: p, tags: projectTags }] : [];
+	});
 
 	function renderTag(tag: Tag) {
 		if (editingId === tag.id) {
@@ -133,12 +225,14 @@ export function TagManager() {
 						/>
 						<Input
 							value={editName}
-							onChange={(e) => setEditName(e.target.value)}
+							onChange={(e) =>
+								editDispatch({ type: "setName", value: e.target.value })
+							}
 							className="h-7 text-sm"
 							autoFocus
 							onKeyDown={(e) => {
 								if (e.key === "Enter") commitEdit();
-								if (e.key === "Escape") setEditingId(null);
+								if (e.key === "Escape") editDispatch({ type: "close" });
 							}}
 						/>
 						<Button
@@ -153,15 +247,18 @@ export function TagManager() {
 							size="icon"
 							variant="ghost"
 							className="h-7 w-7 shrink-0"
-							onClick={() => setEditingId(null)}
+							onClick={() => editDispatch({ type: "close" })}
 						>
 							<X className="h-3.5 w-3.5" />
 						</Button>
 					</div>
-					<TagColorPicker value={editColor} onChange={setEditColor} />
+					<TagColorPicker
+						value={editColor}
+						onChange={(value) => editDispatch({ type: "setColor", value })}
+					/>
 					<TagProjectSelect
 						value={editProjectId}
-						onChange={setEditProjectId}
+						onChange={(value) => editDispatch({ type: "setProjectId", value })}
 						disabled={editConstrained}
 					/>
 					{editConstrained && (
@@ -228,7 +325,7 @@ export function TagManager() {
 				<Button
 					size="sm"
 					variant="ghost"
-					onClick={() => setShowNew(true)}
+					onClick={() => draftDispatch({ type: "open" })}
 					aria-label={t("tag.new")}
 				>
 					<Plus className="h-4 w-4" />
@@ -241,17 +338,27 @@ export function TagManager() {
 						<Input
 							placeholder={t("tag.namePlaceholder")}
 							value={newName}
-							onChange={(e) => setNewName(e.target.value)}
+							onChange={(e) =>
+								draftDispatch({ type: "setName", value: e.target.value })
+							}
 							autoFocus
 							onKeyDown={(e) => e.key === "Enter" && handleCreate()}
 						/>
-						<TagColorPicker value={newColor} onChange={setNewColor} />
-						<TagProjectSelect value={newProjectId} onChange={setNewProjectId} />
+						<TagColorPicker
+							value={newColor}
+							onChange={(value) => draftDispatch({ type: "setColor", value })}
+						/>
+						<TagProjectSelect
+							value={newProjectId}
+							onChange={(value) =>
+								draftDispatch({ type: "setProjectId", value })
+							}
+						/>
 						<div className="flex gap-2 justify-end">
 							<Button
 								size="sm"
 								variant="outline"
-								onClick={() => setShowNew(false)}
+								onClick={() => draftDispatch({ type: "close" })}
 							>
 								<X className="h-3.5 w-3.5" />
 							</Button>

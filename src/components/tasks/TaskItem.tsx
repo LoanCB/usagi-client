@@ -147,6 +147,7 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 			>
 				{/* Drag handle — always present, revealed on hover */}
 				<button
+					type="button"
 					{...attributes}
 					{...listeners}
 					className="w-[15px] shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground opacity-0 group-hover:opacity-50 transition-opacity touch-none"

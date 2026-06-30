@@ -13,6 +13,7 @@ const fr: typeof en = {
 		icon: "Icône",
 		colorOption: "Couleur {{color}}",
 		iconOption: "Icône {{name}}",
+		resizePanel: "Redimensionner le panneau",
 	},
 	nav: {
 		views: "Vues",
