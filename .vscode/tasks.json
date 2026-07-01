@@ -1,0 +1,59 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Dev",
+			"type": "shell",
+			"command": "pnpm tauri dev",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			},
+			"problemMatcher": [],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"label": "Tauri Build (AppImage)",
+			"type": "shell",
+			"command": "pnpm tauri build --bundles appimage --config '{\"bundle\":{\"createUpdaterArtifacts\":false}}'",
+			"isBackground": false,
+			"options": {
+				"env": {
+					"NO_STRIP": "true"
+				}
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			},
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Build + Install AppImage locally",
+			"type": "shell",
+			"command": "cp src-tauri/target/release/bundle/appimage/Bunly_0.1.0_amd64.AppImage \"${input:appImageDest}\" && chmod +x \"${input:appImageDest}\" && echo \"Bunly installé dans ${input:appImageDest}\"",
+			"isBackground": false,
+			"dependsOn": "Tauri Build (AppImage)",
+			"dependsOrder": "sequence",
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			},
+			"problemMatcher": [],
+			"group": "build"
+		}
+	],
+	"inputs": [
+		{
+			"id": "appImageDest",
+			"type": "promptString",
+			"description": "Chemin d'installation de l'AppImage",
+			"default": "${env:HOME}/.local/bin/Bunly.AppImage"
+		}
+	]
+}
