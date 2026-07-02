@@ -66,6 +66,7 @@ const en = {
 		addDate: "Add date",
 		search: "Search…",
 		copyTitle: "Copy title",
+		rename: "Rename",
 	},
 	priority: {
 		label: "Priority",

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@/i18n";
 import { type MockInstance, vi } from "vitest";
@@ -85,6 +85,106 @@ describe("TaskItem", () => {
 		});
 
 		expect(writeTextSpy).toHaveBeenCalledWith("Buy groceries");
+	});
+
+	describe("inline title editing", () => {
+		it("shows an input prefilled with the title on double-click", async () => {
+			const user = userEvent.setup();
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+
+			await user.dblClick(screen.getByText("Buy groceries"));
+
+			const input = screen.getByRole("textbox");
+			expect(input).toHaveValue("Buy groceries");
+		});
+
+		it("saves the trimmed title on Enter", async () => {
+			const user = userEvent.setup();
+			const updateTask = vi.fn().mockResolvedValue(undefined);
+			useTaskStore.setState({ updateTask });
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+
+			await user.dblClick(screen.getByText("Buy groceries"));
+			const input = screen.getByRole("textbox");
+			await user.clear(input);
+			await user.type(input, "  Buy milk  {Enter}");
+
+			expect(updateTask).toHaveBeenCalledWith(expect.anything(), "task-1", {
+				title: "Buy milk",
+			});
+		});
+
+		it("does not save and restores the title on Escape", async () => {
+			const user = userEvent.setup();
+			const updateTask = vi.fn().mockResolvedValue(undefined);
+			useTaskStore.setState({ updateTask });
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+
+			await user.dblClick(screen.getByText("Buy groceries"));
+			const input = screen.getByRole("textbox");
+			await user.clear(input);
+			await user.type(input, "Something else{Escape}");
+
+			expect(updateTask).not.toHaveBeenCalled();
+			expect(screen.getByText("Buy groceries")).toBeInTheDocument();
+			expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+		});
+
+		it("does not save when the title is unchanged", async () => {
+			const user = userEvent.setup();
+			const updateTask = vi.fn().mockResolvedValue(undefined);
+			useTaskStore.setState({ updateTask });
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+
+			await user.dblClick(screen.getByText("Buy groceries"));
+			await user.type(screen.getByRole("textbox"), "{Enter}");
+
+			expect(updateTask).not.toHaveBeenCalled();
+		});
+
+		it("still selects the task on single click", async () => {
+			const user = userEvent.setup();
+			const setSelectedTask = vi.fn();
+			useUIStore.setState({ setSelectedTask });
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+
+			await user.click(screen.getByText("Buy groceries"));
+
+			// Selection is deferred so a double-click can cancel it.
+			await waitFor(() =>
+				expect(setSelectedTask).toHaveBeenCalledWith("task-1"),
+			);
+		});
+
+		it("enters edit mode from the 'Rename' context menu item", async () => {
+			const user = userEvent.setup();
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+
+			await user.pointer({
+				keys: "[MouseRight]",
+				target: screen.getByText("Buy groceries"),
+			});
+
+			await user.pointer({
+				keys: "[MouseLeft]",
+				target: await screen.findByText("Rename"),
+			});
+
+			const input = screen.getByRole("textbox");
+			expect(input).toHaveValue("Buy groceries");
+		});
+
+		it("does not open the detail (select) when double-clicking to edit", async () => {
+			const user = userEvent.setup();
+			const setSelectedTask = vi.fn();
+			useUIStore.setState({ setSelectedTask });
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+
+			await user.dblClick(screen.getByText("Buy groceries"));
+
+			expect(setSelectedTask).not.toHaveBeenCalled();
+			expect(screen.getByRole("textbox")).toBeInTheDocument();
+		});
 	});
 
 	it("renders a priority dot for each priority level", () => {

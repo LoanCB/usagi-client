@@ -68,6 +68,7 @@ const fr: typeof en = {
 		addDate: "Ajouter une date",
 		search: "Rechercher…",
 		copyTitle: "Copier le titre",
+		rename: "Modifier le titre",
 	},
 	priority: {
 		label: "Priorité",
