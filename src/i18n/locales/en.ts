@@ -80,6 +80,9 @@ const en = {
 		completed: "Completed",
 		reset: "Reset",
 		tags: "Tags",
+		projects: "projects",
+		allProjects: "All projects",
+		projectFilter: "Project filter",
 	},
 	dueDate: {
 		label: "Due date",

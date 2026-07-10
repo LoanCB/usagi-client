@@ -82,6 +82,9 @@ const fr: typeof en = {
 		completed: "Complétées",
 		reset: "Réinitialiser",
 		tags: "Tags",
+		projects: "projets",
+		allProjects: "Tous les projets",
+		projectFilter: "Filtre projets",
 	},
 	dueDate: {
 		label: "Date d'échéance",

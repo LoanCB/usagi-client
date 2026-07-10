@@ -8,6 +8,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
 import type { Project, Task } from "@/types";
 
 type DayState = "past" | "today" | "future";
@@ -19,7 +20,7 @@ interface DayDetailPanelProps {
 	readonly onClose: () => void;
 	readonly onTaskClick: (task: Task) => void;
 	readonly focusTrigger?: number;
-	readonly projectFilter?: string | null;
+	readonly projectFilter?: string[] | null;
 	readonly projects: Project[];
 }
 
@@ -127,6 +128,11 @@ export function DayDetailPanel({
 }: DayDetailPanelProps) {
 	const { t, i18n } = useTranslation();
 	const locale = i18n.language === "fr" ? fr : enUS;
+
+	const quickAddProjectId =
+		projectFilter?.length === 1 && projectFilter[0] !== INBOX_PROJECT_ID
+			? projectFilter[0]
+			: null;
 
 	const date = new Date(`${day}T00:00:00`);
 	const today = format(new Date(), "yyyy-MM-dd");
@@ -300,7 +306,7 @@ export function DayDetailPanel({
 
 			<div className="shrink-0 border-t border-border/40 py-1">
 				<QuickAddTask
-					projectId={projectFilter ?? null}
+					projectId={quickAddProjectId}
 					dueDate={day}
 					focusTrigger={focusTrigger}
 				/>

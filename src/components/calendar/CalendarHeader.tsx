@@ -3,6 +3,7 @@ import { enUS, fr } from "date-fns/locale";
 import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ProjectFilter } from "@/components/tasks/ProjectFilter";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -11,7 +12,6 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { CalendarProjectFilter } from "./CalendarProjectFilter";
 import {
 	CalendarStatusFilter,
 	type CalendarStatusFilterValue,
@@ -26,8 +26,8 @@ interface CalendarHeaderProps {
 	readonly onPrev: () => void;
 	readonly onNext: () => void;
 	readonly onDateChange: (date: Date) => void;
-	readonly projectFilter: string | null | undefined;
-	readonly onProjectFilterChange: (value: string | null | undefined) => void;
+	readonly projectFilter: string[] | null;
+	readonly onProjectFilterChange: (value: string[] | null) => void;
 	readonly statusFilter: CalendarStatusFilterValue;
 	readonly onStatusFilterChange: (value: CalendarStatusFilterValue) => void;
 }
@@ -91,10 +91,7 @@ export function CalendarHeader({
 					value={statusFilter}
 					onChange={onStatusFilterChange}
 				/>
-				<CalendarProjectFilter
-					value={projectFilter}
-					onChange={onProjectFilterChange}
-				/>
+				<ProjectFilter value={projectFilter} onChange={onProjectFilterChange} />
 				<div className="flex rounded-lg overflow-hidden border border-border/40">
 					<button
 						type="button"

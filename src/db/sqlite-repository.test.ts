@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ExportData } from "@/lib/dataTransfer";
+import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
 import type { Task } from "@/types";
 import type { DbDriver } from "./driver";
 import { SqliteRepository } from "./sqlite-repository";
@@ -338,6 +339,42 @@ describe("SqliteRepository — tasks", () => {
 		const [sql, params] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
 		expect(sql).toContain("project_id = ?");
 		expect(params).toContain("proj-1");
+	});
+
+	it("getTasks filters by multiple projectIds via IN clause", async () => {
+		const db = makeDb({ select: vi.fn().mockResolvedValue([]) });
+		const repo = new SqliteRepository(db);
+		await repo.getTasks({ projectIds: ["proj-1", "proj-2"] });
+		const [sql, params] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(sql).toContain("t.project_id IN (?, ?)");
+		expect(params).toContain("proj-1");
+		expect(params).toContain("proj-2");
+	});
+
+	it("getTasks projectIds with INBOX_PROJECT_ID maps to project_id IS NULL", async () => {
+		const db = makeDb({ select: vi.fn().mockResolvedValue([]) });
+		const repo = new SqliteRepository(db);
+		await repo.getTasks({ projectIds: [INBOX_PROJECT_ID] });
+		const [sql, params] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(sql).toContain("t.project_id IS NULL");
+		expect(params).not.toContain(INBOX_PROJECT_ID);
+	});
+
+	it("getTasks projectIds mixing Inbox and real projects combines with OR", async () => {
+		const db = makeDb({ select: vi.fn().mockResolvedValue([]) });
+		const repo = new SqliteRepository(db);
+		await repo.getTasks({ projectIds: ["proj-1", INBOX_PROJECT_ID] });
+		const [sql, params] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(sql).toContain("(t.project_id IN (?) OR t.project_id IS NULL)");
+		expect(params).toEqual(["proj-1"]);
+	});
+
+	it("getTasks ignores an empty projectIds array", async () => {
+		const db = makeDb({ select: vi.fn().mockResolvedValue([]) });
+		const repo = new SqliteRepository(db);
+		await repo.getTasks({ projectIds: [] });
+		const [sql] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(sql).not.toContain("t.project_id IN");
 	});
 
 	it("getTasks with no filters hides old completed tasks but shows today's", async () => {

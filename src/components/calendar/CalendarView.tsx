@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { useResizable } from "@/hooks/useResizable";
 import { groupTasksByDate } from "@/lib/calendarUtils";
+import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import { useTaskStore } from "@/store/tasks";
@@ -92,8 +93,8 @@ export function CalendarView() {
 	const projects = useProjectStore((s) => s.projects);
 
 	const [calendarProjectFilter, setCalendarProjectFilter] = useState<
-		string | null | undefined
-	>(undefined);
+		string[] | null
+	>(null);
 
 	const [calendarStatusFilter, setCalendarStatusFilter] = useState<
 		"completed" | "overdue" | "pending" | undefined
@@ -114,9 +115,15 @@ export function CalendarView() {
 
 	const filteredTasks = useMemo(() => {
 		let result =
-			calendarProjectFilter === undefined
+			calendarProjectFilter === null || calendarProjectFilter.length === 0
 				? tasks
-				: tasks.filter((t) => t.projectId === calendarProjectFilter);
+				: tasks.filter((t) =>
+						calendarProjectFilter.some((id) =>
+							id === INBOX_PROJECT_ID
+								? t.projectId === null
+								: t.projectId === id,
+						),
+					);
 
 		if (calendarStatusFilter !== undefined) {
 			const today = new Date().toISOString().slice(0, 10);

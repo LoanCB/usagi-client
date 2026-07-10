@@ -7,6 +7,7 @@ import {
 	Tag,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ProjectFilter } from "@/components/tasks/ProjectFilter";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
@@ -57,7 +58,7 @@ export function FilterBar({
 	onResetSort,
 }: FilterBarProps) {
 	const { t } = useTranslation();
-	const { activeFilters, setFilters } = useUIStore();
+	const { activeFilters, setFilters, selectedProjectId } = useUIStore();
 	const { tags } = useTagStore();
 	const sortUrgency = useShortcutsStore((s) => s.sortUrgency);
 	const sortDueDate = useShortcutsStore((s) => s.sortDueDate);
@@ -72,6 +73,10 @@ export function FilterBar({
 
 	const selectedTagIds = activeFilters.tagIds ?? [];
 
+	const showProjectFilter =
+		selectedProjectId === undefined || selectedProjectId === "today";
+	const selectedProjectIds = activeFilters.projectIds ?? [];
+
 	function toggleTag(tagId: string) {
 		if (selectedTagIds.includes(tagId)) {
 			setFilters({ tagIds: selectedTagIds.filter((id) => id !== tagId) });
@@ -83,11 +88,19 @@ export function FilterBar({
 	const hasFilters =
 		!!activeFilters.priority ||
 		selectedTagIds.length > 0 ||
+		selectedProjectIds.length > 0 ||
 		!!activeFilters.completed ||
 		!!hasSortActive;
 
 	return (
 		<div className="flex items-center gap-2 px-5 py-2 glass-header shrink-0 flex-wrap">
+			{showProjectFilter && (
+				<ProjectFilter
+					value={activeFilters.projectIds ?? null}
+					onChange={(value) => setFilters({ projectIds: value ?? undefined })}
+				/>
+			)}
+
 			{/* Priority filter */}
 			<DropdownMenu>
 				<DropdownMenuTrigger
@@ -192,6 +205,7 @@ export function FilterBar({
 							setFilters({
 								priority: undefined,
 								tagIds: [],
+								projectIds: undefined,
 								completed: undefined,
 							});
 							onResetSort?.();
