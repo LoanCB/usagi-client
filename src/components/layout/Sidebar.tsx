@@ -396,79 +396,82 @@ function ProjectNavItem({
 	const projectButton = (
 		<TooltipProvider delay={collapsed ? 300 : 600}>
 			<Tooltip>
-				<TooltipTrigger
-					render={<button type="button" aria-label={project.name} />}
-					className={cn(
-						"group flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm transition-colors",
-						"border-l-2 border-transparent",
-						"text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-primary/50",
-						active &&
-							"bg-sidebar-primary/20 text-sidebar-foreground font-medium border-sidebar-primary",
-						isMergeTarget && "ring-2 ring-sidebar-primary animate-pulse",
-					)}
-					onClick={onClick}
-				>
-					{icon}
-					{!collapsed && isMergeTarget && (
-						<FolderPlus className="h-3 w-3 shrink-0 text-sidebar-primary" />
-					)}
-					{!collapsed && (
-						<>
+				<div className="group relative">
+					<TooltipTrigger
+						render={<button type="button" aria-label={project.name} />}
+						className={cn(
+							"flex items-center gap-2 w-full pl-[10px] pr-3 py-2 rounded-md text-sm transition-colors",
+							"border-l-2 border-transparent",
+							"text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-primary/50",
+							active &&
+								"bg-sidebar-primary/20 text-sidebar-foreground font-medium border-sidebar-primary",
+							isMergeTarget && "ring-2 ring-sidebar-primary animate-pulse",
+							!collapsed && "pr-9",
+						)}
+						onClick={onClick}
+					>
+						{icon}
+						{!collapsed && isMergeTarget && (
+							<FolderPlus className="h-3 w-3 shrink-0 text-sidebar-primary" />
+						)}
+						{!collapsed && (
 							<span className="truncate flex-1 text-left">{project.name}</span>
-							<DropdownMenu
-								open={menuOpen}
-								onOpenChange={(value) => dispatch({ type: "setMenu", value })}
+						)}
+					</TooltipTrigger>
+					{!collapsed && (
+						<DropdownMenu
+							open={menuOpen}
+							onOpenChange={(value) => dispatch({ type: "setMenu", value })}
+						>
+							<DropdownMenuTrigger
+								className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 focus:opacity-100 h-5 w-5 flex items-center justify-center rounded hover:bg-sidebar-foreground/10 transition-opacity shrink-0"
+								onClick={(e) => e.stopPropagation()}
+								aria-label={t("project.options")}
 							>
-								<DropdownMenuTrigger
-									className="opacity-0 group-hover:opacity-100 focus:opacity-100 h-5 w-5 flex items-center justify-center rounded hover:bg-sidebar-foreground/10 transition-opacity shrink-0"
-									onClick={(e) => e.stopPropagation()}
-									aria-label={t("project.options")}
+								<MoreVertical className="h-3.5 w-3.5" />
+							</DropdownMenuTrigger>
+							<DropdownMenuContent side="right" align="start">
+								<DropdownMenuItem
+									render={
+										<button
+											type="button"
+											className="w-full flex items-center gap-2"
+											onClick={() => dispatch({ type: "openEdit" })}
+										>
+											<Pencil className="h-4 w-4" />
+											{t("common.edit")}
+										</button>
+									}
+								/>
+								<DropdownMenuSub>
+									<DropdownMenuSubTrigger>
+										<Tag className="h-3.5 w-3.5" />
+										{t("project.newTag")}
+									</DropdownMenuSubTrigger>
+									<DropdownMenuSubContent className="p-3 w-[276px]">
+										<TagCreationForm
+											projectName={project.name}
+											tagName={tagName}
+											tagColor={tagColor}
+											tagInputRef={tagInputRef}
+											onTagNameChange={setTagName}
+											onTagColorChange={setTagColor}
+											onSubmit={handleCreateTag}
+										/>
+									</DropdownMenuSubContent>
+								</DropdownMenuSub>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									variant="destructive"
+									onClick={() => dispatch({ type: "openDelete" })}
 								>
-									<MoreVertical className="h-3.5 w-3.5" />
-								</DropdownMenuTrigger>
-								<DropdownMenuContent side="right" align="start">
-									<DropdownMenuItem
-										render={
-											<button
-												type="button"
-												className="w-full flex items-center gap-2"
-												onClick={() => dispatch({ type: "openEdit" })}
-											>
-												<Pencil className="h-4 w-4" />
-												{t("common.edit")}
-											</button>
-										}
-									/>
-									<DropdownMenuSub>
-										<DropdownMenuSubTrigger>
-											<Tag className="h-3.5 w-3.5" />
-											{t("project.newTag")}
-										</DropdownMenuSubTrigger>
-										<DropdownMenuSubContent className="p-3 w-[276px]">
-											<TagCreationForm
-												projectName={project.name}
-												tagName={tagName}
-												tagColor={tagColor}
-												tagInputRef={tagInputRef}
-												onTagNameChange={setTagName}
-												onTagColorChange={setTagColor}
-												onSubmit={handleCreateTag}
-											/>
-										</DropdownMenuSubContent>
-									</DropdownMenuSub>
-									<DropdownMenuSeparator />
-									<DropdownMenuItem
-										variant="destructive"
-										onClick={() => dispatch({ type: "openDelete" })}
-									>
-										<Trash2 className="h-4 w-4" />
-										{t("common.delete")}
-									</DropdownMenuItem>
-								</DropdownMenuContent>
-							</DropdownMenu>
-						</>
+									<Trash2 className="h-4 w-4" />
+									{t("common.delete")}
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
 					)}
-				</TooltipTrigger>
+				</div>
 				<TooltipContent side="right">{project.name}</TooltipContent>
 			</Tooltip>
 		</TooltipProvider>
@@ -1216,8 +1219,8 @@ export function Sidebar() {
 				</div>
 			</ScrollArea>
 
-			<SettingsDialog>
-				<div className="border-t border-sidebar-border px-2 py-2 shrink-0">
+			<div className="border-t border-sidebar-border px-2 py-2 shrink-0">
+				<SettingsDialog>
 					<button
 						type="button"
 						aria-label={t("settings.title")}
@@ -1233,8 +1236,8 @@ export function Sidebar() {
 							<span className="truncate">{t("settings.title")}</span>
 						)}
 					</button>
-				</div>
-			</SettingsDialog>
+				</SettingsDialog>
+			</div>
 		</div>
 	);
 }
