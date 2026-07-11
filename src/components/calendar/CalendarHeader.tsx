@@ -92,7 +92,7 @@ export function CalendarHeader({
 					onChange={onStatusFilterChange}
 				/>
 				<ProjectFilter value={projectFilter} onChange={onProjectFilterChange} />
-				<div className="flex rounded-lg overflow-hidden border border-border/40">
+				<div className="flex rounded-lg overflow-hidden border border-border">
 					<button
 						type="button"
 						onClick={() => onViewModeChange("month")}

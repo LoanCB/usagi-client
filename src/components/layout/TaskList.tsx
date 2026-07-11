@@ -202,19 +202,19 @@ function TaskListHeader({
 				<div className="flex items-center gap-2">
 					{/* Search */}
 					<div className="glass-stat flex items-center gap-2 rounded-xl px-3 py-1.5">
-						<Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+						<Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 						<input
 							type="text"
 							value={search}
 							onChange={(e) => onSearchChange(e.target.value)}
 							placeholder={t("task.search")}
 							aria-label={t("task.search")}
-							className="w-48 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
+							className="w-48 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
 						/>
 						<button
 							type="button"
 							onClick={() => onSearchChange("")}
-							className={`shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors ${search ? "visible" : "invisible"}`}
+							className={`shrink-0 text-muted-foreground hover:text-foreground transition-colors ${search ? "visible" : "invisible"}`}
 							aria-label="Clear search"
 							tabIndex={search ? 0 : -1}
 						>

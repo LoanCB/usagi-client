@@ -114,7 +114,7 @@ export function ArchiveView() {
 			<div className="px-6 py-5 border-b border-border shrink-0 flex items-center gap-3">
 				<h2 className="text-lg font-semibold flex-1">{t("nav.archives")}</h2>
 				<div className="glass-stat flex items-center gap-2 rounded-xl px-3 py-1.5">
-					<Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+					<Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 					<input
 						type="text"
 						value={search}
@@ -123,7 +123,7 @@ export function ArchiveView() {
 						}
 						placeholder={t("task.search")}
 						aria-label={t("task.search")}
-						className="w-32 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
+						className="w-32 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
 					/>
 					<button
 						type="button"

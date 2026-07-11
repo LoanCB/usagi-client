@@ -75,9 +75,8 @@ export function ProjectFilter({ value, onChange }: ProjectFilterProps) {
 			<PopoverTrigger
 				aria-label={t("filter.projectFilter")}
 				className={cn(
-					buttonVariants({ variant: "ghost", size: "sm" }),
-					"gap-1.5 h-7 px-2.5 text-xs border w-36",
-					count === 0 && "border-border/40 text-muted-foreground",
+					buttonVariants({ variant: "outline", size: "sm" }),
+					"gap-1.5 h-7 px-2 text-xs",
 				)}
 				style={triggerStyle}
 			>

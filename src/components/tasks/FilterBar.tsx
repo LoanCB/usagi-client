@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ProjectFilter } from "@/components/tasks/ProjectFilter";
+import { PriorityIndicator } from "@/components/tasks/TaskItem/PriorityIndicator";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/tooltip";
 import { formatShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
+import { useSettingsStore } from "@/store/settings";
 import { useShortcutsStore } from "@/store/shortcuts";
 import { useTagStore } from "@/store/tags";
 import { useUIStore } from "@/store/ui";
@@ -60,6 +62,7 @@ export function FilterBar({
 	const { t } = useTranslation();
 	const { activeFilters, setFilters, selectedProjectId } = useUIStore();
 	const { tags } = useTagStore();
+	const colorblindMode = useSettingsStore((s) => s.colorblindMode);
 	const sortUrgency = useShortcutsStore((s) => s.sortUrgency);
 	const sortDueDate = useShortcutsStore((s) => s.sortDueDate);
 	const sortProject = useShortcutsStore((s) => s.sortProject);
@@ -109,7 +112,14 @@ export function FilterBar({
 						"h-7 gap-1 text-xs",
 					)}
 				>
-					<SlidersHorizontal className="h-3 w-3" />
+					{activeFilters.priority ? (
+						<PriorityIndicator
+							priority={activeFilters.priority}
+							colorblindMode={colorblindMode}
+						/>
+					) : (
+						<SlidersHorizontal className="h-3 w-3" />
+					)}
 					{activeFilters.priority
 						? PRIORITY_LABELS[activeFilters.priority]
 						: t("filter.priority")}
@@ -119,7 +129,9 @@ export function FilterBar({
 						<DropdownMenuItem
 							key={p}
 							onClick={() => setFilters({ priority: p })}
+							className="gap-2"
 						>
+							<PriorityIndicator priority={p} colorblindMode={colorblindMode} />
 							{PRIORITY_LABELS[p]}
 						</DropdownMenuItem>
 					))}

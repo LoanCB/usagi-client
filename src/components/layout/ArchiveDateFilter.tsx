@@ -1,4 +1,4 @@
-import { CalendarIcon } from "lucide-react";
+import { Archive, CalendarClock, CalendarIcon, type LucideIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { DateRange as RdpRange } from "react-day-picker";
 import { fr } from "react-day-picker/locale";
@@ -11,7 +11,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { cn, formatDate, todayIso } from "@/lib/utils";
+import { cn, todayIso } from "@/lib/utils";
 
 function dateToIso(date: Date): string {
 	const y = date.getFullYear();
@@ -23,6 +23,14 @@ function dateToIso(date: Date): string {
 function isoToDate(iso: string): Date {
 	const [y, m, d] = iso.split("-").map(Number);
 	return new Date(y, m - 1, d);
+}
+
+function formatFullDate(iso: string, locale: string): string {
+	return isoToDate(iso).toLocaleDateString(locale, {
+		day: "numeric",
+		month: "long",
+		year: "numeric",
+	});
 }
 
 function buildPresets(today: string) {
@@ -41,6 +49,7 @@ function buildPresets(today: string) {
 
 interface DateSectionProps {
 	label: string;
+	icon: LucideIcon;
 	range: DateRange;
 	onChange: (r: DateRange) => void;
 	presetLabels: [string, string, string];
@@ -53,6 +62,7 @@ interface DateSectionProps {
 
 function DateSection({
 	label,
+	icon: Icon,
 	range,
 	onChange,
 	presetLabels,
@@ -71,11 +81,12 @@ function DateSection({
 			: undefined;
 
 	return (
-		<div className="space-y-2">
-			<p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-				{label}
-			</p>
-			<div className="flex flex-wrap gap-1">
+		<div className="w-60 space-y-3">
+			<div className="flex items-center gap-1.5">
+				<Icon className="h-4 w-4 text-muted-foreground" />
+				<h3 className="text-sm font-semibold text-foreground">{label}</h3>
+			</div>
+			<div className="flex flex-wrap gap-1.5">
 				{presets.map((preset, i) => {
 					const active = range.from === preset.from && range.to === preset.to;
 					return (
@@ -90,10 +101,10 @@ function DateSection({
 								)
 							}
 							className={cn(
-								"rounded-full border px-2.5 py-0.5 text-xs transition-colors",
+								"rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
 								active
-									? "border-primary/40 bg-primary/15 text-primary"
-									: "border-border/40 text-muted-foreground hover:text-foreground",
+									? "border-primary bg-primary text-primary-foreground"
+									: "border-border bg-background text-foreground hover:bg-muted",
 							)}
 						>
 							{presetLabels[i]}
@@ -101,28 +112,29 @@ function DateSection({
 					);
 				})}
 			</div>
-			<div className="flex items-center gap-2 text-sm">
+			<div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs">
 				<span
 					className={
 						range.from
-							? "text-foreground font-medium"
-							: "text-muted-foreground/70"
+							? "font-medium text-foreground whitespace-nowrap"
+							: "text-muted-foreground whitespace-nowrap"
 					}
 				>
-					{range.from ? formatDate(range.from, lang) : fromPlaceholder}
+					{range.from ? formatFullDate(range.from, lang) : fromPlaceholder}
 				</span>
-				<span className="text-muted-foreground">→</span>
+				<span className="text-muted-foreground/60">→</span>
 				<span
 					className={
 						range.to
-							? "text-foreground font-medium"
-							: "text-muted-foreground/70"
+							? "font-medium text-foreground whitespace-nowrap"
+							: "text-muted-foreground whitespace-nowrap"
 					}
 				>
-					{range.to ? formatDate(range.to, lang) : toPlaceholder}
+					{range.to ? formatFullDate(range.to, lang) : toPlaceholder}
 				</span>
 			</div>
 			<Calendar
+				className="w-full [--cell-size:--spacing(8)]"
 				mode="range"
 				selected={rdpSelected}
 				onSelect={(rdp) =>
@@ -171,11 +183,9 @@ export function ArchiveDateFilter({
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger
 				className={cn(
-					buttonVariants({ variant: "ghost", size: "sm" }),
-					"w-36 h-7 px-2.5 text-xs border gap-1.5",
-					isActive
-						? "border-primary/40 bg-primary/15 text-primary"
-						: "border-border/40 text-muted-foreground",
+					buttonVariants({ variant: "outline", size: "sm" }),
+					"gap-1.5 h-7 px-2 text-xs",
+					isActive && "border-primary/40 bg-primary/15 text-primary",
 				)}
 			>
 				<CalendarIcon className="h-3.5 w-3.5 shrink-0" />
@@ -190,6 +200,7 @@ export function ArchiveDateFilter({
 				<div className="flex items-start gap-4">
 					<DateSection
 						label={t("archive.filterArchivedDate")}
+						icon={Archive}
 						range={archivedRange}
 						onChange={onArchivedRangeChange}
 						presetLabels={presetLabels}
@@ -202,6 +213,7 @@ export function ArchiveDateFilter({
 					<div className="w-px self-stretch bg-border/50" />
 					<DateSection
 						label={t("dueDate.label")}
+						icon={CalendarClock}
 						range={dueDateRange}
 						onChange={onDueDateRangeChange}
 						presetLabels={presetLabels}
