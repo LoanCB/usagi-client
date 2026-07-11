@@ -1030,7 +1030,7 @@ export function Sidebar() {
 	return (
 		<div
 			className={cn(
-				"glass-sidebar relative flex flex-col h-full bg-sidebar shrink-0 transition-all duration-200",
+				"glass-sidebar relative flex flex-col shrink-0 m-3 rounded-xl transition-all duration-200",
 				sidebarCollapsed ? "w-14" : "w-56",
 			)}
 		>
