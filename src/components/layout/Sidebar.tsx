@@ -8,7 +8,6 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
 import {
 	ArchiveX,
 	Calendar,
@@ -32,6 +31,13 @@ import logoUrl from "@/assets/logo.png";
 import { DropIndicator } from "@/components/layout/DropIndicator";
 import { ProjectGroupNavItem } from "@/components/layout/ProjectGroupNavItem";
 import { SettingsDialog } from "@/components/layout/SettingsDialog";
+import {
+	computeReorderedIds,
+	type DropState,
+	groupEndId,
+	resolveIntraGroupDrop,
+	type SidebarItem,
+} from "@/components/layout/sidebarDnd";
 import { CreateGroupDialog } from "@/components/projects/CreateGroupDialog";
 import { DeleteProjectDialog } from "@/components/projects/DeleteProjectDialog";
 import { ProjectForm } from "@/components/projects/ProjectForm";
@@ -78,7 +84,7 @@ import { useSettingsStore } from "@/store/settings";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
-import type { Project, ProjectGroup } from "@/types";
+import type { Project } from "@/types";
 
 interface TagCreationFormProps {
 	readonly projectName: string;
@@ -540,16 +546,6 @@ function ProjectNavItem({
 	);
 }
 
-type SidebarItem =
-	| { type: "group"; group: ProjectGroup; projects: Project[]; dndId: string }
-	| { type: "project"; project: Project; dndId: string };
-
-type DropState =
-	| { intent: "reorder"; beforeId: string | null }
-	| { intent: "merge"; targetId: string }
-	| { intent: "join-group"; groupId: string }
-	| null;
-
 function useSidebarDnd() {
 	const collapsedGroupIds = useUIStore((s) => s.collapsedGroupIds);
 	const projects = useProjectStore((s) => s.projects);
@@ -696,19 +692,49 @@ function useSidebarDnd() {
 
 		// Check if pointer is inside a group's expanded container
 		for (const [groupId, bounds] of groupBounds) {
-			if (pointerY >= bounds.top && pointerY <= bounds.bottom) {
-				// Check if it's near the very top edge → reorder before the group
-				const groupDndId = groupDndIdById.get(groupId);
-				const groupRect = groupDndId
-					? itemRectsRef.current.get(groupDndId)
-					: null;
-				if (groupRect && pointerY < groupRect.top + groupRect.height * 0.25) {
-					setDropState({ intent: "reorder", beforeId: `group:${groupId}` });
-				} else {
-					setDropState({ intent: "join-group", groupId });
-				}
+			if (pointerY < bounds.top || pointerY > bounds.bottom) continue;
+
+			// Near the very top edge → reorder before the group
+			const groupDndId = groupDndIdById.get(groupId);
+			const groupRect = groupDndId
+				? itemRectsRef.current.get(groupDndId)
+				: null;
+			if (groupRect && pointerY < groupRect.top + groupRect.height * 0.25) {
+				setDropState({ intent: "reorder", beforeId: `group:${groupId}` });
 				return;
 			}
+
+			// Dragged project already belongs to this expanded group → reorder
+			// among its siblings instead of treating the whole body as a join zone.
+			if (
+				draggedProject.groupId === groupId &&
+				!collapsedGroupIds.has(groupId)
+			) {
+				const groupItem = sidebarItems.find(
+					(i) => i.type === "group" && i.group.id === groupId,
+				);
+				if (groupItem?.type === "group") {
+					const siblings: { id: string; top: number; height: number }[] = [];
+					for (const p of groupItem.projects) {
+						const rect = itemRectsRef.current.get(`project:${p.id}`);
+						if (rect)
+							siblings.push({ id: p.id, top: rect.top, height: rect.height });
+					}
+					setDropState(
+						resolveIntraGroupDrop(
+							pointerY,
+							groupId,
+							draggedProjectId,
+							siblings,
+						),
+					);
+					return;
+				}
+			}
+
+			// Dragging a project from outside → join the group
+			setDropState({ intent: "join-group", groupId });
+			return;
 		}
 
 		// Walk top-level items (groups and standalone projects)
@@ -800,24 +826,23 @@ function useSidebarDnd() {
 					: null;
 				const isTargetInSameGroup =
 					beforeProject?.groupId === draggedProject.groupId;
+				const isEndOfSameGroup =
+					beforeId === groupEndId(draggedProject.groupId);
 				const isTargetGroupHeader = beforeId?.startsWith("group:");
 				const isAppendToEnd = beforeId === null;
 
-				if (isTargetInSameGroup) {
-					// Intra-group reorder
-					const groupProjects = projects
+				if (isTargetInSameGroup || isEndOfSameGroup) {
+					// Intra-group reorder (null beforeProjectId → append at group end)
+					const ids = projects
 						.filter((p) => p.groupId === draggedProject.groupId)
-						.sort((a, b) => a.sortOrder - b.sortOrder);
-					const ids = groupProjects.map((p) => p.id);
-					const oldIdx = ids.indexOf(draggedProjectId);
-					const newIdx = beforeProjectId
-						? ids.indexOf(beforeProjectId)
-						: ids.length;
-					if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
-						const adjusted = newIdx > oldIdx ? newIdx - 1 : newIdx;
-						const newOrder = arrayMove(ids, oldIdx, adjusted);
-						reorderProjects(repo, newOrder);
-					}
+						.sort((a, b) => a.sortOrder - b.sortOrder)
+						.map((p) => p.id);
+					const newOrder = computeReorderedIds(
+						ids,
+						draggedProjectId,
+						beforeProjectId,
+					);
+					if (newOrder) reorderProjects(repo, newOrder);
 					return;
 				}
 
@@ -828,35 +853,29 @@ function useSidebarDnd() {
 				// (the store reload will place it at the end of standalone projects)
 				if (!isTargetGroupHeader && !isAppendToEnd && beforeId) {
 					// beforeId points to a standalone project → reorder among standalone
-					const standaloneProjects = projects
+					const ids = projects
 						.filter((p) => !p.groupId && p.id !== draggedProjectId)
-						.sort((a, b) => a.sortOrder - b.sortOrder);
-					const ids = standaloneProjects.map((p) => p.id);
+						.sort((a, b) => a.sortOrder - b.sortOrder)
+						.map((p) => p.id);
 					ids.push(draggedProjectId); // append ungrouped project at end temporarily
-					const newIdx = beforeProjectId
-						? ids.indexOf(beforeProjectId)
-						: ids.length;
-					const oldIdx = ids.indexOf(draggedProjectId);
-					if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
-						const adjusted = newIdx > oldIdx ? newIdx - 1 : newIdx;
-						const newOrder = arrayMove(ids, oldIdx, adjusted);
-						reorderProjects(repo, newOrder);
-					}
+					const newOrder = computeReorderedIds(
+						ids,
+						draggedProjectId,
+						beforeProjectId,
+					);
+					if (newOrder) reorderProjects(repo, newOrder);
 				}
 				return;
 			}
 
 			// Top-level reorder
 			const topLevelIds = topLevel.map((i) => i.dndId);
-			const dragDndId = `project:${draggedProjectId}`;
-			const oldIdx = topLevelIds.indexOf(dragDndId);
-			const newIdx = beforeId
-				? topLevelIds.indexOf(beforeId)
-				: topLevelIds.length;
-			if (oldIdx === -1 || newIdx === -1) return;
-			if (oldIdx === newIdx) return;
-			const adjusted = newIdx > oldIdx ? newIdx - 1 : newIdx;
-			const reordered = arrayMove(topLevelIds, oldIdx, adjusted);
+			const reordered = computeReorderedIds(
+				topLevelIds,
+				`project:${draggedProjectId}`,
+				beforeId,
+			);
+			if (!reordered) return;
 
 			const newGroupOrder: string[] = [];
 			const newProjectOrder: string[] = [];
@@ -1177,6 +1196,12 @@ export function Sidebar() {
 											itemRef={makeItemRef(item.dndId)}
 										/>
 									</div>
+									{isLastInGroup &&
+										groupId &&
+										dropState?.intent === "reorder" &&
+										dropState.beforeId === groupEndId(groupId) && (
+											<DropIndicator />
+										)}
 									{isLastInGroup && !sidebarCollapsed && (
 										<div className="mx-3 mb-1.5 h-px bg-sidebar-border/60" />
 									)}
