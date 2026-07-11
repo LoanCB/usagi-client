@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import "@/i18n";
 import { ProjectFilter } from "@/components/tasks/ProjectFilter";
 import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
+import { useProjectGroupStore } from "@/store/projectGroups";
 import { useProjectStore } from "@/store/projects";
 
 const mockProjects = [
@@ -26,9 +27,41 @@ const mockProjects = [
 		createdAt: "2026-01-01T00:00:00.000Z",
 		updatedAt: "2026-01-01T00:00:00.000Z",
 	},
+	{
+		id: "p3",
+		name: "Site web",
+		color: "#f472b6",
+		icon: "folder",
+		sortOrder: 2,
+		groupId: "g1",
+		createdAt: "2026-01-01T00:00:00.000Z",
+		updatedAt: "2026-01-01T00:00:00.000Z",
+	},
+	{
+		id: "p4",
+		name: "Campagne SEO",
+		color: "#fbbf24",
+		icon: "folder",
+		sortOrder: 3,
+		groupId: "g1",
+		createdAt: "2026-01-01T00:00:00.000Z",
+		updatedAt: "2026-01-01T00:00:00.000Z",
+	},
+];
+
+const mockGroups = [
+	{
+		id: "g1",
+		name: "Marketing",
+		color: "#f59e0b",
+		sortOrder: 0,
+		createdAt: "2026-01-01T00:00:00.000Z",
+		updatedAt: "2026-01-01T00:00:00.000Z",
+	},
 ];
 
 const trigger = () => screen.getByRole("button", { name: /project filter/i });
+const groupHeader = (name: string) => screen.getByRole("button", { name });
 
 beforeEach(() => {
 	useProjectStore.setState({
@@ -38,6 +71,7 @@ beforeEach(() => {
 		updateProject: vi.fn(),
 		deleteProject: vi.fn(),
 	});
+	useProjectGroupStore.setState({ groups: mockGroups });
 });
 
 describe("ProjectFilter", () => {
@@ -121,5 +155,65 @@ describe("ProjectFilter", () => {
 			"button",
 		);
 		expect(devRow).toHaveClass("bg-accent");
+	});
+
+	it("renders a group header alongside its member projects", async () => {
+		const user = userEvent.setup();
+		render(<ProjectFilter value={null} onChange={vi.fn()} />);
+		await user.click(trigger());
+		expect(groupHeader("Marketing")).toBeInTheDocument();
+		expect(screen.getByText("Site web")).toBeInTheDocument();
+		expect(screen.getByText("Campagne SEO")).toBeInTheDocument();
+	});
+
+	it("selects every member project when a group header is clicked", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(<ProjectFilter value={null} onChange={onChange} />);
+		await user.click(trigger());
+		await user.click(groupHeader("Marketing"));
+		expect(onChange).toHaveBeenCalledWith(["p3", "p4"]);
+	});
+
+	it("appends group members to an existing selection without duplicates", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(<ProjectFilter value={["p1", "p3"]} onChange={onChange} />);
+		await user.click(trigger());
+		await user.click(groupHeader("Marketing"));
+		expect(onChange).toHaveBeenCalledWith(["p1", "p3", "p4"]);
+	});
+
+	it("removes every member project when a fully-selected group is clicked", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(<ProjectFilter value={["p1", "p3", "p4"]} onChange={onChange} />);
+		await user.click(trigger());
+		await user.click(groupHeader("Marketing"));
+		expect(onChange).toHaveBeenCalledWith(["p1"]);
+	});
+
+	it("marks the group header pressed when all members are selected", async () => {
+		const user = userEvent.setup();
+		render(<ProjectFilter value={["p3", "p4"]} onChange={vi.fn()} />);
+		await user.click(trigger());
+		expect(groupHeader("Marketing")).toHaveAttribute("aria-pressed", "true");
+	});
+
+	it("marks the group header mixed when only some members are selected", async () => {
+		const user = userEvent.setup();
+		render(<ProjectFilter value={["p3"]} onChange={vi.fn()} />);
+		await user.click(trigger());
+		expect(groupHeader("Marketing")).toHaveAttribute("aria-pressed", "mixed");
+	});
+
+	it("trigger shows the group name when exactly a full group is selected", () => {
+		render(<ProjectFilter value={["p3", "p4"]} onChange={vi.fn()} />);
+		expect(trigger()).toHaveTextContent("Marketing");
+	});
+
+	it("trigger falls back to a count when the selection is not exactly a group", () => {
+		render(<ProjectFilter value={["p1", "p3", "p4"]} onChange={vi.fn()} />);
+		expect(trigger()).toHaveTextContent("3 projects");
 	});
 });
