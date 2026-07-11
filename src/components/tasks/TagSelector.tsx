@@ -63,7 +63,10 @@ export function TagSelector({
 		setShowCreate(false);
 	}
 
-	const selectedTags = visibleTags.filter((t) => selectedTagIds.includes(t.id));
+	const selectedTagIdSet = new Set(selectedTagIds);
+	const selectedTags = visibleTags.filter((tag) =>
+		selectedTagIdSet.has(tag.id),
+	);
 
 	return (
 		<Popover>

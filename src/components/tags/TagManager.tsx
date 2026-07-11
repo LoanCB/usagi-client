@@ -52,6 +52,7 @@ function TagProjectSelect({
 			value={value ?? ""}
 			disabled={disabled}
 			onChange={(e) => onChange(e.target.value || null)}
+			aria-label={t("task.projectFallback")}
 			className="h-7 w-full text-sm rounded-md border border-input bg-background px-2 disabled:opacity-50 disabled:cursor-not-allowed"
 		>
 			<option value="">{t("tag.generic")}</option>

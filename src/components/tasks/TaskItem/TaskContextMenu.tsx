@@ -30,6 +30,7 @@ export function TaskContextMenu({
 	onTagToggle,
 }: TaskContextMenuProps) {
 	const { t } = useTranslation();
+	const taskTagIdSet = new Set(taskTagIds);
 
 	return (
 		<ContextMenuContent>
@@ -64,7 +65,7 @@ export function TaskContextMenu({
 				visibleTags.map((tag) => (
 					<ContextMenuCheckboxItem
 						key={tag.id}
-						checked={taskTagIds.includes(tag.id)}
+						checked={taskTagIdSet.has(tag.id)}
 						onCheckedChange={(checked) => onTagToggle(tag.id, checked)}
 					>
 						<GroupColorShape

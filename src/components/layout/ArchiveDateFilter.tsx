@@ -1,4 +1,9 @@
-import { Archive, CalendarClock, CalendarIcon, type LucideIcon } from "lucide-react";
+import {
+	Archive,
+	CalendarClock,
+	CalendarIcon,
+	type LucideIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import type { DateRange as RdpRange } from "react-day-picker";
 import { fr } from "react-day-picker/locale";

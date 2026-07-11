@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 // Delay before a single click acts, so a double-click can cancel it first.
@@ -23,13 +24,7 @@ export function TaskTitle({
 	onStopEdit,
 	onRename,
 }: TaskTitleProps) {
-	const [draft, setDraft] = useState(title);
 	const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-	// Reset the draft whenever we (re-)enter edit mode.
-	useEffect(() => {
-		if (isEditing) setDraft(title);
-	}, [isEditing, title]);
 
 	// Clear any pending single-click timer when unmounting.
 	useEffect(() => {
@@ -59,34 +54,12 @@ export function TaskTitle({
 		onStartEdit();
 	}
 
-	function commitEdit() {
-		onStopEdit();
-		const trimmed = draft.trim();
-		if (trimmed && trimmed !== title) onRename(trimmed);
-	}
-
-	function cancelEdit() {
-		// Reset first so the blur that follows unmount sees no change to save.
-		setDraft(title);
-		onStopEdit();
-	}
-
 	if (isEditing) {
 		return (
-			<input
-				// biome-ignore lint/a11y/noAutofocus: intentional — editing is user-initiated
-				autoFocus
-				type="text"
-				value={draft}
-				onChange={(e) => setDraft(e.target.value)}
-				onFocus={(e) => e.target.select()}
-				onBlur={commitEdit}
-				onKeyDown={(e) => {
-					if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-					else if (e.key === "Escape") cancelEdit();
-				}}
-				onPointerDown={(e) => e.stopPropagation()}
-				className="flex-1 text-sm bg-transparent outline-none border-b border-border"
+			<TaskTitleEditor
+				title={title}
+				onStopEdit={onStopEdit}
+				onRename={onRename}
 			/>
 		);
 	}
@@ -103,5 +76,52 @@ export function TaskTitle({
 		>
 			{title}
 		</button>
+	);
+}
+
+function TaskTitleEditor({
+	title,
+	onStopEdit,
+	onRename,
+}: {
+	readonly title: string;
+	readonly onStopEdit: () => void;
+	readonly onRename: (title: string) => void;
+}) {
+	const { t } = useTranslation();
+	const [draft, setDraft] = useState(title);
+	const inputRef = useRef<HTMLInputElement>(null);
+
+	useEffect(() => {
+		inputRef.current?.focus();
+	}, []);
+
+	function commitEdit() {
+		onStopEdit();
+		const trimmed = draft.trim();
+		if (trimmed && trimmed !== title) onRename(trimmed);
+	}
+
+	function cancelEdit() {
+		setDraft(title);
+		onStopEdit();
+	}
+
+	return (
+		<input
+			ref={inputRef}
+			type="text"
+			aria-label={t("task.rename")}
+			value={draft}
+			onChange={(e) => setDraft(e.target.value)}
+			onFocus={(e) => e.target.select()}
+			onBlur={commitEdit}
+			onKeyDown={(e) => {
+				if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+				else if (e.key === "Escape") cancelEdit();
+			}}
+			onPointerDown={(e) => e.stopPropagation()}
+			className="flex-1 text-sm bg-transparent outline-none border-b border-border"
+		/>
 	);
 }

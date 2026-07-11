@@ -39,7 +39,7 @@ export function ProjectGroupNavItem({
 	projects,
 	collapsed,
 	isDragOver = false,
-}: ProjectGroupNavItemProps) {
+}: Readonly<ProjectGroupNavItemProps>) {
 	const { t } = useTranslation();
 	const { collapsedGroupIds, toggleGroupCollapsed } = useUIStore();
 	const { updateGroup } = useProjectGroupStore();
@@ -63,9 +63,7 @@ export function ProjectGroupNavItem({
 
 	async function handleDissolve() {
 		const repo = getRepository();
-		for (const p of projects) {
-			await assignToGroup(repo, p.id, null);
-		}
+		await Promise.all(projects.map((p) => assignToGroup(repo, p.id, null)));
 	}
 
 	async function handleEditConfirm() {

@@ -51,6 +51,8 @@ export function MultiSelect({
 		onChange(next.length === 0 ? null : next);
 	}
 
+	const valueSet = new Set(value ?? []);
+
 	return (
 		<Popover>
 			<PopoverTrigger
@@ -72,7 +74,7 @@ export function MultiSelect({
 				</button>
 				<div className="my-1 h-px bg-border" />
 				{options.map((option) => {
-					const checked = value?.includes(option.value);
+					const checked = valueSet.has(option.value);
 					return (
 						<button
 							key={option.value}

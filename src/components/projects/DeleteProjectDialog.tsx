@@ -421,6 +421,7 @@ function DeleteProjectForm({
 				<button
 					type="button"
 					onClick={onCancel}
+					aria-label={t("common.cancel")}
 					className="shrink-0 w-7 h-7 rounded-[7px] bg-foreground/5 hover:bg-foreground/10 transition-colors flex items-center justify-center text-muted-foreground cursor-pointer"
 				>
 					<XIcon className="w-3.5 h-3.5" />
