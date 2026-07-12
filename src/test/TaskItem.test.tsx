@@ -187,112 +187,50 @@ describe("TaskItem", () => {
 		});
 	});
 
-	it("renders a priority dot for each priority level", () => {
-		const { rerender } = render(
-			<TaskItem
-				task={{ ...mockTask, priority: "high" }}
-				onDeleteRequest={vi.fn()}
-			/>,
-		);
-		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
-
-		rerender(
-			<TaskItem
-				task={{ ...mockTask, priority: "medium" }}
-				onDeleteRequest={vi.fn()}
-			/>,
-		);
-		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
-
-		rerender(
-			<TaskItem
-				task={{ ...mockTask, priority: "low" }}
-				onDeleteRequest={vi.fn()}
-			/>,
-		);
-		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
-
-		rerender(
-			<TaskItem
-				task={{ ...mockTask, priority: "none" }}
-				onDeleteRequest={vi.fn()}
-			/>,
-		);
-		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
-	});
-
-	it("applies red dot color for high priority", () => {
+	it.each([
+		"lowest",
+		"low",
+		"medium",
+		"high",
+		"highest",
+		"blocker",
+	] as const)("renders a priority icon for %s priority", (priority) => {
 		render(
-			<TaskItem
-				task={{ ...mockTask, priority: "high" }}
-				onDeleteRequest={vi.fn()}
-			/>,
+			<TaskItem task={{ ...mockTask, priority }} onDeleteRequest={vi.fn()} />,
 		);
-		const dot = screen.getByTestId("priority-dot");
-		expect(dot).toHaveStyle({ background: "#ef4444" });
-		expect(dot).toHaveStyle({ boxShadow: "0 0 5px rgba(239,68,68,0.7)" });
+		const indicator = screen.getByTestId("priority-indicator");
+		expect(indicator.querySelector("svg")).toBeInTheDocument();
 	});
 
-	it("applies yellow dot color for medium priority", () => {
-		render(
-			<TaskItem
-				task={{ ...mockTask, priority: "medium" }}
-				onDeleteRequest={vi.fn()}
-			/>,
-		);
-		expect(screen.getByTestId("priority-dot")).toHaveStyle({
-			background: "#eab308",
-		});
-	});
-
-	it("applies green dot color for low priority", () => {
-		render(
-			<TaskItem
-				task={{ ...mockTask, priority: "low" }}
-				onDeleteRequest={vi.fn()}
-			/>,
-		);
-		expect(screen.getByTestId("priority-dot")).toHaveStyle({
-			background: "#22c55e",
-		});
-	});
-
-	it("renders transparent dot for no priority", () => {
+	it("renders no icon for none priority", () => {
 		render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
-		expect(screen.getByTestId("priority-dot")).toHaveStyle({
-			background: "transparent",
-		});
+		const indicator = screen.getByTestId("priority-indicator");
+		expect(indicator.querySelector("svg")).not.toBeInTheDocument();
 	});
 
-	describe("colorblind mode", () => {
-		it.each([
-			"high",
-			"medium",
-			"low",
-		] as const)("renders priority bars for %s priority in colorblind mode", (priority) => {
-			useSettingsStore.setState({ colorblindMode: true });
-			render(
-				<TaskItem task={{ ...mockTask, priority }} onDeleteRequest={vi.fn()} />,
-			);
-			expect(screen.getByTestId("priority-bars")).toBeInTheDocument();
-			expect(screen.queryByTestId("priority-dot")).not.toBeInTheDocument();
-		});
+	it.each([
+		["highest", "#ef4444"],
+		["medium", "#eab308"],
+		["lowest", "#79b8ff"],
+		["blocker", "#991b1b"],
+	] as const)("colors the %s icon", (priority, color) => {
+		render(
+			<TaskItem task={{ ...mockTask, priority }} onDeleteRequest={vi.fn()} />,
+		);
+		const icon = screen.getByTestId("priority-indicator").querySelector("svg");
+		expect(icon).toHaveStyle({ color });
+	});
 
-		it("renders no bars for none priority in colorblind mode", () => {
-			useSettingsStore.setState({ colorblindMode: true });
-			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
-			expect(screen.queryByTestId("priority-bars")).not.toBeInTheDocument();
-		});
-
-		it("renders dot (not bars) when colorblind mode is off", () => {
-			render(
-				<TaskItem
-					task={{ ...mockTask, priority: "high" }}
-					onDeleteRequest={vi.fn()}
-				/>,
-			);
-			expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
-			expect(screen.queryByTestId("priority-bars")).not.toBeInTheDocument();
-		});
+	it("shows the same icon in colorblind mode (shape carries meaning)", () => {
+		useSettingsStore.setState({ colorblindMode: true });
+		render(
+			<TaskItem
+				task={{ ...mockTask, priority: "highest" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(
+			screen.getByTestId("priority-indicator").querySelector("svg"),
+		).toBeInTheDocument();
 	});
 });

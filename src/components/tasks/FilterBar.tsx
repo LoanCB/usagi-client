@@ -30,10 +30,10 @@ import {
 } from "@/components/ui/tooltip";
 import { formatShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
-import { useSettingsStore } from "@/store/settings";
 import { useShortcutsStore } from "@/store/shortcuts";
 import { useTagStore } from "@/store/tags";
 import { useUIStore } from "@/store/ui";
+import { PRIORITY_ORDER } from "@/theme/priorityColors";
 import type { Priority } from "@/types";
 
 type Sort = "asc" | "desc" | null;
@@ -62,17 +62,9 @@ export function FilterBar({
 	const { t } = useTranslation();
 	const { activeFilters, setFilters, selectedProjectId } = useUIStore();
 	const { tags } = useTagStore();
-	const colorblindMode = useSettingsStore((s) => s.colorblindMode);
 	const sortUrgency = useShortcutsStore((s) => s.sortUrgency);
 	const sortDueDate = useShortcutsStore((s) => s.sortDueDate);
 	const sortProject = useShortcutsStore((s) => s.sortProject);
-
-	const PRIORITY_LABELS: Record<Priority, string> = {
-		none: t("priority.none"),
-		low: t("priority.low"),
-		medium: t("priority.medium"),
-		high: t("priority.high"),
-	};
 
 	const selectedTagIds = activeFilters.tagIds ?? [];
 
@@ -113,26 +105,23 @@ export function FilterBar({
 					)}
 				>
 					{activeFilters.priority ? (
-						<PriorityIndicator
-							priority={activeFilters.priority}
-							colorblindMode={colorblindMode}
-						/>
+						<PriorityIndicator priority={activeFilters.priority} />
 					) : (
 						<SlidersHorizontal className="h-3 w-3" />
 					)}
 					{activeFilters.priority
-						? PRIORITY_LABELS[activeFilters.priority]
+						? t(`priority.${activeFilters.priority}`)
 						: t("filter.priority")}
 				</DropdownMenuTrigger>
 				<DropdownMenuContent>
-					{(["high", "medium", "low", "none"] as Priority[]).map((p) => (
+					{([...PRIORITY_ORDER].reverse() as Priority[]).map((p) => (
 						<DropdownMenuItem
 							key={p}
 							onClick={() => setFilters({ priority: p })}
 							className="gap-2"
 						>
-							<PriorityIndicator priority={p} colorblindMode={colorblindMode} />
-							{PRIORITY_LABELS[p]}
+							<PriorityIndicator priority={p} />
+							{t(`priority.${p}`)}
 						</DropdownMenuItem>
 					))}
 				</DropdownMenuContent>

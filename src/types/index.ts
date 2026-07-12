@@ -1,4 +1,11 @@
-export type Priority = "none" | "low" | "medium" | "high";
+export type Priority =
+	| "none"
+	| "lowest"
+	| "low"
+	| "medium"
+	| "high"
+	| "highest"
+	| "blocker";
 
 export interface Tag {
 	id: string;

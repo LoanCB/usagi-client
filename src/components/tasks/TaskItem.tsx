@@ -12,25 +12,12 @@ import { useSettingsStore } from "@/store/settings";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
-import type { Priority, Project, Task } from "@/types";
+import { priorityColor } from "@/theme/priorityColors";
+import type { Project, Task } from "@/types";
 import { PriorityIndicator } from "./TaskItem/PriorityIndicator";
 import { TaskContextMenu } from "./TaskItem/TaskContextMenu";
 import { TaskMeta } from "./TaskItem/TaskMeta";
 import { TaskTitle } from "./TaskItem/TaskTitle";
-
-const PRIORITY_BG: Record<Priority, string | undefined> = {
-	high: "rgba(239,68,68,0.13)",
-	medium: "rgba(234,179,8,0.11)",
-	low: "rgba(34,197,94,0.10)",
-	none: undefined,
-};
-
-const PRIORITY_BORDER: Record<Priority, string | undefined> = {
-	high: "rgba(239,68,68,0.30)",
-	medium: "rgba(234,179,8,0.26)",
-	low: "rgba(34,197,94,0.22)",
-	none: undefined,
-};
 
 interface TaskItemProps {
 	readonly task: Task;
@@ -63,17 +50,15 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 		isDragging,
 	} = useSortable({ id: task.id });
 
+	const priorityTint = priorityColor(task.priority);
 	const style = {
 		transform: CSS.Transform.toString(transform),
 		transition,
 		opacity: isDragging ? 0.45 : undefined,
 		borderStyle: isDragging ? ("dashed" as const) : undefined,
-		backgroundColor: isDragging
-			? "transparent"
-			: colorblindMode
-				? undefined
-				: PRIORITY_BG[task.priority],
-		borderColor: colorblindMode ? undefined : PRIORITY_BORDER[task.priority],
+		backgroundColor:
+			isDragging || !priorityTint ? "transparent" : `${priorityTint}20`,
+		borderColor: priorityTint ? `${priorityTint}4d` : undefined,
 	};
 
 	async function handleChecked(checked: boolean) {
@@ -137,10 +122,7 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 					className="shrink-0"
 				/>
 
-				<PriorityIndicator
-					priority={task.priority}
-					colorblindMode={colorblindMode}
-				/>
+				<PriorityIndicator priority={task.priority} />
 
 				{project?.icon &&
 					(() => {

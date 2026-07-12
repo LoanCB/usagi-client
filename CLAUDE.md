@@ -6,7 +6,7 @@ Ce projet utilise **pnpm** (jamais npm).
 
 ## Conventions de code
 
-- **Commentaires** : éviter les commentaires verbeux ou inutiles (qui paraphrasent le code). N'écrire un commentaire que pour expliquer un *pourquoi* non évident (invariant, contournement, décision).
+- **Commentaires** : rédiger les commentaires **en anglais**, utiles et concis. Éviter les commentaires verbeux ou inutiles (qui paraphrasent le code) ; n'écrire un commentaire que pour expliquer un _pourquoi_ non évident (invariant, contournement, décision).
 - **Types** : placer les types dans leur propre fichier. Exception : les props d'un composant qui ne sont pas partagées restent dans le fichier du composant.
 
 ## Fin de tâche (obligatoire)

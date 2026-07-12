@@ -51,9 +51,12 @@ function DropLine() {
 }
 
 const PRIORITY_WEIGHT: Record<string, number> = {
-	high: 3,
-	medium: 2,
-	low: 1,
+	blocker: 6,
+	highest: 5,
+	high: 4,
+	medium: 3,
+	low: 2,
+	lowest: 1,
 	none: 0,
 };
 

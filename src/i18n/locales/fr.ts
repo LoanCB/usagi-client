@@ -73,9 +73,12 @@ const fr: typeof en = {
 	priority: {
 		label: "Priorité",
 		none: "Aucune",
+		lowest: "Très basse",
 		low: "Basse",
 		medium: "Moyenne",
 		high: "Haute",
+		highest: "Très haute",
+		blocker: "Bloquant",
 	},
 	filter: {
 		priority: "Priorité",

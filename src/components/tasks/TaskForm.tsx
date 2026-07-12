@@ -30,7 +30,9 @@ import {
 import { cn, formatDate } from "@/lib/utils";
 import { getRepository } from "@/store/repository";
 import { useTaskStore } from "@/store/tasks";
+import { PRIORITY_ORDER } from "@/theme/priorityColors";
 import type { Priority } from "@/types";
+import { PriorityIcon } from "./TaskItem/PriorityIcon";
 
 interface TaskFormProps {
 	readonly children: ReactElement;
@@ -172,21 +174,23 @@ export function TaskForm({ children, projectId = null }: TaskFormProps) {
 						>
 							<SelectTrigger className="flex-1">
 								<SelectValue placeholder={t("priority.label")}>
-									{(v: string) =>
-										({
-											none: t("priority.none"),
-											low: t("priority.low"),
-											medium: t("priority.medium"),
-											high: t("priority.high"),
-										})[v]
-									}
+									{(v: string) => (
+										<span className="flex items-center gap-2">
+											<PriorityIcon priority={v as Priority} />
+											{t(`priority.${v as Priority}`)}
+										</span>
+									)}
 								</SelectValue>
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="none">{t("priority.none")}</SelectItem>
-								<SelectItem value="low">{t("priority.low")}</SelectItem>
-								<SelectItem value="medium">{t("priority.medium")}</SelectItem>
-								<SelectItem value="high">{t("priority.high")}</SelectItem>
+								{PRIORITY_ORDER.map((p) => (
+									<SelectItem key={p} value={p}>
+										<span className="flex items-center gap-2">
+											<PriorityIcon priority={p} />
+											{t(`priority.${p}`)}
+										</span>
+									</SelectItem>
+								))}
 							</SelectContent>
 						</Select>
 						{showDatePicker ? (

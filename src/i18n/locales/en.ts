@@ -71,9 +71,12 @@ const en = {
 	priority: {
 		label: "Priority",
 		none: "None",
+		lowest: "Lowest",
 		low: "Low",
 		medium: "Medium",
 		high: "High",
+		highest: "Highest",
+		blocker: "Blocker",
 	},
 	filter: {
 		priority: "Priority",
