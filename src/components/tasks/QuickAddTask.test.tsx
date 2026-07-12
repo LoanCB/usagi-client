@@ -42,6 +42,7 @@ describe("QuickAddTask", () => {
 			title: "Buy milk",
 			projectId: null,
 			tagIds: [],
+			priority: "none",
 		});
 	});
 
@@ -81,6 +82,7 @@ describe("QuickAddTask", () => {
 			title: "New task",
 			projectId: "proj-1",
 			tagIds: [],
+			priority: "none",
 		});
 	});
 
@@ -103,6 +105,7 @@ describe("QuickAddTask", () => {
 			title: "Plan meeting",
 			projectId: null,
 			tagIds: [],
+			priority: "none",
 			dueDate: "2026-05-20",
 		});
 	});
@@ -117,6 +120,21 @@ describe("QuickAddTask", () => {
 			title: "No date task",
 			projectId: null,
 			tagIds: [],
+			priority: "none",
 		});
+	});
+
+	it("passes the selected priority to createTask", async () => {
+		const user = userEvent.setup();
+		render(<QuickAddTask projectId={null} />);
+		await user.click(screen.getByRole("button", { name: /priority/i }));
+		await user.click(screen.getByRole("menuitem", { name: "High" }));
+		const input = screen.getByRole("textbox");
+		await user.type(input, "Urgent task");
+		await user.keyboard("{Enter}");
+		expect(mockCreateTask).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.objectContaining({ title: "Urgent task", priority: "high" }),
+		);
 	});
 });

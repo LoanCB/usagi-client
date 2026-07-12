@@ -1,3 +1,4 @@
+import { Flag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
@@ -14,9 +15,14 @@ import { PriorityIcon } from "./TaskItem/PriorityIcon";
 interface PrioritySelectorProps {
 	readonly value: Priority;
 	readonly onChange: (p: Priority) => void;
+	readonly triggerClassName?: string;
 }
 
-export function PrioritySelector({ value, onChange }: PrioritySelectorProps) {
+export function PrioritySelector({
+	value,
+	onChange,
+	triggerClassName,
+}: PrioritySelectorProps) {
 	const { t } = useTranslation();
 
 	return (
@@ -25,10 +31,19 @@ export function PrioritySelector({ value, onChange }: PrioritySelectorProps) {
 				className={cn(
 					buttonVariants({ variant: "ghost", size: "sm" }),
 					"gap-2 h-7 px-2 justify-start",
+					triggerClassName,
 				)}
 			>
-				<PriorityIcon priority={value} />
-				<span className="text-xs">{t(`priority.${value}`)}</span>
+				{/* Without a priority, show the field name rather than "None" so the
+				    control reads as a labelled placeholder like the sibling pickers. */}
+				{value === "none" ? (
+					<Flag className="h-3.5 w-3.5 shrink-0" />
+				) : (
+					<PriorityIcon priority={value} />
+				)}
+				<span className="text-xs">
+					{value === "none" ? t("priority.label") : t(`priority.${value}`)}
+				</span>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start">
 				{PRIORITY_ORDER.map((p) => (
