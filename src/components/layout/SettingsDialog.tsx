@@ -368,16 +368,6 @@ function GeneralPanel() {
 	);
 	const colorblindMode = useSettingsStore((s) => s.colorblindMode);
 	const setColorblindMode = useSettingsStore((s) => s.setColorblindMode);
-	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
-	const archivesVisible = useSettingsStore((s) => s.archivesVisible);
-	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
-	const searchTriggerVisible = useSettingsStore((s) => s.searchTriggerVisible);
-	const setCalendarVisible = useSettingsStore((s) => s.setCalendarVisible);
-	const setArchivesVisible = useSettingsStore((s) => s.setArchivesVisible);
-	const setTagsVisible = useSettingsStore((s) => s.setTagsVisible);
-	const setSearchTriggerVisible = useSettingsStore(
-		(s) => s.setSearchTriggerVisible,
-	);
 
 	const sortUrgency = useShortcutsStore((s) => s.sortUrgency);
 	const sortDueDate = useShortcutsStore((s) => s.sortDueDate);
@@ -402,7 +392,7 @@ function GeneralPanel() {
 	return (
 		<div className="flex flex-col py-4 gap-4" role="tabpanel">
 			<div className="flex flex-col sm:flex-row">
-				{/* Left column: Appearance + Language */}
+				{/* Left column: Appearance */}
 				<div className="flex-1 min-w-0 flex flex-col sm:pr-4">
 					{/* Section: Appearance */}
 					<div className="flex flex-col gap-3 pb-4">
@@ -489,87 +479,16 @@ function GeneralPanel() {
 							/>
 						</div>
 					</div>
-
-					<div className="h-px bg-border" />
-
-					{/* Section: Language */}
-					<div className="flex flex-col gap-3 py-4">
-						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-							{t("settings.language")}
-						</p>
-						<div className="flex gap-1">
-							{(["fr", "en"] as const).map((lang) => (
-								<button
-									key={lang}
-									type="button"
-									onClick={() => i18n.changeLanguage(lang)}
-									aria-label={lang === "fr" ? "Français" : "English"}
-									aria-pressed={currentLang === lang}
-									className={cn(
-										"flex-1 py-1.5 rounded-md text-xs font-medium uppercase transition-colors",
-										currentLang === lang
-											? "bg-primary text-primary-foreground"
-											: "text-muted-foreground hover:text-foreground border border-input",
-									)}
-								>
-									{lang}
-								</button>
-							))}
-						</div>
-					</div>
 				</div>
 
 				{/* Divider */}
 				<div className="h-px bg-border sm:hidden" />
 				<div className="hidden sm:block w-px bg-border flex-shrink-0" />
 
-				{/* Right column: Sidebar Views + Shortcuts */}
+				{/* Right column: Shortcuts + Language */}
 				<div className="flex-1 min-w-0 flex flex-col pt-4 sm:pt-0 sm:pl-4">
-					{/* Section: Sidebar views */}
-					<div className="flex flex-col gap-3 pb-4">
-						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-							{t("settings.sidebarViews")}
-						</p>
-						<div className="flex items-center justify-between cursor-pointer select-none">
-							<span className="text-sm">{t("nav.calendar")}</span>
-							<Switch
-								aria-label={t("nav.calendar")}
-								checked={calendarVisible}
-								onCheckedChange={(v) => setCalendarVisible(getRepository(), v)}
-							/>
-						</div>
-						<div className="flex items-center justify-between cursor-pointer select-none">
-							<span className="text-sm">{t("nav.archives")}</span>
-							<Switch
-								aria-label={t("nav.archives")}
-								checked={archivesVisible}
-								onCheckedChange={(v) => setArchivesVisible(getRepository(), v)}
-							/>
-						</div>
-						<div className="flex items-center justify-between cursor-pointer select-none">
-							<span className="text-sm">{t("nav.tags")}</span>
-							<Switch
-								aria-label={t("nav.tags")}
-								checked={tagsVisible}
-								onCheckedChange={(v) => setTagsVisible(getRepository(), v)}
-							/>
-						</div>
-						<div className="flex items-center justify-between cursor-pointer select-none">
-							<span className="text-sm">{t("settings.searchTrigger")}</span>
-							<Switch
-								aria-label={t("settings.searchTrigger")}
-								checked={searchTriggerVisible}
-								onCheckedChange={(v) =>
-									setSearchTriggerVisible(getRepository(), v)
-								}
-							/>
-						</div>
-					</div>
-
-					<div className="h-px bg-border" />
-
 					{/* Section: Shortcuts */}
-					<div className="flex flex-col gap-3 pt-4">
+					<div className="flex flex-col gap-3 pb-4">
 						<div className="flex items-center justify-between">
 							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
 								{t("settings.shortcuts")}
@@ -616,6 +535,182 @@ function GeneralPanel() {
 									conflict={projectConflict}
 								/>
 							</div>
+						</div>
+					</div>
+
+					<div className="h-px bg-border" />
+
+					{/* Section: Language */}
+					<div className="flex flex-col gap-3 pt-4">
+						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+							{t("settings.language")}
+						</p>
+						<div className="flex gap-1">
+							{(["fr", "en"] as const).map((lang) => (
+								<button
+									key={lang}
+									type="button"
+									onClick={() => i18n.changeLanguage(lang)}
+									aria-label={lang === "fr" ? "Français" : "English"}
+									aria-pressed={currentLang === lang}
+									className={cn(
+										"flex-1 py-1.5 rounded-md text-xs font-medium uppercase transition-colors",
+										currentLang === lang
+											? "bg-primary text-primary-foreground"
+											: "text-muted-foreground hover:text-foreground border border-input",
+									)}
+								>
+									{lang}
+								</button>
+							))}
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function CustomizationPanel() {
+	const { t } = useTranslation();
+	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
+	const archivesVisible = useSettingsStore((s) => s.archivesVisible);
+	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
+	const searchTriggerVisible = useSettingsStore((s) => s.searchTriggerVisible);
+	const setCalendarVisible = useSettingsStore((s) => s.setCalendarVisible);
+	const setArchivesVisible = useSettingsStore((s) => s.setArchivesVisible);
+	const setTagsVisible = useSettingsStore((s) => s.setTagsVisible);
+	const setSearchTriggerVisible = useSettingsStore(
+		(s) => s.setSearchTriggerVisible,
+	);
+	const quickAddPriorityVisible = useSettingsStore(
+		(s) => s.quickAddPriorityVisible,
+	);
+	const quickAddDueDateVisible = useSettingsStore(
+		(s) => s.quickAddDueDateVisible,
+	);
+	const quickAddTagsVisible = useSettingsStore((s) => s.quickAddTagsVisible);
+	const setQuickAddPriorityVisible = useSettingsStore(
+		(s) => s.setQuickAddPriorityVisible,
+	);
+	const setQuickAddDueDateVisible = useSettingsStore(
+		(s) => s.setQuickAddDueDateVisible,
+	);
+	const setQuickAddTagsVisible = useSettingsStore(
+		(s) => s.setQuickAddTagsVisible,
+	);
+	const priorityBackgroundVisible = useSettingsStore(
+		(s) => s.priorityBackgroundVisible,
+	);
+	const setPriorityBackgroundVisible = useSettingsStore(
+		(s) => s.setPriorityBackgroundVisible,
+	);
+
+	return (
+		<div className="flex flex-col py-4 gap-4" role="tabpanel">
+			<div className="flex flex-col sm:flex-row">
+				{/* Left column: Sidebar views */}
+				<div className="flex-1 min-w-0 flex flex-col sm:pr-4">
+					<div className="flex flex-col gap-3">
+						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+							{t("settings.sidebarViews")}
+						</p>
+						<div className="flex items-center justify-between cursor-pointer select-none">
+							<span className="text-sm">{t("nav.calendar")}</span>
+							<Switch
+								aria-label={t("nav.calendar")}
+								checked={calendarVisible}
+								onCheckedChange={(v) => setCalendarVisible(getRepository(), v)}
+							/>
+						</div>
+						<div className="flex items-center justify-between cursor-pointer select-none">
+							<span className="text-sm">{t("nav.archives")}</span>
+							<Switch
+								aria-label={t("nav.archives")}
+								checked={archivesVisible}
+								onCheckedChange={(v) => setArchivesVisible(getRepository(), v)}
+							/>
+						</div>
+						<div className="flex items-center justify-between cursor-pointer select-none">
+							<span className="text-sm">{t("nav.tags")}</span>
+							<Switch
+								aria-label={t("nav.tags")}
+								checked={tagsVisible}
+								onCheckedChange={(v) => setTagsVisible(getRepository(), v)}
+							/>
+						</div>
+						<div className="flex items-center justify-between cursor-pointer select-none">
+							<span className="text-sm">{t("settings.searchTrigger")}</span>
+							<Switch
+								aria-label={t("settings.searchTrigger")}
+								checked={searchTriggerVisible}
+								onCheckedChange={(v) =>
+									setSearchTriggerVisible(getRepository(), v)
+								}
+							/>
+						</div>
+					</div>
+				</div>
+
+				{/* Divider */}
+				<div className="h-px bg-border sm:hidden" />
+				<div className="hidden sm:block w-px bg-border flex-shrink-0" />
+
+				{/* Right column: Quick task creation */}
+				<div className="flex-1 min-w-0 flex flex-col pt-4 sm:pt-0 sm:pl-4">
+					<div className="flex flex-col gap-3">
+						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+							{t("settings.quickAdd")}
+						</p>
+						<div className="flex items-center justify-between cursor-pointer select-none">
+							<span className="text-sm">{t("settings.quickAddPriority")}</span>
+							<Switch
+								aria-label={t("settings.quickAddPriority")}
+								checked={quickAddPriorityVisible}
+								onCheckedChange={(v) =>
+									setQuickAddPriorityVisible(getRepository(), v)
+								}
+							/>
+						</div>
+						<div className="flex items-center justify-between cursor-pointer select-none">
+							<span className="text-sm">{t("settings.quickAddDueDate")}</span>
+							<Switch
+								aria-label={t("settings.quickAddDueDate")}
+								checked={quickAddDueDateVisible}
+								onCheckedChange={(v) =>
+									setQuickAddDueDateVisible(getRepository(), v)
+								}
+							/>
+						</div>
+						<div className="flex items-center justify-between cursor-pointer select-none">
+							<span className="text-sm">{t("settings.quickAddTags")}</span>
+							<Switch
+								aria-label={t("settings.quickAddTags")}
+								checked={quickAddTagsVisible}
+								onCheckedChange={(v) =>
+									setQuickAddTagsVisible(getRepository(), v)
+								}
+							/>
+						</div>
+					</div>
+
+					<div className="h-px bg-border my-4" />
+
+					<div className="flex flex-col gap-3">
+						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+							{t("settings.taskDisplay")}
+						</p>
+						<div className="flex items-center justify-between cursor-pointer select-none">
+							<span className="text-sm">
+								{t("settings.priorityBackground")}
+							</span>
+							<Switch
+								aria-label={t("settings.priorityBackground")}
+								checked={priorityBackgroundVisible}
+								onCheckedChange={(v) =>
+									setPriorityBackgroundVisible(getRepository(), v)
+								}
+							/>
 						</div>
 					</div>
 				</div>
@@ -1052,7 +1147,7 @@ function DataPanel() {
 export function SettingsDialog({ children }: SettingsDialogProps) {
 	const { t } = useTranslation();
 	const [activeTab, setActiveTab] = useState<
-		"general" | "notifications" | "data"
+		"general" | "customization" | "notifications" | "data"
 	>("general");
 
 	return (
@@ -1065,9 +1160,13 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 						{(
 							[
 								["general", t("settings.tabGeneral")],
+								["customization", t("settings.tabCustomization")],
 								["notifications", t("settings.notifications")],
 								["data", t("data.title")],
-							] as ["general" | "notifications" | "data", string][]
+							] as [
+								"general" | "customization" | "notifications" | "data",
+								string,
+							][]
 						).map(([id, label]) => (
 							<button
 								key={id}
@@ -1090,6 +1189,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 
 				<div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
 					{activeTab === "general" && <GeneralPanel />}
+					{activeTab === "customization" && <CustomizationPanel />}
 					{activeTab === "notifications" && <NotificationsPanel />}
 					{activeTab === "data" && <DataPanel />}
 				</div>

@@ -4,6 +4,7 @@ import { DueDatePicker } from "@/components/tasks/DueDatePicker";
 import { PrioritySelector } from "@/components/tasks/PrioritySelector";
 import { TagSelector } from "@/components/tasks/TagSelector";
 import { getRepository } from "@/store/repository";
+import { useSettingsStore } from "@/store/settings";
 import { useTaskStore } from "@/store/tasks";
 import type { Priority } from "@/types";
 
@@ -23,6 +24,10 @@ export function QuickAddTask({
 	const [priority, setPriority] = useState<Priority>("none");
 	const [internalDueDate, setInternalDueDate] = useState<string | null>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
+
+	const priorityVisible = useSettingsStore((s) => s.quickAddPriorityVisible);
+	const dueDateVisible = useSettingsStore((s) => s.quickAddDueDateVisible);
+	const tagsVisible = useSettingsStore((s) => s.quickAddTagsVisible);
 
 	const isCalendarContext = dueDate !== undefined;
 
@@ -71,24 +76,28 @@ export function QuickAddTask({
 				aria-label={t("task.titlePlaceholder")}
 				className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
 			/>
-			<PrioritySelector
-				value={priority}
-				onChange={setPriority}
-				triggerClassName="text-muted-foreground"
-			/>
-			{!isCalendarContext && (
+			{priorityVisible && (
+				<PrioritySelector
+					value={priority}
+					onChange={setPriority}
+					triggerClassName="text-muted-foreground"
+				/>
+			)}
+			{dueDateVisible && !isCalendarContext && (
 				<DueDatePicker
 					value={internalDueDate}
 					onChange={setInternalDueDate}
 					triggerClassName="text-muted-foreground"
 				/>
 			)}
-			<TagSelector
-				selectedTagIds={tagIds}
-				onChange={setTagIds}
-				triggerClassName="text-muted-foreground"
-				projectId={projectId}
-			/>
+			{tagsVisible && (
+				<TagSelector
+					selectedTagIds={tagIds}
+					onChange={setTagIds}
+					triggerClassName="text-muted-foreground"
+					projectId={projectId}
+				/>
+			)}
 		</div>
 	);
 }

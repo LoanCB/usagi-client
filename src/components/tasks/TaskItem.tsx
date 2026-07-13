@@ -32,6 +32,9 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 	const { tags } = useTagStore();
 	const { t } = useTranslation();
 	const colorblindMode = useSettingsStore((s) => s.colorblindMode);
+	const priorityBackgroundVisible = useSettingsStore(
+		(s) => s.priorityBackgroundVisible,
+	);
 
 	const [isEditing, setIsEditing] = useState(false);
 
@@ -57,7 +60,9 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 		opacity: isDragging ? 0.45 : undefined,
 		borderStyle: isDragging ? ("dashed" as const) : undefined,
 		backgroundColor:
-			isDragging || !priorityTint ? "transparent" : `${priorityTint}20`,
+			isDragging || !priorityTint || !priorityBackgroundVisible
+				? "transparent"
+				: `${priorityTint}20`,
 		borderColor: priorityTint ? `${priorityTint}4d` : undefined,
 	};
 
