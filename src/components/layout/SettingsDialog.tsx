@@ -22,6 +22,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { ImportConfirmDialog } from "@/components/layout/ImportConfirmDialog";
+import { ProjectFilter } from "@/components/tasks/ProjectFilter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -31,18 +32,15 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
-import { MultiSelect } from "@/components/ui/multi-select";
 import { Switch } from "@/components/ui/switch";
 import { useUpdaterContext } from "@/hooks/useUpdater";
 import {
 	type ExportData,
 	type ExportOptions,
 	exportData,
-	INBOX_PROJECT_ID,
 } from "@/lib/dataTransfer";
 import { formatShortcut, type SortShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
-import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import { type NotificationTime, useSettingsStore } from "@/store/settings";
 import { type ShortcutAction, useShortcutsStore } from "@/store/shortcuts";
@@ -819,6 +817,35 @@ type ExportToggleKey = Extract<
 	"activeTasks" | "completedTasks" | "archivedTasks" | "projects" | "tags"
 >;
 
+type ExportItemLabelKey =
+	| "data.activeTasks"
+	| "data.completedTasks"
+	| "data.archivedTasks"
+	| "data.exportProjects"
+	| "data.exportTags";
+
+// Export toggles grouped by meaning: tasks vs. other data.
+const EXPORT_GROUPS: {
+	headerKey: "data.exportTasksGroup" | "data.exportDataGroup";
+	items: { key: ExportToggleKey; labelKey: ExportItemLabelKey }[];
+}[] = [
+	{
+		headerKey: "data.exportTasksGroup",
+		items: [
+			{ key: "activeTasks", labelKey: "data.activeTasks" },
+			{ key: "completedTasks", labelKey: "data.completedTasks" },
+			{ key: "archivedTasks", labelKey: "data.archivedTasks" },
+		],
+	},
+	{
+		headerKey: "data.exportDataGroup",
+		items: [
+			{ key: "projects", labelKey: "data.exportProjects" },
+			{ key: "tags", labelKey: "data.exportTags" },
+		],
+	},
+];
+
 type DataPanelState = {
 	exportOptions: ExportOptions;
 	pendingImport: ExportData | null;
@@ -879,7 +906,6 @@ function DataPanel() {
 	const { t } = useTranslation();
 	const betaChannel = useSettingsStore((s) => s.betaChannel);
 	const setBetaChannel = useSettingsStore((s) => s.setBetaChannel);
-	const projects = useProjectStore((s) => s.projects);
 	const { checkForUpdate, status } = useUpdaterContext();
 	const [dataPanel, dataDispatch] = useReducer(
 		dataPanelReducer,
@@ -974,69 +1000,46 @@ function DataPanel() {
 						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
 							{t("data.exportSection")}
 						</p>
-						<div className="flex flex-wrap gap-1.5">
-							{(
-								[
-									["activeTasks", "data.activeTasks"],
-									["completedTasks", "data.completedTasks"],
-									["archivedTasks", "data.archivedTasks"],
-									["projects", "data.exportProjects"],
-									["tags", "data.exportTags"],
-								] as [
-									Extract<
-										keyof ExportOptions,
-										| "activeTasks"
-										| "completedTasks"
-										| "archivedTasks"
-										| "projects"
-										| "tags"
-									>,
-									(
-										| "data.activeTasks"
-										| "data.completedTasks"
-										| "data.archivedTasks"
-										| "data.exportProjects"
-										| "data.exportTags"
-									),
-								][]
-							).map(([key, labelKey]) => {
-								const forced =
-									key === "projects" && exportOptions.projectIds !== null;
-								const active = forced || exportOptions[key];
-								return (
-									<button
-										key={key}
-										type="button"
-										onClick={() => {
-											if (!forced) dataDispatch({ type: "toggleExport", key });
-										}}
-										className={cn(
-											"rounded-full border px-3 py-1 text-xs transition-colors",
-											active
-												? "border-primary text-primary"
-												: "border-input text-muted-foreground hover:text-foreground",
-											forced && "cursor-not-allowed opacity-60",
-										)}
-									>
-										{t(labelKey)}
-									</button>
-								);
-							})}
+						<div className="grid grid-cols-2 gap-3">
+							{EXPORT_GROUPS.map((group) => (
+								<div key={group.headerKey} className="flex flex-col gap-1.5">
+									<p className="text-xs font-medium text-muted-foreground">
+										{t(group.headerKey)}
+									</p>
+									{group.items.map(({ key, labelKey }) => {
+										const forced =
+											key === "projects" && exportOptions.projectIds !== null;
+										const checked = forced || exportOptions[key];
+										const id = `export-toggle-${key}`;
+										return (
+											<label
+												key={key}
+												htmlFor={id}
+												className={cn(
+													"flex items-center gap-2 text-sm select-none cursor-pointer",
+													forced && "cursor-not-allowed opacity-60",
+												)}
+											>
+												<Checkbox
+													id={id}
+													checked={checked}
+													disabled={forced}
+													onCheckedChange={() =>
+														dataDispatch({ type: "toggleExport", key })
+													}
+												/>
+												<span>{t(labelKey)}</span>
+											</label>
+										);
+									})}
+								</div>
+							))}
 						</div>
-						<MultiSelect
-							options={[
-								{ value: INBOX_PROJECT_ID, label: t("nav.inbox") },
-								...projects.map((p) => ({
-									value: p.id,
-									label: p.name,
-								})),
-							]}
+						<ProjectFilter
 							value={exportOptions.projectIds ?? null}
 							onChange={(value) =>
 								dataDispatch({ type: "setProjectIds", value })
 							}
-							allLabel={t("data.allProjects")}
-							itemsLabel={t("data.exportProjects")}
 						/>
 						<Button
 							variant="outline"
