@@ -58,6 +58,12 @@ interface SettingsStore {
 	): Promise<void>;
 	betaChannel: boolean;
 	setBetaChannel(repo: TodoRepository, enabled: boolean): Promise<void>;
+	// Latest changelog version the user has been shown (null until first launch).
+	lastSeenChangelogVersion: string | null;
+	setLastSeenChangelogVersion(
+		repo: TodoRepository,
+		version: string,
+	): Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -78,6 +84,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 	quickAddTagsVisible: true,
 	priorityBackgroundVisible: false,
 	betaChannel: false,
+	lastSeenChangelogVersion: null,
 
 	async loadSettings(repo) {
 		const raw = await repo.getSettings();
@@ -101,6 +108,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 		const priorityBackgroundVisible =
 			raw.priority_background_visible === "true";
 		const betaChannel = raw.beta_channel === "true";
+		const lastSeenChangelogVersion = raw.last_seen_changelog_version ?? null;
 		set({
 			notificationsEnabled,
 			notificationTimes,
@@ -116,6 +124,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 			quickAddTagsVisible,
 			priorityBackgroundVisible,
 			betaChannel,
+			lastSeenChangelogVersion,
 		});
 	},
 
@@ -187,5 +196,10 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 	async setBetaChannel(repo, enabled) {
 		await repo.setSetting("beta_channel", String(enabled));
 		set({ betaChannel: enabled });
+	},
+
+	async setLastSeenChangelogVersion(repo, version) {
+		await repo.setSetting("last_seen_changelog_version", version);
+		set({ lastSeenChangelogVersion: version });
 	},
 }));

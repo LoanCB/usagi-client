@@ -21,6 +21,7 @@ import {
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { ChangelogList } from "@/components/layout/ChangelogList";
 import { ImportConfirmDialog } from "@/components/layout/ImportConfirmDialog";
 import { ProjectFilter } from "@/components/tasks/ProjectFilter";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { useUpdaterContext } from "@/hooks/useUpdater";
+import { getDisplayVersions } from "@/lib/changelog";
 import {
 	type ExportData,
 	type ExportOptions,
@@ -1147,10 +1149,18 @@ function DataPanel() {
 	);
 }
 
+function ChangelogPanel() {
+	return (
+		<div className="py-4" role="tabpanel">
+			<ChangelogList versions={getDisplayVersions()} />
+		</div>
+	);
+}
+
 export function SettingsDialog({ children }: SettingsDialogProps) {
 	const { t } = useTranslation();
 	const [activeTab, setActiveTab] = useState<
-		"general" | "customization" | "notifications" | "data"
+		"general" | "customization" | "notifications" | "data" | "changelog"
 	>("general");
 
 	return (
@@ -1166,8 +1176,15 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 								["customization", t("settings.tabCustomization")],
 								["notifications", t("settings.notifications")],
 								["data", t("data.title")],
+								["changelog", t("changelog.tab")],
 							] as [
-								"general" | "customization" | "notifications" | "data",
+								(
+									| "general"
+									| "customization"
+									| "notifications"
+									| "data"
+									| "changelog"
+								),
 								string,
 							][]
 						).map(([id, label]) => (
@@ -1195,6 +1212,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 					{activeTab === "customization" && <CustomizationPanel />}
 					{activeTab === "notifications" && <NotificationsPanel />}
 					{activeTab === "data" && <DataPanel />}
+					{activeTab === "changelog" && <ChangelogPanel />}
 				</div>
 			</DialogContent>
 		</Dialog>

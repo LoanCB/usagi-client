@@ -219,6 +219,16 @@ const en = {
 		dismiss: "Close",
 		retry: "Retry",
 	},
+	changelog: {
+		tab: "What's new",
+		latestVersion: "Latest version",
+		features: "New",
+		fixes: "Fixes",
+		performance: "Performance",
+		empty: "Nothing to show yet.",
+		popupTitle: "What's new",
+		popupSubtitle: "Here's what changed since your last visit.",
+	},
 	taskList: {
 		remaining_one: "{{count}} remaining",
 		remaining_other: "{{count}} remaining",

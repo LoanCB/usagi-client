@@ -1,0 +1,468 @@
+{
+	"generatedAt": "2026-07-14",
+	"versions": [
+		{
+			"version": "Unreleased",
+			"tag": null,
+			"date": null,
+			"changes": {
+				"features": [
+					{
+						"en": "add a What's new page listing changes by version",
+						"fr": "ajout d'une page Nouveautés listant les changements par version"
+					},
+					{ "en": "add some settings", "fr": "ajout de quelques réglages" },
+					{
+						"en": "add customization on settings modal",
+						"fr": "ajout d'options de personnalisation dans la modale de réglages"
+					},
+					{
+						"en": "add priority and due date on quick creation",
+						"fr": "ajout de la priorité et de la date d'échéance à la création rapide"
+					},
+					{
+						"en": "extends priority choices (3 new values)",
+						"fr": "extension des choix de priorité (3 nouvelles valeurs)"
+					},
+					{ "en": "update sidebar", "fr": "refonte de la barre latérale" },
+					{
+						"en": "project filter add groups",
+						"fr": "ajout de groupes au filtre par projet"
+					},
+					{
+						"en": "uniformize inputs",
+						"fr": "uniformisation des champs de saisie"
+					},
+					{
+						"en": "add project filter on daily task and all task list",
+						"fr": "ajout d'un filtre par projet sur la liste du jour et toutes les tâches"
+					},
+					{
+						"en": "fast edit task title action",
+						"fr": "action d'édition rapide du titre d'une tâche"
+					}
+				],
+				"fixes": [
+					{
+						"en": "d&d inside project group",
+						"fr": "glisser-déposer à l'intérieur d'un groupe de projets"
+					},
+					{ "en": "console errors", "fr": "erreurs console" },
+					{
+						"en": "unblock pnpm 11 install (trust false positives + build scripts)",
+						"fr": "déblocage de l'installation pnpm 11 (faux positifs de confiance + scripts de build)"
+					}
+				]
+			}
+		},
+		{
+			"version": "2026.2.1",
+			"tag": "v2026.2.1",
+			"date": "2026-06-30",
+			"changes": {
+				"fixes": [
+					{ "en": "run react doctor", "fr": "exécution de react doctor" },
+					{
+						"en": "auto update disable for last version",
+						"fr": "désactivation de la mise à jour automatique pour la dernière version"
+					},
+					{
+						"en": "try to fix auto updater",
+						"fr": "correctifs sur la mise à jour automatique"
+					}
+				]
+			}
+		},
+		{
+			"version": "2026.2.0",
+			"tag": "v2026.2.0",
+			"date": "2026-06-23",
+			"changes": {
+				"features": [
+					{ "en": "mobile version", "fr": "version mobile" },
+					{
+						"en": "improve daltonism mode",
+						"fr": "amélioration du mode daltonien"
+					},
+					{
+						"en": "can create groupe of projects",
+						"fr": "possibilité de créer des groupes de projets"
+					}
+				],
+				"fixes": [
+					{ "en": "fix build", "fr": "correction du build" },
+					{
+						"en": "improve resize UX",
+						"fr": "amélioration de l'UX de redimensionnement"
+					},
+					{
+						"en": "update cargo lock for auto update on linux",
+						"fr": "mise à jour du cargo lock pour la mise à jour automatique sous Linux"
+					}
+				]
+			}
+		},
+		{
+			"version": "2026.1.0",
+			"tag": "v2026.1.0",
+			"date": "2026-06-16",
+			"changes": {
+				"features": [
+					{ "en": "global search", "fr": "recherche globale" },
+					{
+						"en": "can create tag on project right click",
+						"fr": "création d'un tag via clic droit sur un projet"
+					},
+					{ "en": "daltonism mode", "fr": "mode daltonien" },
+					{
+						"en": "improve severity design",
+						"fr": "amélioration du design des priorités"
+					}
+				],
+				"fixes": [
+					{
+						"en": "guard db init against StrictMode double-run",
+						"fr": "protection de l'initialisation de la base contre le double-run du StrictMode"
+					}
+				]
+			}
+		},
+		{
+			"version": "2026.0.2",
+			"tag": "v2026.0.2",
+			"date": "2026-06-05",
+			"changes": {
+				"features": [
+					{
+						"en": "improve archived tasks page",
+						"fr": "amélioration de la page des tâches archivées"
+					}
+				],
+				"fixes": [{ "en": "lint", "fr": "lint" }]
+			}
+		},
+		{
+			"version": "2026.0.1",
+			"tag": "v2026.0.1",
+			"date": "2026-05-27",
+			"changes": {
+				"fixes": [
+					{ "en": "wix version check", "fr": "vérification de version WiX" }
+				]
+			}
+		},
+		{
+			"version": "2026.0.0",
+			"tag": "v2026.0.0",
+			"date": "2026-05-27",
+			"changes": {
+				"fixes": [
+					{
+						"en": "settings modal height",
+						"fr": "hauteur de la modale de réglages"
+					}
+				]
+			}
+		},
+		{
+			"version": "0.3.3-6",
+			"tag": "v0.3.3-6",
+			"date": "2026-05-27",
+			"changes": {}
+		},
+		{
+			"version": "0.3.3-5",
+			"tag": "v0.3.3-5",
+			"date": "2026-05-27",
+			"changes": {
+				"fixes": [
+					{
+						"en": "replace windows by ctrl in shortcut",
+						"fr": "remplacement de la touche Windows par Ctrl dans les raccourcis"
+					}
+				]
+			}
+		},
+		{
+			"version": "0.3.3-4",
+			"tag": "v0.3.3-4",
+			"date": "2026-05-27",
+			"changes": {
+				"features": [
+					{
+						"en": "show error on autoupdate",
+						"fr": "affichage des erreurs lors de la mise à jour automatique"
+					}
+				]
+			}
+		},
+		{
+			"version": "0.3.3-3",
+			"tag": "v0.3.3-3",
+			"date": "2026-05-27",
+			"changes": {
+				"fixes": [
+					{
+						"en": "shortcut crossplatform",
+						"fr": "raccourcis multiplateformes"
+					}
+				]
+			}
+		},
+		{
+			"version": "0.3.3-2",
+			"tag": "v0.3.3-2",
+			"date": "2026-05-27",
+			"changes": {}
+		},
+		{
+			"version": "0.3.2",
+			"tag": "v0.3.2",
+			"date": "2026-05-27",
+			"changes": {
+				"fixes": [
+					{
+						"en": "settings modal, application section",
+						"fr": "modale de réglages, section application"
+					}
+				]
+			}
+		},
+		{
+			"version": "0.3.1",
+			"tag": "v0.3.1",
+			"date": "2026-05-27",
+			"changes": {
+				"fixes": [
+					{ "en": "update public key", "fr": "mise à jour de la clé publique" }
+				]
+			}
+		},
+		{
+			"version": "0.3.0",
+			"tag": "v0.3.0",
+			"date": "2026-05-23",
+			"changes": {
+				"features": [
+					{
+						"en": "auto update system",
+						"fr": "système de mise à jour automatique"
+					},
+					{ "en": "auto update", "fr": "mise à jour automatique" },
+					{
+						"en": "calendar status filter",
+						"fr": "filtre par statut dans le calendrier"
+					},
+					{
+						"en": "escape to close calendar details",
+						"fr": "touche Échap pour fermer les détails du calendrier"
+					},
+					{
+						"en": "confirm modal with actions for deleting project",
+						"fr": "modale de confirmation avec actions pour la suppression d'un projet"
+					},
+					{
+						"en": "add copy title to right click on task",
+						"fr": "ajout de « copier le titre » au clic droit sur une tâche"
+					},
+					{
+						"en": "add two more dark themes",
+						"fr": "ajout de deux thèmes sombres supplémentaires"
+					},
+					{
+						"en": "can import & export data",
+						"fr": "import et export des données"
+					}
+				],
+				"fixes": [
+					{
+						"en": "improve calendar detail day UI",
+						"fr": "amélioration de l'UI du détail d'une journée du calendrier"
+					},
+					{
+						"en": "replace usagi by bunly",
+						"fr": "remplacement de « usagi » par « bunly »"
+					},
+					{
+						"en": "imrpove link UX in rich text",
+						"fr": "amélioration de l'UX des liens dans le texte enrichi"
+					}
+				]
+			}
+		},
+		{
+			"version": "0.2.0",
+			"tag": "v0.2.0",
+			"date": "2026-05-18",
+			"changes": {
+				"features": [
+					{
+						"en": "update notification UI",
+						"fr": "refonte de l'UI des notifications"
+					},
+					{
+						"en": "settings to hide some views in sidebar",
+						"fr": "réglage pour masquer certaines vues de la barre latérale"
+					},
+					{
+						"en": "hard delete task",
+						"fr": "suppression définitive d'une tâche"
+					},
+					{
+						"en": "calendar details reorder tasks by project",
+						"fr": "réorganisation des tâches par projet dans le détail du calendrier"
+					},
+					{
+						"en": "calendar project filter",
+						"fr": "filtre par projet dans le calendrier"
+					},
+					{ "en": "calendar view", "fr": "vue calendrier" },
+					{
+						"en": "increase UX on search",
+						"fr": "amélioration de l'UX de la recherche"
+					},
+					{
+						"en": "can affect tag on task using right click",
+						"fr": "affectation d'un tag à une tâche via clic droit"
+					},
+					{
+						"en": "double clic to reset task details size",
+						"fr": "double-clic pour réinitialiser la taille du détail d'une tâche"
+					},
+					{
+						"en": "can affect tags to a project",
+						"fr": "affectation de tags à un projet"
+					},
+					{
+						"en": "right click to delete task",
+						"fr": "clic droit pour supprimer une tâche"
+					}
+				],
+				"fixes": [
+					{ "en": "linter and tests", "fr": "linter et tests" },
+					{
+						"en": "replace some checkbox by switch",
+						"fr": "remplacement de certaines cases à cocher par des interrupteurs"
+					},
+					{
+						"en": "open link in rich text",
+						"fr": "ouverture des liens dans le texte enrichi"
+					},
+					{
+						"en": "align left view text in sidebar",
+						"fr": "alignement à gauche du texte des vues dans la barre latérale"
+					},
+					{
+						"en": "show completed task during day",
+						"fr": "affichage des tâches terminées dans la journée"
+					},
+					{ "en": "count on sidebar", "fr": "compteur dans la barre latérale" }
+				]
+			}
+		},
+		{
+			"version": "0.1.1",
+			"tag": "v0.1.1",
+			"date": "2026-05-14",
+			"changes": {}
+		},
+		{
+			"version": "0.1.0",
+			"tag": "v0.1.0",
+			"date": "2026-05-14",
+			"changes": {
+				"features": [
+					{
+						"en": "update themes and add glassmorphism option",
+						"fr": "mise à jour des thèmes et ajout de l'option glassmorphism"
+					},
+					{ "en": "add new themes", "fr": "ajout de nouveaux thèmes" },
+					{ "en": "update UI", "fr": "refonte de l'UI" },
+					{
+						"en": "add tag on fast create",
+						"fr": "ajout d'un tag à la création rapide"
+					},
+					{ "en": "improve UI", "fr": "amélioration de l'UI" },
+					{
+						"en": "add count chip on sidebar",
+						"fr": "ajout d'une pastille de compteur dans la barre latérale"
+					},
+					{
+						"en": "search filter on listings",
+						"fr": "filtre de recherche sur les listes"
+					},
+					{
+						"en": "update app name",
+						"fr": "mise à jour du nom de l'application"
+					},
+					{ "en": "shortcut configurable", "fr": "raccourcis configurables" },
+					{
+						"en": "add rich text description on create task",
+						"fr": "ajout d'une description en texte enrichi à la création d'une tâche"
+					},
+					{
+						"en": "update app icon",
+						"fr": "mise à jour de l'icône de l'application"
+					},
+					{
+						"en": "fast task creation component",
+						"fr": "composant de création rapide de tâche"
+					},
+					{ "en": "improve UX", "fr": "amélioration de l'UX" },
+					{
+						"en": "add reminder system",
+						"fr": "ajout d'un système de rappels"
+					},
+					{ "en": "add tag filtering", "fr": "ajout du filtrage par tag" },
+					{ "en": "rich text en note", "fr": "texte enrichi dans les notes" },
+					{
+						"en": "new colors and icons",
+						"fr": "nouvelles couleurs et icônes"
+					},
+					{
+						"en": "tag CRUD + translations + project edit",
+						"fr": "CRUD des tags + traductions + édition de projet"
+					},
+					{ "en": "base project", "fr": "projet de base" },
+					{ "en": "initial commit", "fr": "commit initial" }
+				],
+				"fixes": [
+					{ "en": "tests + build", "fr": "tests + build" },
+					{ "en": "linter", "fr": "linter" },
+					{ "en": "update pnpm-lock", "fr": "mise à jour du pnpm-lock" },
+					{
+						"en": "identation + update config",
+						"fr": "indentation + mise à jour de la config"
+					},
+					{ "en": "sort not persist in DB", "fr": "tri non persisté en base" },
+					{
+						"en": "project label too long + align left",
+						"fr": "libellé de projet trop long + alignement à gauche"
+					},
+					{
+						"en": "incrase drag&drop + button to reset shortcut",
+						"fr": "amélioration du glisser-déposer + bouton de réinitialisation des raccourcis"
+					},
+					{ "en": "parallax", "fr": "parallaxe" },
+					{
+						"en": "scroll on task list + base parallax effect",
+						"fr": "défilement de la liste des tâches + effet parallaxe de base"
+					},
+					{
+						"en": "due date selector + no tag label + notif icon",
+						"fr": "sélecteur de date d'échéance + libellé « sans tag » + icône de notification"
+					},
+					{
+						"en": "try to fix notification on linux",
+						"fr": "tentative de correction des notifications sous Linux"
+					},
+					{
+						"en": "update settings modal style",
+						"fr": "mise à jour du style de la modale de réglages"
+					},
+					{ "en": "build", "fr": "build" }
+				]
+			}
+		}
+	]
+}

@@ -221,6 +221,16 @@ const fr: typeof en = {
 		dismiss: "Fermer",
 		retry: "Réessayer",
 	},
+	changelog: {
+		tab: "Nouveautés",
+		latestVersion: "Dernière version",
+		features: "Nouveautés",
+		fixes: "Corrections",
+		performance: "Performances",
+		empty: "Rien à afficher pour le moment.",
+		popupTitle: "Nouveautés",
+		popupSubtitle: "Voici ce qui a changé depuis votre dernière visite.",
+	},
 	taskList: {
 		remaining_one: "{{count}} restante",
 		remaining_other: "{{count}} restantes",

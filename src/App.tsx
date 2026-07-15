@@ -2,6 +2,7 @@ import Database from "@tauri-apps/plugin-sql";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/AppShell";
+import { ChangelogDialog } from "@/components/layout/ChangelogDialog";
 import { UpdateBanner } from "@/components/layout/UpdateBanner";
 import { createRepository } from "@/db";
 // Load migration SQL at build time (Vite raw import)
@@ -13,6 +14,7 @@ import migration005 from "@/db/migrations/005_project_groups.sql?raw";
 import migration006 from "@/db/migrations/006_extend_priority.sql?raw";
 import { useOverdueNotifications } from "@/hooks/useOverdueNotifications";
 import { UpdaterContext, useUpdater } from "@/hooks/useUpdater";
+import { getReleasedVersions, getVersionsSince } from "@/lib/changelog";
 import { useProjectGroupStore } from "@/store/projectGroups";
 import { useProjectStore } from "@/store/projects";
 import { getRepository, setRepository } from "@/store/repository";
@@ -21,6 +23,7 @@ import { useShortcutsStore } from "@/store/shortcuts";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { ThemeProvider } from "@/theme/ThemeProvider";
+import type { ChangelogVersion } from "@/types/changelog";
 
 export function AppContent() {
 	const loadTasks = useTaskStore((s) => s.loadTasks);
@@ -34,6 +37,9 @@ export function AppContent() {
 	useOverdueNotifications(tasks);
 
 	const updater = useUpdater();
+	const [changelogPopup, setChangelogPopup] = useState<
+		ChangelogVersion[] | null
+	>(null);
 
 	useEffect(() => {
 		const repo = getRepository();
@@ -44,6 +50,21 @@ export function AppContent() {
 			loadGroups(repo);
 			loadTags(repo);
 			loadTasks(repo, {});
+
+			// After an update, surface the versions released since the user's
+			// last visit. First launch records the current version silently.
+			const { lastSeenChangelogVersion, setLastSeenChangelogVersion } =
+				useSettingsStore.getState();
+			const latest = getReleasedVersions()[0]?.version;
+			if (latest) {
+				if (!lastSeenChangelogVersion) {
+					await setLastSeenChangelogVersion(repo, latest);
+				} else if (lastSeenChangelogVersion !== latest) {
+					const newer = getVersionsSince(lastSeenChangelogVersion);
+					if (newer.length > 0) setChangelogPopup(newer);
+					await setLastSeenChangelogVersion(repo, latest);
+				}
+			}
 		}
 		load();
 	}, [
@@ -63,6 +84,12 @@ export function AppContent() {
 		<UpdaterContext.Provider value={updater}>
 			<AppShell />
 			<UpdateBanner />
+			{changelogPopup && (
+				<ChangelogDialog
+					versions={changelogPopup}
+					onClose={() => setChangelogPopup(null)}
+				/>
+			)}
 		</UpdaterContext.Provider>
 	);
 }
