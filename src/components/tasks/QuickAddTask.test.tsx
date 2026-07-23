@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import "@/i18n";
 import { QuickAddTask } from "@/components/tasks/QuickAddTask";
 import * as repositoryModule from "@/store/repository";
+import { useSettingsStore } from "@/store/settings";
 import { useTaskStore } from "@/store/tasks";
 
 // biome-ignore lint/suspicious/noExplicitAny: partial mock, full typing not needed in tests
@@ -126,6 +127,8 @@ describe("QuickAddTask", () => {
 
 	it("passes the selected priority to createTask", async () => {
 		const user = userEvent.setup();
+		// The priority picker is hidden by default; enable it for this test.
+		useSettingsStore.setState({ quickAddPriorityVisible: true });
 		render(<QuickAddTask projectId={null} />);
 		await user.click(screen.getByRole("button", { name: /priority/i }));
 		await user.click(screen.getByRole("menuitem", { name: "High" }));

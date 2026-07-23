@@ -7,10 +7,9 @@ import {
 } from "./changelog";
 
 describe("getDisplayVersions", () => {
-	it("includes the not-yet-released entry at the top", () => {
+	it("lists the newest version first", () => {
 		const display = getDisplayVersions();
-		expect(display[0].version).toBe("Unreleased");
-		expect(display[0].tag).toBeNull();
+		expect(display[0].version).toBe("2026.3.0");
 	});
 
 	it("excludes versions with no user-facing changes", () => {
@@ -29,18 +28,18 @@ describe("getReleasedVersions", () => {
 
 	it("keeps the file's newest-first ordering", () => {
 		const released = getReleasedVersions();
-		expect(released[0].version).toBe("2026.2.1");
+		expect(released[0].version).toBe("2026.3.0");
 	});
 });
 
 describe("getVersionsSince", () => {
 	it("returns only versions newer than the given one", () => {
 		const since = getVersionsSince("2026.2.0");
-		expect(since.map((v) => v.version)).toEqual(["2026.2.1"]);
+		expect(since.map((v) => v.version)).toEqual(["2026.3.0", "2026.2.1"]);
 	});
 
 	it("returns nothing when already on the latest", () => {
-		expect(getVersionsSince("2026.2.1")).toEqual([]);
+		expect(getVersionsSince("2026.3.0")).toEqual([]);
 	});
 
 	it("falls back to the full history for an unknown marker", () => {

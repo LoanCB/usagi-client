@@ -133,7 +133,8 @@ describe("ProjectFilter", () => {
 		render(<ProjectFilter value={["p1"]} onChange={onChange} />);
 		await user.click(trigger());
 		// "Dev" is in both the trigger and the popover row — target the row.
-		await user.click(screen.getAllByText("Dev").at(-1) as HTMLElement);
+		const devRows = screen.getAllByText("Dev");
+		await user.click(devRows[devRows.length - 1]);
 		expect(onChange).toHaveBeenCalledWith(null);
 	});
 
@@ -151,9 +152,8 @@ describe("ProjectFilter", () => {
 		const user = userEvent.setup();
 		render(<ProjectFilter value={["p1"]} onChange={vi.fn()} />);
 		await user.click(trigger());
-		const devRow = (screen.getAllByText("Dev").at(-1) as HTMLElement).closest(
-			"button",
-		);
+		const devRows = screen.getAllByText("Dev");
+		const devRow = devRows[devRows.length - 1].closest("button");
 		expect(devRow).toHaveClass("bg-accent");
 	});
 
