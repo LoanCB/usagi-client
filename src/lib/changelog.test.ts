@@ -7,9 +7,9 @@ import {
 } from "./changelog";
 
 describe("getDisplayVersions", () => {
-	it("lists the newest version first", () => {
+	it("lists the newest version first, including the Unreleased entry", () => {
 		const display = getDisplayVersions();
-		expect(display[0].version).toBe("2026.3.0");
+		expect(display[0].version).toBe("Unreleased");
 	});
 
 	it("excludes versions with no user-facing changes", () => {

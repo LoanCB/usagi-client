@@ -105,6 +105,7 @@ function CreateGroupForm({
 					onChange={(e) => setName(e.target.value)}
 					placeholder={t("projectGroup.namePlaceholder", "Nom du groupe")}
 					onKeyDown={(e) => {
+						if (e.nativeEvent.isComposing) return;
 						if (e.key === "Enter") handleConfirm();
 					}}
 				/>

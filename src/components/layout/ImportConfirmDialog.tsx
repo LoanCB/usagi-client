@@ -63,7 +63,7 @@ export function ImportConfirmDialog({
 						aria-hidden={!hoverReplace}
 						className={`flex items-center gap-1.5 text-xs text-destructive transition-opacity ${hoverReplace ? "opacity-100" : "opacity-0"}`}
 					>
-						<AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+						<AlertTriangle className="h-3.5 w-3.5 shrink-0" />
 						{t("data.replaceWarning")}
 					</p>
 				</div>

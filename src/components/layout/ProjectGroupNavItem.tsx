@@ -156,6 +156,7 @@ export function ProjectGroupNavItem({
 							onChange={(e) => setEditName(e.target.value)}
 							placeholder={t("projectGroup.namePlaceholder", "Nom du groupe")}
 							onKeyDown={(e) => {
+								if (e.nativeEvent.isComposing) return;
 								if (e.key === "Enter") handleEditConfirm();
 							}}
 						/>

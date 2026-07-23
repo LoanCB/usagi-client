@@ -436,7 +436,7 @@ function GeneralPanel() {
 									)}
 								>
 									<span
-										className="h-3.5 w-3.5 rounded-full flex-shrink-0"
+										className="h-3.5 w-3.5 rounded-full shrink-0"
 										style={{ background: color }}
 										aria-hidden
 									/>
@@ -483,7 +483,7 @@ function GeneralPanel() {
 
 				{/* Divider */}
 				<div className="h-px bg-border sm:hidden" />
-				<div className="hidden sm:block w-px bg-border flex-shrink-0" />
+				<div className="hidden sm:block w-px bg-border shrink-0" />
 
 				{/* Right column: Shortcuts + Language */}
 				<div className="flex-1 min-w-0 flex flex-col pt-4 sm:pt-0 sm:pl-4">
@@ -654,7 +654,7 @@ function CustomizationPanel() {
 
 				{/* Divider */}
 				<div className="h-px bg-border sm:hidden" />
-				<div className="hidden sm:block w-px bg-border flex-shrink-0" />
+				<div className="hidden sm:block w-px bg-border shrink-0" />
 
 				{/* Right column: Quick task creation */}
 				<div className="flex-1 min-w-0 flex flex-col pt-4 sm:pt-0 sm:pl-4">

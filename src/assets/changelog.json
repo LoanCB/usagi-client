@@ -51,6 +51,24 @@
 					{
 						"en": "unblock pnpm 11 install (trust false positives + build scripts)",
 						"fr": "déblocage de l'installation pnpm 11 (faux positifs de confiance + scripts de build)"
+					},
+					{
+						"en": "IME composition no longer submits a half-typed value on Enter (CJK input)",
+						"fr": "la composition IME ne valide plus une saisie incomplète avec Entrée (saisie CJK)"
+					},
+					{
+						"en": "delete-project dialog radio choices are now keyboard-navigable and mutually exclusive",
+						"fr": "les choix radio de la modale de suppression de projet sont désormais navigables au clavier et mutuellement exclusifs"
+					},
+					{
+						"en": "full-height layout no longer clipped under mobile browser toolbars",
+						"fr": "la mise en page pleine hauteur n'est plus tronquée sous les barres d'outils des navigateurs mobiles"
+					}
+				],
+				"performance": [
+					{
+						"en": "smoother progress bars (task completion, update download)",
+						"fr": "barres de progression plus fluides (avancement des tâches, téléchargement des mises à jour)"
 					}
 				]
 			}

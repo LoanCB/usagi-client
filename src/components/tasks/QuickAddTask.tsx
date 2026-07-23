@@ -38,6 +38,7 @@ export function QuickAddTask({
 	const { t } = useTranslation();
 
 	async function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+		if (e.nativeEvent.isComposing) return;
 		if (e.key === "Enter") {
 			const trimmed = title.trim();
 			if (!trimmed) return;

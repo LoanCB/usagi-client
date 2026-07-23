@@ -1,4 +1,5 @@
 import { Sparkles, Wrench, Zap } from "lucide-react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { localizeEntry } from "@/lib/changelog";
 import type { ChangeCategory, ChangelogVersion } from "@/types/changelog";
@@ -38,11 +39,15 @@ export function ChangelogList({ versions }: ChangelogListProps) {
 	const { t, i18n } = useTranslation();
 	const lang = i18n.language;
 
-	const dateFormatter = new Intl.DateTimeFormat(lang, {
-		day: "numeric",
-		month: "long",
-		year: "numeric",
-	});
+	const dateFormatter = useMemo(
+		() =>
+			new Intl.DateTimeFormat(lang, {
+				day: "numeric",
+				month: "long",
+				year: "numeric",
+			}),
+		[lang],
+	);
 
 	if (versions.length === 0) {
 		return (

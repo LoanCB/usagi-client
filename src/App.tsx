@@ -41,8 +41,12 @@ export function AppContent() {
 		ChangelogVersion[] | null
 	>(null);
 
+	// oxlint-disable-next-line react-doctor/no-set-state-after-await-in-effect -- the post-await setChangelogPopup is already guarded by the `cancelled` flag set in the cleanup below
 	useEffect(() => {
 		const repo = getRepository();
+		// Ignore late async resolutions if the effect re-runs (deps change) or
+		// the component unmounts, so we never write stale changelog state.
+		let cancelled = false;
 		async function load() {
 			await loadSettings(repo);
 			await loadShortcuts(repo);
@@ -61,12 +65,15 @@ export function AppContent() {
 					await setLastSeenChangelogVersion(repo, latest);
 				} else if (lastSeenChangelogVersion !== latest) {
 					const newer = getVersionsSince(lastSeenChangelogVersion);
-					if (newer.length > 0) setChangelogPopup(newer);
+					if (newer.length > 0 && !cancelled) setChangelogPopup(newer);
 					await setLastSeenChangelogVersion(repo, latest);
 				}
 			}
 		}
 		load();
+		return () => {
+			cancelled = true;
+		};
 	}, [
 		loadSettings,
 		loadTasks,
@@ -130,6 +137,7 @@ export default function App() {
 							const trimmed = s.trim();
 							return trimmed ? [trimmed] : [];
 						})) {
+						// oxlint-disable-next-line react-doctor/async-await-in-loop -- intentional: migration statements are ordered DDL that must run sequentially; parallelizing would race the SQLite lock and corrupt schema order
 						await db.execute(statement).catch(() => {
 							// Ignore "duplicate column" errors from ALTER TABLE re-runs on
 							// legacy DBs whose user_version was never advanced.

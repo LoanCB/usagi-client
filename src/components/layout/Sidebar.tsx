@@ -120,6 +120,7 @@ function TagCreationForm({
 				className="h-7 text-sm text-foreground"
 				onKeyDown={(e) => {
 					e.stopPropagation();
+					if (e.nativeEvent.isComposing) return;
 					if (e.key === "Enter") {
 						e.preventDefault();
 						onSubmit();

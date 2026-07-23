@@ -232,6 +232,7 @@ export function TagManager() {
 							className="h-7 text-sm"
 							autoFocus
 							onKeyDown={(e) => {
+								if (e.nativeEvent.isComposing) return;
 								if (e.key === "Enter") commitEdit();
 								if (e.key === "Escape") editDispatch({ type: "close" });
 							}}

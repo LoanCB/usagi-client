@@ -283,12 +283,11 @@ function TaskListHeader({
 					className="mt-3 h-1 rounded-full bg-primary/15 overflow-hidden"
 				>
 					<div
-						className="h-full rounded-full bg-primary transition-all duration-300"
+						className="h-full w-full rounded-full bg-primary origin-left transition-transform duration-300"
 						style={{
-							width:
-								totalCount > 0
-									? `${(completedCount / totalCount) * 100}%`
-									: "0%",
+							transform: `scaleX(${
+								totalCount > 0 ? completedCount / totalCount : 0
+							})`,
 						}}
 					/>
 				</div>

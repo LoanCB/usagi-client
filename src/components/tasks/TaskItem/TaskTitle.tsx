@@ -117,6 +117,7 @@ function TaskTitleEditor({
 			onFocus={(e) => e.target.select()}
 			onBlur={commitEdit}
 			onKeyDown={(e) => {
+				if (e.nativeEvent.isComposing) return;
 				if (e.key === "Enter") (e.target as HTMLInputElement).blur();
 				else if (e.key === "Escape") cancelEdit();
 			}}
