@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@/i18n";
 import { vi } from "vitest";
@@ -38,7 +38,20 @@ async function openDialog() {
 	const user = userEvent.setup();
 	renderDialog();
 	await user.click(screen.getByRole("button", { name: /open/i }));
+	// The sidebar views switches live under the Customization tab, not the
+	// default General tab.
+	await user.click(
+		screen.getByRole("tab", { name: /customization|customisation/i }),
+	);
 	return user;
+}
+
+// The Customization tab renders a second "Tags" switch (quick-add tags), so
+// scope switch queries to the Sidebar views section via its heading.
+function sidebarViewsSection() {
+	const heading = screen.getByText(/^sidebar views$|^vues de la sidebar$/i);
+	// biome-ignore lint/style/noNonNullAssertion: the heading always has a parent section
+	return within(heading.parentElement!);
 }
 
 beforeEach(() => {
@@ -70,11 +83,12 @@ describe("SettingsDialog — sidebar views section", () => {
 
 	it("renders three checked switches by default", async () => {
 		await openDialog();
-		const calendarSw = screen.getByRole("switch", {
+		const section = sidebarViewsSection();
+		const calendarSw = section.getByRole("switch", {
 			name: /calendar|calendrier/i,
 		});
-		const archivesSw = screen.getByRole("switch", { name: /^archives$/i });
-		const tagsSw = screen.getByRole("switch", { name: /^tags$/i });
+		const archivesSw = section.getByRole("switch", { name: /^archives$/i });
+		const tagsSw = section.getByRole("switch", { name: /^tags$/i });
 		expect(calendarSw).toBeChecked();
 		expect(archivesSw).toBeChecked();
 		expect(tagsSw).toBeChecked();
@@ -102,7 +116,9 @@ describe("SettingsDialog — sidebar views section", () => {
 		const setTagsVisible = vi.fn();
 		useSettingsStore.setState({ tagsVisible: true, setTagsVisible });
 		const user = await openDialog();
-		await user.click(screen.getByRole("switch", { name: /^tags$/i }));
+		await user.click(
+			sidebarViewsSection().getByRole("switch", { name: /^tags$/i }),
+		);
 		expect(setTagsVisible).toHaveBeenCalledWith(expect.anything(), false);
 	});
 });

@@ -56,6 +56,7 @@ function TaskDetailContent({
 	const { setSelectedTask } = useUIStore();
 	const { t } = useTranslation();
 
+	// oxlint-disable-next-line react-doctor/no-derived-useState -- intentional: parent remounts via key={task.id} to re-seed, the pattern this rule recommends
 	const [title, setTitle] = useState(task.title);
 	const [description, setDescription] = useState(task.description ?? "");
 	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);

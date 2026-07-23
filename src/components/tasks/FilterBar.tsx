@@ -7,6 +7,8 @@ import {
 	Tag,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ProjectFilter } from "@/components/tasks/ProjectFilter";
+import { PriorityIndicator } from "@/components/tasks/TaskItem/PriorityIndicator";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
@@ -31,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { useShortcutsStore } from "@/store/shortcuts";
 import { useTagStore } from "@/store/tags";
 import { useUIStore } from "@/store/ui";
+import { PRIORITY_ORDER } from "@/theme/priorityColors";
 import type { Priority } from "@/types";
 
 type Sort = "asc" | "desc" | null;
@@ -57,20 +60,17 @@ export function FilterBar({
 	onResetSort,
 }: FilterBarProps) {
 	const { t } = useTranslation();
-	const { activeFilters, setFilters } = useUIStore();
+	const { activeFilters, setFilters, selectedProjectId } = useUIStore();
 	const { tags } = useTagStore();
 	const sortUrgency = useShortcutsStore((s) => s.sortUrgency);
 	const sortDueDate = useShortcutsStore((s) => s.sortDueDate);
 	const sortProject = useShortcutsStore((s) => s.sortProject);
 
-	const PRIORITY_LABELS: Record<Priority, string> = {
-		none: t("priority.none"),
-		low: t("priority.low"),
-		medium: t("priority.medium"),
-		high: t("priority.high"),
-	};
-
 	const selectedTagIds = activeFilters.tagIds ?? [];
+
+	const showProjectFilter =
+		selectedProjectId === undefined || selectedProjectId === "today";
+	const selectedProjectIds = activeFilters.projectIds ?? [];
 
 	function toggleTag(tagId: string) {
 		if (selectedTagIds.includes(tagId)) {
@@ -83,11 +83,19 @@ export function FilterBar({
 	const hasFilters =
 		!!activeFilters.priority ||
 		selectedTagIds.length > 0 ||
+		selectedProjectIds.length > 0 ||
 		!!activeFilters.completed ||
 		!!hasSortActive;
 
 	return (
 		<div className="flex items-center gap-2 px-5 py-2 glass-header shrink-0 flex-wrap">
+			{showProjectFilter && (
+				<ProjectFilter
+					value={activeFilters.projectIds ?? null}
+					onChange={(value) => setFilters({ projectIds: value ?? undefined })}
+				/>
+			)}
+
 			{/* Priority filter */}
 			<DropdownMenu>
 				<DropdownMenuTrigger
@@ -96,18 +104,24 @@ export function FilterBar({
 						"h-7 gap-1 text-xs",
 					)}
 				>
-					<SlidersHorizontal className="h-3 w-3" />
+					{activeFilters.priority ? (
+						<PriorityIndicator priority={activeFilters.priority} />
+					) : (
+						<SlidersHorizontal className="h-3 w-3" />
+					)}
 					{activeFilters.priority
-						? PRIORITY_LABELS[activeFilters.priority]
+						? t(`priority.${activeFilters.priority}`)
 						: t("filter.priority")}
 				</DropdownMenuTrigger>
 				<DropdownMenuContent>
-					{(["high", "medium", "low", "none"] as Priority[]).map((p) => (
+					{([...PRIORITY_ORDER].reverse() as Priority[]).map((p) => (
 						<DropdownMenuItem
 							key={p}
 							onClick={() => setFilters({ priority: p })}
+							className="gap-2"
 						>
-							{PRIORITY_LABELS[p]}
+							<PriorityIndicator priority={p} />
+							{t(`priority.${p}`)}
 						</DropdownMenuItem>
 					))}
 				</DropdownMenuContent>
@@ -192,6 +206,7 @@ export function FilterBar({
 							setFilters({
 								priority: undefined,
 								tagIds: [],
+								projectIds: undefined,
 								completed: undefined,
 							});
 							onResetSort?.();

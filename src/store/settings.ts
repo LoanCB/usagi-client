@@ -17,6 +17,10 @@ interface SettingsStore {
 	tagsVisible: boolean;
 	searchTriggerVisible: boolean;
 	colorblindMode: boolean;
+	quickAddPriorityVisible: boolean;
+	quickAddDueDateVisible: boolean;
+	quickAddTagsVisible: boolean;
+	priorityBackgroundVisible: boolean;
 	loadSettings(repo: TodoRepository): Promise<void>;
 	setNotificationsEnabled(
 		repo: TodoRepository,
@@ -39,8 +43,27 @@ interface SettingsStore {
 		visible: boolean,
 	): Promise<void>;
 	setColorblindMode(repo: TodoRepository, enabled: boolean): Promise<void>;
+	setQuickAddPriorityVisible(
+		repo: TodoRepository,
+		visible: boolean,
+	): Promise<void>;
+	setQuickAddDueDateVisible(
+		repo: TodoRepository,
+		visible: boolean,
+	): Promise<void>;
+	setQuickAddTagsVisible(repo: TodoRepository, visible: boolean): Promise<void>;
+	setPriorityBackgroundVisible(
+		repo: TodoRepository,
+		visible: boolean,
+	): Promise<void>;
 	betaChannel: boolean;
 	setBetaChannel(repo: TodoRepository, enabled: boolean): Promise<void>;
+	// Latest changelog version the user has been shown (null until first launch).
+	lastSeenChangelogVersion: string | null;
+	setLastSeenChangelogVersion(
+		repo: TodoRepository,
+		version: string,
+	): Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -56,7 +79,12 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 	tagsVisible: true,
 	searchTriggerVisible: true,
 	colorblindMode: false,
+	quickAddPriorityVisible: false,
+	quickAddDueDateVisible: false,
+	quickAddTagsVisible: true,
+	priorityBackgroundVisible: false,
 	betaChannel: false,
+	lastSeenChangelogVersion: null,
 
 	async loadSettings(repo) {
 		const raw = await repo.getSettings();
@@ -74,7 +102,13 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 		const tagsVisible = raw.tags_visible !== "false";
 		const searchTriggerVisible = raw.search_trigger_visible !== "false";
 		const colorblindMode = raw.colorblind_mode === "true";
+		const quickAddPriorityVisible = raw.quick_add_priority_visible === "true";
+		const quickAddDueDateVisible = raw.quick_add_due_date_visible === "true";
+		const quickAddTagsVisible = raw.quick_add_tags_visible !== "false";
+		const priorityBackgroundVisible =
+			raw.priority_background_visible === "true";
 		const betaChannel = raw.beta_channel === "true";
+		const lastSeenChangelogVersion = raw.last_seen_changelog_version ?? null;
 		set({
 			notificationsEnabled,
 			notificationTimes,
@@ -85,7 +119,12 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 			tagsVisible,
 			searchTriggerVisible,
 			colorblindMode,
+			quickAddPriorityVisible,
+			quickAddDueDateVisible,
+			quickAddTagsVisible,
+			priorityBackgroundVisible,
 			betaChannel,
+			lastSeenChangelogVersion,
 		});
 	},
 
@@ -134,8 +173,33 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 		set({ colorblindMode: enabled });
 	},
 
+	async setQuickAddPriorityVisible(repo, visible) {
+		await repo.setSetting("quick_add_priority_visible", String(visible));
+		set({ quickAddPriorityVisible: visible });
+	},
+
+	async setQuickAddDueDateVisible(repo, visible) {
+		await repo.setSetting("quick_add_due_date_visible", String(visible));
+		set({ quickAddDueDateVisible: visible });
+	},
+
+	async setQuickAddTagsVisible(repo, visible) {
+		await repo.setSetting("quick_add_tags_visible", String(visible));
+		set({ quickAddTagsVisible: visible });
+	},
+
+	async setPriorityBackgroundVisible(repo, visible) {
+		await repo.setSetting("priority_background_visible", String(visible));
+		set({ priorityBackgroundVisible: visible });
+	},
+
 	async setBetaChannel(repo, enabled) {
 		await repo.setSetting("beta_channel", String(enabled));
 		set({ betaChannel: enabled });
+	},
+
+	async setLastSeenChangelogVersion(repo, version) {
+		await repo.setSetting("last_seen_changelog_version", version);
+		set({ lastSeenChangelogVersion: version });
 	},
 }));

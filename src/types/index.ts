@@ -1,4 +1,11 @@
-export type Priority = "none" | "low" | "medium" | "high";
+export type Priority =
+	| "none"
+	| "lowest"
+	| "low"
+	| "medium"
+	| "high"
+	| "highest"
+	| "blocker";
 
 export interface Tag {
 	id: string;
@@ -49,6 +56,7 @@ export interface CreateProjectGroupInput {
 
 export interface TaskFilters {
 	projectId?: string | null; // null = Inbox, undefined = all projects
+	projectIds?: string[]; // multi-project filter; INBOX_PROJECT_ID = tasks with no project
 	tagIds?: string[];
 	priority?: Priority;
 	completed?: boolean; // undefined = non-completed only (default)

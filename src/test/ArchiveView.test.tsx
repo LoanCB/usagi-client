@@ -125,6 +125,27 @@ describe("ArchiveView — filtres", () => {
 		expect(screen.getByText("Fixer le bug nav")).toBeInTheDocument();
 	});
 
+	it("filtre par un projet via le multi-select", async () => {
+		setupWithTasks();
+		const user = userEvent.setup();
+		await user.click(screen.getByRole("button", { name: /filtre projets/i }));
+		await user.click(screen.getByRole("button", { name: "Marketing" }));
+		expect(screen.getByText("Rapport Q2")).toBeInTheDocument();
+		expect(screen.queryByText("Maquette login")).not.toBeInTheDocument();
+		expect(screen.queryByText("Fixer le bug nav")).not.toBeInTheDocument();
+	});
+
+	it("filtre par plusieurs projets (Inbox + un projet)", async () => {
+		setupWithTasks();
+		const user = userEvent.setup();
+		await user.click(screen.getByRole("button", { name: /filtre projets/i }));
+		await user.click(screen.getByRole("button", { name: "Design" }));
+		await user.click(screen.getByRole("button", { name: "Inbox" }));
+		expect(screen.queryByText("Rapport Q2")).not.toBeInTheDocument();
+		expect(screen.getByText("Maquette login")).toBeInTheDocument();
+		expect(screen.getByText("Fixer le bug nav")).toBeInTheDocument();
+	});
+
 	it("affiche le message noResults quand aucune tâche ne correspond", async () => {
 		setupWithTasks();
 		const user = userEvent.setup();

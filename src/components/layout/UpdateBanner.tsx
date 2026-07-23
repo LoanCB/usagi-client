@@ -57,8 +57,8 @@ export function UpdateBanner() {
 						className="w-32 h-1.5 bg-muted rounded-full overflow-hidden"
 					>
 						<div
-							className="h-full bg-primary transition-all"
-							style={{ width: `${progress}%` }}
+							className="h-full w-full bg-primary origin-left transition-transform"
+							style={{ transform: `scaleX(${progress / 100})` }}
 						/>
 					</div>
 					<span className="text-sm text-muted-foreground w-10 text-right">

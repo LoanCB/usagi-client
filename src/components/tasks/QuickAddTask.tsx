@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { DueDatePicker } from "@/components/tasks/DueDatePicker";
+import { PrioritySelector } from "@/components/tasks/PrioritySelector";
 import { TagSelector } from "@/components/tasks/TagSelector";
 import { getRepository } from "@/store/repository";
+import { useSettingsStore } from "@/store/settings";
 import { useTaskStore } from "@/store/tasks";
+import type { Priority } from "@/types";
 
 interface QuickAddTaskProps {
 	readonly projectId: string | null | undefined;
@@ -17,7 +21,15 @@ export function QuickAddTask({
 }: QuickAddTaskProps) {
 	const [title, setTitle] = useState("");
 	const [tagIds, setTagIds] = useState<string[]>([]);
+	const [priority, setPriority] = useState<Priority>("none");
+	const [internalDueDate, setInternalDueDate] = useState<string | null>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
+
+	const priorityVisible = useSettingsStore((s) => s.quickAddPriorityVisible);
+	const dueDateVisible = useSettingsStore((s) => s.quickAddDueDateVisible);
+	const tagsVisible = useSettingsStore((s) => s.quickAddTagsVisible);
+
+	const isCalendarContext = dueDate !== undefined;
 
 	useEffect(() => {
 		if (focusTrigger) inputRef.current?.focus();
@@ -26,18 +38,23 @@ export function QuickAddTask({
 	const { t } = useTranslation();
 
 	async function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+		if (e.nativeEvent.isComposing) return;
 		if (e.key === "Enter") {
 			const trimmed = title.trim();
 			if (!trimmed) return;
+			const effectiveDueDate = isCalendarContext ? dueDate : internalDueDate;
 			try {
 				await createTask(getRepository(), {
 					title: trimmed,
 					projectId: projectId ?? null,
 					tagIds,
-					...(dueDate !== undefined && dueDate !== null ? { dueDate } : {}),
+					priority,
+					...(effectiveDueDate ? { dueDate: effectiveDueDate } : {}),
 				});
 				setTitle("");
 				setTagIds([]);
+				setPriority("none");
+				setInternalDueDate(null);
 				inputRef.current?.focus();
 			} catch (err) {
 				console.error("Failed to create task", err);
@@ -60,12 +77,28 @@ export function QuickAddTask({
 				aria-label={t("task.titlePlaceholder")}
 				className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
 			/>
-			<TagSelector
-				selectedTagIds={tagIds}
-				onChange={setTagIds}
-				triggerClassName="text-muted-foreground"
-				projectId={projectId}
-			/>
+			{priorityVisible && (
+				<PrioritySelector
+					value={priority}
+					onChange={setPriority}
+					triggerClassName="text-muted-foreground"
+				/>
+			)}
+			{dueDateVisible && !isCalendarContext && (
+				<DueDatePicker
+					value={internalDueDate}
+					onChange={setInternalDueDate}
+					triggerClassName="text-muted-foreground"
+				/>
+			)}
+			{tagsVisible && (
+				<TagSelector
+					selectedTagIds={tagIds}
+					onChange={setTagIds}
+					triggerClassName="text-muted-foreground"
+					projectId={projectId}
+				/>
+			)}
 		</div>
 	);
 }

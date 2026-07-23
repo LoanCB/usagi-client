@@ -1,15 +1,16 @@
 import { RotateCcw, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CalendarProjectFilter } from "@/components/calendar/CalendarProjectFilter";
 import { ArchiveDateFilter } from "@/components/layout/ArchiveDateFilter";
 import {
 	type DateRange,
 	inRange,
 } from "@/components/layout/archive-date-range";
+import { ProjectFilter } from "@/components/tasks/ProjectFilter";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
 import { formatDate, todayIso } from "@/lib/utils";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
@@ -20,20 +21,20 @@ import { useTaskStore } from "@/store/tasks";
 // instead of four separate useState slices.
 type ArchiveFilters = {
 	search: string;
-	projectId: string | null | undefined;
+	projectIds: string[] | null; // null = all projects
 	archivedRange: DateRange;
 	dueRange: DateRange;
 };
 
 type ArchiveFilterAction =
 	| { type: "setSearch"; value: string }
-	| { type: "setProject"; value: string | null | undefined }
+	| { type: "setProjects"; value: string[] | null }
 	| { type: "setArchivedRange"; value: DateRange }
 	| { type: "setDueRange"; value: DateRange };
 
 const initialFilters: ArchiveFilters = {
 	search: "",
-	projectId: undefined,
+	projectIds: null,
 	archivedRange: { from: null, to: null },
 	dueRange: { from: null, to: null },
 };
@@ -45,8 +46,8 @@ function archiveFilterReducer(
 	switch (action.type) {
 		case "setSearch":
 			return { ...state, search: action.value };
-		case "setProject":
-			return { ...state, projectId: action.value };
+		case "setProjects":
+			return { ...state, projectIds: action.value };
 		case "setArchivedRange":
 			return { ...state, archivedRange: action.value };
 		case "setDueRange":
@@ -64,7 +65,7 @@ export function ArchiveView() {
 	const [filters, dispatch] = useReducer(archiveFilterReducer, initialFilters);
 	const {
 		search,
-		projectId: filterProjectId,
+		projectIds: filterProjectIds,
 		archivedRange: archivedDateRange,
 		dueRange: dueDateRange,
 	} = filters;
@@ -77,10 +78,13 @@ export function ArchiveView() {
 				!search.trim() ||
 				task.title.toLowerCase().includes(search.toLowerCase());
 			const matchesProject =
-				filterProjectId === undefined ||
-				(filterProjectId === null
-					? task.projectId === null
-					: task.projectId === filterProjectId);
+				filterProjectIds === null ||
+				filterProjectIds.length === 0 ||
+				filterProjectIds.some((id) =>
+					id === INBOX_PROJECT_ID
+						? task.projectId === null
+						: task.projectId === id,
+				);
 			const archivedDate = task.deletedAt?.slice(0, 10) ?? null;
 			const matchesArchivedDate = inRange(
 				archivedDate,
@@ -95,7 +99,7 @@ export function ArchiveView() {
 	}, [
 		archivedTasks,
 		search,
-		filterProjectId,
+		filterProjectIds,
 		archivedDateRange,
 		dueDateRange,
 		today,
@@ -110,7 +114,7 @@ export function ArchiveView() {
 			<div className="px-6 py-5 border-b border-border shrink-0 flex items-center gap-3">
 				<h2 className="text-lg font-semibold flex-1">{t("nav.archives")}</h2>
 				<div className="glass-stat flex items-center gap-2 rounded-xl px-3 py-1.5">
-					<Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+					<Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 					<input
 						type="text"
 						value={search}
@@ -119,7 +123,7 @@ export function ArchiveView() {
 						}
 						placeholder={t("task.search")}
 						aria-label={t("task.search")}
-						className="w-32 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
+						className="w-32 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
 					/>
 					<button
 						type="button"
@@ -131,9 +135,9 @@ export function ArchiveView() {
 						<X className="h-3.5 w-3.5" />
 					</button>
 				</div>
-				<CalendarProjectFilter
-					value={filterProjectId}
-					onChange={(value) => dispatch({ type: "setProject", value })}
+				<ProjectFilter
+					value={filterProjectIds}
+					onChange={(value) => dispatch({ type: "setProjects", value })}
 				/>
 				<ArchiveDateFilter
 					archivedRange={archivedDateRange}

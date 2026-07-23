@@ -1,4 +1,5 @@
 import type { ExportData } from "@/lib/dataTransfer";
+import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
 import type {
 	CreateProjectGroupInput,
 	CreateProjectInput,
@@ -12,6 +13,25 @@ import type {
 } from "@/types";
 import type { DbDriver } from "./driver";
 import type { TodoRepository } from "./repository";
+
+function buildProjectIdsCondition(
+	projectIds: string[] | undefined,
+): { clause: string; params: string[] } | null {
+	if (!projectIds || projectIds.length === 0) return null;
+	const realIds = projectIds.filter((id) => id !== INBOX_PROJECT_ID);
+	const includeInbox = projectIds.includes(INBOX_PROJECT_ID);
+	const clauses: string[] = [];
+	const params: string[] = [];
+	if (realIds.length > 0) {
+		clauses.push(`t.project_id IN (${realIds.map(() => "?").join(", ")})`);
+		params.push(...realIds);
+	}
+	if (includeInbox) {
+		clauses.push("t.project_id IS NULL");
+	}
+	if (clauses.length === 0) return null;
+	return { clause: `(${clauses.join(" OR ")})`, params };
+}
 
 // ---- Row types returned by SQLite (snake_case) ----
 
@@ -387,6 +407,12 @@ export class SqliteRepository implements TodoRepository {
 		} else if (filters?.projectId !== undefined) {
 			conditions.push("t.project_id = ?");
 			params.push(filters.projectId);
+		}
+
+		const projectIdsFilter = buildProjectIdsCondition(filters?.projectIds);
+		if (projectIdsFilter) {
+			conditions.push(projectIdsFilter.clause);
+			params.push(...projectIdsFilter.params);
 		}
 
 		if (filters?.priority) {

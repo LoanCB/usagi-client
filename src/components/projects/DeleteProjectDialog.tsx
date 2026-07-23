@@ -209,6 +209,7 @@ function TaskActionSection({
 			{totalTaskCount > 0 && (
 				<div className="flex flex-col gap-1.5 mt-1">
 					<RadioCard
+						name="delete-project-task-action"
 						checked={taskAction === "inbox"}
 						onSelect={() => dispatch({ type: "setTaskAction", value: "inbox" })}
 						icon={<InboxIcon className="w-[15px] h-[15px]" />}
@@ -216,6 +217,7 @@ function TaskActionSection({
 						desc={t("project.taskActionInboxDesc")}
 					/>
 					<RadioCard
+						name="delete-project-task-action"
 						checked={taskAction === "project"}
 						onSelect={() =>
 							dispatch({ type: "setTaskAction", value: "project" })
@@ -235,6 +237,7 @@ function TaskActionSection({
 						/>
 					</RadioCard>
 					<RadioCard
+						name="delete-project-task-action"
 						checked={taskAction === "delete"}
 						onSelect={() =>
 							dispatch({ type: "setTaskAction", value: "delete" })
@@ -299,6 +302,7 @@ function TagActionSection({
 
 			<div className="flex flex-col gap-1.5 mt-1">
 				<RadioCard
+					name="delete-project-tag-action"
 					checked={tagAction === "generic"}
 					onSelect={() => dispatch({ type: "setTagAction", value: "generic" })}
 					icon={<TagsIcon className="w-[15px] h-[15px]" />}
@@ -306,6 +310,7 @@ function TagActionSection({
 					desc={t("project.tagActionGenericDesc")}
 				/>
 				<RadioCard
+					name="delete-project-tag-action"
 					checked={tagAction === "project"}
 					onSelect={() => dispatch({ type: "setTagAction", value: "project" })}
 					icon={<FolderSyncIcon className="w-[15px] h-[15px]" />}
@@ -323,6 +328,7 @@ function TagActionSection({
 					/>
 				</RadioCard>
 				<RadioCard
+					name="delete-project-tag-action"
 					checked={tagAction === "delete"}
 					onSelect={() => dispatch({ type: "setTagAction", value: "delete" })}
 					icon={<Trash2Icon className="w-[15px] h-[15px]" />}
@@ -421,6 +427,7 @@ function DeleteProjectForm({
 				<button
 					type="button"
 					onClick={onCancel}
+					aria-label={t("common.cancel")}
 					className="shrink-0 w-7 h-7 rounded-[7px] bg-foreground/5 hover:bg-foreground/10 transition-colors flex items-center justify-center text-muted-foreground cursor-pointer"
 				>
 					<XIcon className="w-3.5 h-3.5" />
@@ -481,7 +488,7 @@ function DeleteProjectForm({
 				</Button>
 				<Button
 					size="sm"
-					className="bg-gradient-to-br from-rose-600 to-rose-700 text-white border-rose-500/40 hover:from-rose-500 hover:to-rose-600 shadow-[0_4px_12px_rgba(244,63,94,0.3)] hover:shadow-[0_6px_16px_rgba(244,63,94,0.45)] transition-all duration-150"
+					className="bg-linear-to-br from-rose-600 to-rose-700 text-white border-rose-500/40 hover:from-rose-500 hover:to-rose-600 shadow-[0_4px_12px_rgba(244,63,94,0.3)] hover:shadow-[0_6px_16px_rgba(244,63,94,0.45)] transition-[background-color,box-shadow] duration-150"
 					onClick={handleConfirm}
 					disabled={!canConfirm}
 				>
@@ -586,6 +593,7 @@ function DisclosureList({
 
 function RadioCard({
 	checked,
+	name,
 	onSelect,
 	icon,
 	label,
@@ -594,6 +602,9 @@ function RadioCard({
 	children,
 }: {
 	readonly checked: boolean;
+	// Radio group name — shared by all cards in the same group so the browser
+	// enforces single-selection and enables arrow-key navigation between them.
+	readonly name: string;
 	readonly onSelect: () => void;
 	readonly icon: React.ReactNode;
 	readonly label: string;
@@ -614,6 +625,7 @@ function RadioCard({
 		>
 			<input
 				type="radio"
+				name={name}
 				className="sr-only"
 				checked={checked}
 				onChange={onSelect}

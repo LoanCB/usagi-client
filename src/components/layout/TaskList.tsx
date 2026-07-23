@@ -51,9 +51,12 @@ function DropLine() {
 }
 
 const PRIORITY_WEIGHT: Record<string, number> = {
-	high: 3,
-	medium: 2,
-	low: 1,
+	blocker: 6,
+	highest: 5,
+	high: 4,
+	medium: 3,
+	low: 2,
+	lowest: 1,
 	none: 0,
 };
 
@@ -202,19 +205,19 @@ function TaskListHeader({
 				<div className="flex items-center gap-2">
 					{/* Search */}
 					<div className="glass-stat flex items-center gap-2 rounded-xl px-3 py-1.5">
-						<Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+						<Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 						<input
 							type="text"
 							value={search}
 							onChange={(e) => onSearchChange(e.target.value)}
 							placeholder={t("task.search")}
 							aria-label={t("task.search")}
-							className="w-48 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
+							className="w-48 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
 						/>
 						<button
 							type="button"
 							onClick={() => onSearchChange("")}
-							className={`shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors ${search ? "visible" : "invisible"}`}
+							className={`shrink-0 text-muted-foreground hover:text-foreground transition-colors ${search ? "visible" : "invisible"}`}
 							aria-label="Clear search"
 							tabIndex={search ? 0 : -1}
 						>
@@ -280,12 +283,11 @@ function TaskListHeader({
 					className="mt-3 h-1 rounded-full bg-primary/15 overflow-hidden"
 				>
 					<div
-						className="h-full rounded-full bg-primary transition-all duration-300"
+						className="h-full w-full rounded-full bg-primary origin-left transition-transform duration-300"
 						style={{
-							width:
-								totalCount > 0
-									? `${(completedCount / totalCount) * 100}%`
-									: "0%",
+							transform: `scaleX(${
+								totalCount > 0 ? completedCount / totalCount : 0
+							})`,
 						}}
 					/>
 				</div>

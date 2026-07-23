@@ -1,3 +1,19 @@
 minimumReleaseAge: 10080
 blockExoticSubdeps: true
 trustPolicy: no-downgrade
+# Verified false positives for trustPolicy=no-downgrade — flagged only for lacking
+# provenance attestations on these older versions, NOT takeovers. Both are
+# integrity-pinned (SHA-512) and unchanged since the initial commit. Verified by
+# tracing their dependents (cf. the project's "verify, don't blanket-suppress"
+# convention in .react-doctor/false-positives.md):
+#   - reselect@5.1.1: pulled by @base-ui/utils (Redux-ecosystem memoization lib)
+#   - semver@6.3.1:   pulled by @babel/* (classic semver across the Babel toolchain)
+trustPolicyExclude:
+  - reselect@5.1.1
+  - semver@6.3.1
+# Build scripts approved to run (migrated from package.json's now-ignored
+# pnpm.onlyBuiltDependencies). esbuild fetches its native binary; msw sets up its
+# worker — both required and matching the maintainer's prior intent.
+allowBuilds:
+  esbuild: true
+  msw: true

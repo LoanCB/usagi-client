@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@/i18n";
 import { type MockInstance, vi } from "vitest";
@@ -87,112 +87,150 @@ describe("TaskItem", () => {
 		expect(writeTextSpy).toHaveBeenCalledWith("Buy groceries");
 	});
 
-	it("renders a priority dot for each priority level", () => {
-		const { rerender } = render(
-			<TaskItem
-				task={{ ...mockTask, priority: "high" }}
-				onDeleteRequest={vi.fn()}
-			/>,
-		);
-		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
-
-		rerender(
-			<TaskItem
-				task={{ ...mockTask, priority: "medium" }}
-				onDeleteRequest={vi.fn()}
-			/>,
-		);
-		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
-
-		rerender(
-			<TaskItem
-				task={{ ...mockTask, priority: "low" }}
-				onDeleteRequest={vi.fn()}
-			/>,
-		);
-		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
-
-		rerender(
-			<TaskItem
-				task={{ ...mockTask, priority: "none" }}
-				onDeleteRequest={vi.fn()}
-			/>,
-		);
-		expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
-	});
-
-	it("applies red dot color for high priority", () => {
-		render(
-			<TaskItem
-				task={{ ...mockTask, priority: "high" }}
-				onDeleteRequest={vi.fn()}
-			/>,
-		);
-		const dot = screen.getByTestId("priority-dot");
-		expect(dot).toHaveStyle({ background: "#ef4444" });
-		expect(dot).toHaveStyle({ boxShadow: "0 0 5px rgba(239,68,68,0.7)" });
-	});
-
-	it("applies yellow dot color for medium priority", () => {
-		render(
-			<TaskItem
-				task={{ ...mockTask, priority: "medium" }}
-				onDeleteRequest={vi.fn()}
-			/>,
-		);
-		expect(screen.getByTestId("priority-dot")).toHaveStyle({
-			background: "#eab308",
-		});
-	});
-
-	it("applies green dot color for low priority", () => {
-		render(
-			<TaskItem
-				task={{ ...mockTask, priority: "low" }}
-				onDeleteRequest={vi.fn()}
-			/>,
-		);
-		expect(screen.getByTestId("priority-dot")).toHaveStyle({
-			background: "#22c55e",
-		});
-	});
-
-	it("renders transparent dot for no priority", () => {
-		render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
-		expect(screen.getByTestId("priority-dot")).toHaveStyle({
-			background: "transparent",
-		});
-	});
-
-	describe("colorblind mode", () => {
-		it.each([
-			"high",
-			"medium",
-			"low",
-		] as const)("renders priority bars for %s priority in colorblind mode", (priority) => {
-			useSettingsStore.setState({ colorblindMode: true });
-			render(
-				<TaskItem task={{ ...mockTask, priority }} onDeleteRequest={vi.fn()} />,
-			);
-			expect(screen.getByTestId("priority-bars")).toBeInTheDocument();
-			expect(screen.queryByTestId("priority-dot")).not.toBeInTheDocument();
-		});
-
-		it("renders no bars for none priority in colorblind mode", () => {
-			useSettingsStore.setState({ colorblindMode: true });
+	describe("inline title editing", () => {
+		it("shows an input prefilled with the title on double-click", async () => {
+			const user = userEvent.setup();
 			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
-			expect(screen.queryByTestId("priority-bars")).not.toBeInTheDocument();
+
+			await user.dblClick(screen.getByText("Buy groceries"));
+
+			const input = screen.getByRole("textbox");
+			expect(input).toHaveValue("Buy groceries");
 		});
 
-		it("renders dot (not bars) when colorblind mode is off", () => {
-			render(
-				<TaskItem
-					task={{ ...mockTask, priority: "high" }}
-					onDeleteRequest={vi.fn()}
-				/>,
-			);
-			expect(screen.getByTestId("priority-dot")).toBeInTheDocument();
-			expect(screen.queryByTestId("priority-bars")).not.toBeInTheDocument();
+		it("saves the trimmed title on Enter", async () => {
+			const user = userEvent.setup();
+			const updateTask = vi.fn().mockResolvedValue(undefined);
+			useTaskStore.setState({ updateTask });
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+
+			await user.dblClick(screen.getByText("Buy groceries"));
+			const input = screen.getByRole("textbox");
+			await user.clear(input);
+			await user.type(input, "  Buy milk  {Enter}");
+
+			expect(updateTask).toHaveBeenCalledWith(expect.anything(), "task-1", {
+				title: "Buy milk",
+			});
 		});
+
+		it("does not save and restores the title on Escape", async () => {
+			const user = userEvent.setup();
+			const updateTask = vi.fn().mockResolvedValue(undefined);
+			useTaskStore.setState({ updateTask });
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+
+			await user.dblClick(screen.getByText("Buy groceries"));
+			const input = screen.getByRole("textbox");
+			await user.clear(input);
+			await user.type(input, "Something else{Escape}");
+
+			expect(updateTask).not.toHaveBeenCalled();
+			expect(screen.getByText("Buy groceries")).toBeInTheDocument();
+			expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+		});
+
+		it("does not save when the title is unchanged", async () => {
+			const user = userEvent.setup();
+			const updateTask = vi.fn().mockResolvedValue(undefined);
+			useTaskStore.setState({ updateTask });
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+
+			await user.dblClick(screen.getByText("Buy groceries"));
+			await user.type(screen.getByRole("textbox"), "{Enter}");
+
+			expect(updateTask).not.toHaveBeenCalled();
+		});
+
+		it("still selects the task on single click", async () => {
+			const user = userEvent.setup();
+			const setSelectedTask = vi.fn();
+			useUIStore.setState({ setSelectedTask });
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+
+			await user.click(screen.getByText("Buy groceries"));
+
+			// Selection is deferred so a double-click can cancel it.
+			await waitFor(() =>
+				expect(setSelectedTask).toHaveBeenCalledWith("task-1"),
+			);
+		});
+
+		it("enters edit mode from the 'Rename' context menu item", async () => {
+			const user = userEvent.setup();
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+
+			await user.pointer({
+				keys: "[MouseRight]",
+				target: screen.getByText("Buy groceries"),
+			});
+
+			await user.pointer({
+				keys: "[MouseLeft]",
+				target: await screen.findByText("Rename"),
+			});
+
+			const input = screen.getByRole("textbox");
+			expect(input).toHaveValue("Buy groceries");
+		});
+
+		it("does not open the detail (select) when double-clicking to edit", async () => {
+			const user = userEvent.setup();
+			const setSelectedTask = vi.fn();
+			useUIStore.setState({ setSelectedTask });
+			render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+
+			await user.dblClick(screen.getByText("Buy groceries"));
+
+			expect(setSelectedTask).not.toHaveBeenCalled();
+			expect(screen.getByRole("textbox")).toBeInTheDocument();
+		});
+	});
+
+	it.each([
+		"lowest",
+		"low",
+		"medium",
+		"high",
+		"highest",
+		"blocker",
+	] as const)("renders a priority icon for %s priority", (priority) => {
+		render(
+			<TaskItem task={{ ...mockTask, priority }} onDeleteRequest={vi.fn()} />,
+		);
+		const indicator = screen.getByTestId("priority-indicator");
+		expect(indicator.querySelector("svg")).toBeInTheDocument();
+	});
+
+	it("renders no icon for none priority", () => {
+		render(<TaskItem task={mockTask} onDeleteRequest={vi.fn()} />);
+		const indicator = screen.getByTestId("priority-indicator");
+		expect(indicator.querySelector("svg")).not.toBeInTheDocument();
+	});
+
+	it.each([
+		["highest", "#ef4444"],
+		["medium", "#eab308"],
+		["lowest", "#79b8ff"],
+		["blocker", "#991b1b"],
+	] as const)("colors the %s icon", (priority, color) => {
+		render(
+			<TaskItem task={{ ...mockTask, priority }} onDeleteRequest={vi.fn()} />,
+		);
+		const icon = screen.getByTestId("priority-indicator").querySelector("svg");
+		expect(icon).toHaveStyle({ color });
+	});
+
+	it("shows the same icon in colorblind mode (shape carries meaning)", () => {
+		useSettingsStore.setState({ colorblindMode: true });
+		render(
+			<TaskItem
+				task={{ ...mockTask, priority: "highest" }}
+				onDeleteRequest={vi.fn()}
+			/>,
+		);
+		expect(
+			screen.getByTestId("priority-indicator").querySelector("svg"),
+		).toBeInTheDocument();
 	});
 });

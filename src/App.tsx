@@ -2,6 +2,7 @@ import Database from "@tauri-apps/plugin-sql";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/AppShell";
+import { ChangelogDialog } from "@/components/layout/ChangelogDialog";
 import { UpdateBanner } from "@/components/layout/UpdateBanner";
 import { createRepository } from "@/db";
 // Load migration SQL at build time (Vite raw import)
@@ -10,8 +11,10 @@ import migration002 from "@/db/migrations/002_add_description.sql?raw";
 import migration003 from "@/db/migrations/003_settings.sql?raw";
 import migration004 from "@/db/migrations/004_tags_project_scope.sql?raw";
 import migration005 from "@/db/migrations/005_project_groups.sql?raw";
+import migration006 from "@/db/migrations/006_extend_priority.sql?raw";
 import { useOverdueNotifications } from "@/hooks/useOverdueNotifications";
 import { UpdaterContext, useUpdater } from "@/hooks/useUpdater";
+import { getReleasedVersions, getVersionsSince } from "@/lib/changelog";
 import { useProjectGroupStore } from "@/store/projectGroups";
 import { useProjectStore } from "@/store/projects";
 import { getRepository, setRepository } from "@/store/repository";
@@ -20,6 +23,7 @@ import { useShortcutsStore } from "@/store/shortcuts";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { ThemeProvider } from "@/theme/ThemeProvider";
+import type { ChangelogVersion } from "@/types/changelog";
 
 export function AppContent() {
 	const loadTasks = useTaskStore((s) => s.loadTasks);
@@ -33,9 +37,16 @@ export function AppContent() {
 	useOverdueNotifications(tasks);
 
 	const updater = useUpdater();
+	const [changelogPopup, setChangelogPopup] = useState<
+		ChangelogVersion[] | null
+	>(null);
 
+	// oxlint-disable-next-line react-doctor/no-set-state-after-await-in-effect -- the post-await setChangelogPopup is already guarded by the `cancelled` flag set in the cleanup below
 	useEffect(() => {
 		const repo = getRepository();
+		// Ignore late async resolutions if the effect re-runs (deps change) or
+		// the component unmounts, so we never write stale changelog state.
+		let cancelled = false;
 		async function load() {
 			await loadSettings(repo);
 			await loadShortcuts(repo);
@@ -43,8 +54,26 @@ export function AppContent() {
 			loadGroups(repo);
 			loadTags(repo);
 			loadTasks(repo, {});
+
+			// After an update, surface the versions released since the user's
+			// last visit. First launch records the current version silently.
+			const { lastSeenChangelogVersion, setLastSeenChangelogVersion } =
+				useSettingsStore.getState();
+			const latest = getReleasedVersions()[0]?.version;
+			if (latest) {
+				if (!lastSeenChangelogVersion) {
+					await setLastSeenChangelogVersion(repo, latest);
+				} else if (lastSeenChangelogVersion !== latest) {
+					const newer = getVersionsSince(lastSeenChangelogVersion);
+					if (newer.length > 0 && !cancelled) setChangelogPopup(newer);
+					await setLastSeenChangelogVersion(repo, latest);
+				}
+			}
 		}
 		load();
+		return () => {
+			cancelled = true;
+		};
 	}, [
 		loadSettings,
 		loadTasks,
@@ -62,6 +91,12 @@ export function AppContent() {
 		<UpdaterContext.Provider value={updater}>
 			<AppShell />
 			<UpdateBanner />
+			{changelogPopup && (
+				<ChangelogDialog
+					versions={changelogPopup}
+					onClose={() => setChangelogPopup(null)}
+				/>
+			)}
 		</UpdaterContext.Provider>
 	);
 }
@@ -81,22 +116,34 @@ export default function App() {
 		async function init() {
 			try {
 				const db = await Database.load("sqlite:usagi.db");
-				// Run migrations sequentially (idempotent)
-				for (const migration of [
+				const migrations = [
 					migrationSql,
 					migration002,
 					migration003,
 					migration004,
 					migration005,
-				]) {
-					for (const statement of migration.split(";").flatMap((s) => {
-						const trimmed = s.trim();
-						return trimmed ? [trimmed] : [];
-					})) {
+					migration006,
+				];
+				// Track applied migrations via user_version so non-idempotent ones
+				// (e.g. the 006 table rebuild) run exactly once.
+				const versionRows = await db.select<{ user_version: number }[]>(
+					"PRAGMA user_version",
+				);
+				const applied = versionRows[0]?.user_version ?? 0;
+				for (let version = applied; version < migrations.length; version++) {
+					for (const statement of migrations[version]
+						.split(";")
+						.flatMap((s) => {
+							const trimmed = s.trim();
+							return trimmed ? [trimmed] : [];
+						})) {
+						// oxlint-disable-next-line react-doctor/async-await-in-loop -- intentional: migration statements are ordered DDL that must run sequentially; parallelizing would race the SQLite lock and corrupt schema order
 						await db.execute(statement).catch(() => {
-							// Ignore "duplicate column" errors from ALTER TABLE on subsequent runs
+							// Ignore "duplicate column" errors from ALTER TABLE re-runs on
+							// legacy DBs whose user_version was never advanced.
 						});
 					}
+					await db.execute(`PRAGMA user_version = ${version + 1}`);
 				}
 				setRepository(createRepository(db));
 				setReady(true);

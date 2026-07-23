@@ -63,7 +63,7 @@ export function AppShell() {
 		selectedProjectId !== "archives";
 
 	return (
-		<div className="app-shell relative flex h-screen overflow-hidden text-foreground">
+		<div className="app-shell relative flex h-dvh overflow-hidden text-foreground">
 			{glassmorphismEnabled && (
 				<>
 					<div className="app-vignette pointer-events-none absolute inset-0 z-[1]" />
