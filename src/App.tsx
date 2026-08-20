@@ -5,6 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ChangelogDialog } from "@/components/layout/ChangelogDialog";
 import { UpdateBanner } from "@/components/layout/UpdateBanner";
 import { adaptDatabase, createRepository } from "@/db";
+import { backfillSortKeys } from "@/db/backfill-sort-keys";
 import { ALL_MIGRATIONS } from "@/db/migrations";
 import { runMigrations } from "@/db/migrations/run-migrations";
 import { useOverdueNotifications } from "@/hooks/useOverdueNotifications";
@@ -111,7 +112,9 @@ export default function App() {
 		async function init() {
 			try {
 				const db = await Database.load("sqlite:usagi.db");
-				await runMigrations(adaptDatabase(db), ALL_MIGRATIONS);
+				const driver = adaptDatabase(db);
+				await runMigrations(driver, ALL_MIGRATIONS);
+				await backfillSortKeys(driver);
 				setRepository(createRepository(db));
 				setReady(true);
 			} catch (err) {
