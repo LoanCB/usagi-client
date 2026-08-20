@@ -395,7 +395,7 @@ export class SqliteRepository implements TodoRepository {
 		const rows = await this.db.select<{ count: number }>(
 			`SELECT COUNT(*) as count FROM task_tags tt
 			 JOIN tasks t ON t.id = tt.task_id
-			 WHERE tt.tag_id = ? AND t.project_id IS NOT NULL AND t.deleted_at IS NULL`,
+			 WHERE tt.tag_id = ? AND t.project_id IS NOT NULL AND t.deleted_at IS NULL AND t.purged_at IS NULL`,
 			[tagId],
 		);
 		return (rows[0]?.count ?? 0) > 0;
@@ -404,7 +404,10 @@ export class SqliteRepository implements TodoRepository {
 	// ---------- Tasks ----------
 
 	async getTasks(filters?: TaskFilters): Promise<Task[]> {
-		const conditions: string[] = ["t.deleted_at IS NULL"];
+		const conditions: string[] = [
+			"t.deleted_at IS NULL",
+			"t.purged_at IS NULL",
+		];
 		const params: unknown[] = [];
 
 		if (filters?.projectId === null) {
@@ -455,7 +458,7 @@ export class SqliteRepository implements TodoRepository {
 
 	async getTask(id: string): Promise<Task | null> {
 		const rows = await this.db.select<TaskRow>(
-			"SELECT id, title, description, project_id, priority, due_date, completed_at, deleted_at, sort_order, created_at, updated_at FROM tasks WHERE id = ? AND deleted_at IS NULL",
+			"SELECT id, title, description, project_id, priority, due_date, completed_at, deleted_at, sort_order, created_at, updated_at FROM tasks WHERE id = ? AND deleted_at IS NULL AND purged_at IS NULL",
 			[id],
 		);
 		if (!rows[0]) return null;
@@ -610,8 +613,14 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	async deleteTask(id: string): Promise<void> {
+		const now = new Date().toISOString();
+		// Keep the row as a tombstone so the deletion can propagate; blank the
+		// content so a purged task leaks nothing once synced.
 		await this.db.execute("DELETE FROM task_tags WHERE task_id = ?", [id]);
-		await this.db.execute("DELETE FROM tasks WHERE id = ?", [id]);
+		await this.db.execute(
+			"UPDATE tasks SET purged_at = ?, updated_at = ?, title = '', description = NULL WHERE id = ?",
+			[now, now, id],
+		);
 	}
 
 	async unarchiveTask(id: string): Promise<void> {
@@ -624,7 +633,7 @@ export class SqliteRepository implements TodoRepository {
 
 	async getArchivedTasks(): Promise<Task[]> {
 		const taskRows = await this.db.select<TaskRow>(
-			"SELECT id, title, description, project_id, priority, due_date, completed_at, sort_order, created_at, updated_at, deleted_at FROM tasks WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+			"SELECT id, title, description, project_id, priority, due_date, completed_at, sort_order, created_at, updated_at, deleted_at FROM tasks WHERE deleted_at IS NOT NULL AND purged_at IS NULL ORDER BY deleted_at DESC",
 		);
 		if (taskRows.length === 0) return [];
 		return this._attachTags(taskRows);
