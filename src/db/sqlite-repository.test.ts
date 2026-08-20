@@ -460,8 +460,9 @@ describe("SqliteRepository — tasks", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
-				.mockResolvedValueOnce([taskRow])
-				.mockResolvedValueOnce([]),
+				.mockResolvedValueOnce([{ field_updated_at: null }]) // updateTask's own field_updated_at lookup
+				.mockResolvedValueOnce([taskRow]) // getTask after update
+				.mockResolvedValueOnce([]), // task_tags join
 		});
 		const repo = new SqliteRepository(db);
 		await repo.updateTask("task-1", { tagIds: ["tag-x", "tag-y"] });
@@ -507,6 +508,39 @@ describe("SqliteRepository — tasks", () => {
 		await repo.getTasks({ completed: true });
 		const [sql] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
 		expect(sql).toContain("completed_at IS NOT NULL");
+	});
+});
+
+describe("SqliteRepository — field timestamps", () => {
+	it("createTask stamps every column it writes", async () => {
+		const db = makeDb({
+			select: vi.fn().mockResolvedValue([]),
+		});
+		const repo = new SqliteRepository(db);
+		await repo.createTask({ title: "T" }).catch(() => undefined);
+		const insert = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(insert[0]).toContain("field_updated_at");
+		const json = (insert[1] as unknown[]).find(
+			(p) => typeof p === "string" && p.startsWith("{"),
+		) as string;
+		expect(Object.keys(JSON.parse(json))).toContain("title");
+	});
+
+	it("updateTask stamps only the patched columns", async () => {
+		const db = makeDb({
+			select: vi.fn().mockResolvedValue([{ field_updated_at: null }]),
+		});
+		const repo = new SqliteRepository(db);
+		await repo.updateTask("t1", { priority: "high" }).catch(() => undefined);
+		const update = (db.execute as ReturnType<typeof vi.fn>).mock.calls.find(
+			(c) => String(c[0]).startsWith("UPDATE tasks SET"),
+		);
+		const json = (update?.[1] as unknown[]).find(
+			(p) => typeof p === "string" && p.startsWith("{"),
+		) as string;
+		const keys = Object.keys(JSON.parse(json));
+		expect(keys).toContain("priority");
+		expect(keys).not.toContain("title");
 	});
 });
 

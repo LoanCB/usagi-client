@@ -12,7 +12,12 @@ import type {
 	TaskFilters,
 } from "@/types";
 import type { DbDriver } from "./driver";
+import { stampFields } from "./field-timestamps";
 import type { TodoRepository } from "./repository";
+
+// Placeholder until the sync engine persists a real device id in sync_state.
+// Only used to break write-time ties; unread until sync ships.
+const LOCAL_DEVICE_ID = "local";
 
 function buildProjectIdsCondition(
 	projectIds: string[] | undefined,
@@ -461,8 +466,14 @@ export class SqliteRepository implements TodoRepository {
 	async createTask(input: CreateTaskInput): Promise<Task> {
 		const id = crypto.randomUUID();
 		const now = new Date().toISOString();
+		const stamped = stampFields(
+			null,
+			["title", "description", "project_id", "priority", "due_date", "tags"],
+			now,
+			LOCAL_DEVICE_ID,
+		);
 		await this.db.execute(
-			"INSERT INTO tasks (id, title, description, project_id, priority, due_date, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)",
+			"INSERT INTO tasks (id, title, description, project_id, priority, due_date, sort_order, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)",
 			[
 				id,
 				input.title,
@@ -472,6 +483,7 @@ export class SqliteRepository implements TodoRepository {
 				input.dueDate ?? null,
 				now,
 				now,
+				stamped,
 			],
 		);
 		if (input.tagIds && input.tagIds.length > 0) {
@@ -511,6 +523,29 @@ export class SqliteRepository implements TodoRepository {
 			sets.push("due_date = ?");
 			params.push(patch.dueDate ?? null);
 		}
+
+		const touched: string[] = [];
+		if ("title" in patch) touched.push("title");
+		if ("description" in patch) touched.push("description");
+		if ("projectId" in patch) touched.push("project_id");
+		if ("priority" in patch) touched.push("priority");
+		if ("dueDate" in patch) touched.push("due_date");
+		if ("tagIds" in patch) touched.push("tags");
+
+		const prior = await this.db.select<{ field_updated_at: string | null }>(
+			"SELECT field_updated_at FROM tasks WHERE id = ?",
+			[id],
+		);
+		sets.push("field_updated_at = ?");
+		params.push(
+			stampFields(
+				prior[0]?.field_updated_at ?? null,
+				touched,
+				now,
+				LOCAL_DEVICE_ID,
+			),
+		);
+
 		params.push(id);
 		await this.db.execute(
 			`UPDATE tasks SET ${sets.join(", ")} WHERE id = ?`,
