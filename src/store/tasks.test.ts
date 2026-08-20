@@ -84,7 +84,7 @@ describe("useTaskStore", () => {
 		expect(result.current.tasks.some((t) => t.id === "t2")).toBe(true);
 	});
 
-	it("deleteTask hard-deletes task from tasks state", async () => {
+	it("deleteTask drops the purged task from tasks state", async () => {
 		useTaskStore.setState({
 			tasks: [baseTask],
 			archivedTasks: [],
