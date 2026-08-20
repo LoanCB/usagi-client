@@ -9,7 +9,8 @@ import {
 describe("getDisplayVersions", () => {
 	it("lists the newest version first", () => {
 		const display = getDisplayVersions();
-		expect(display[0].version).toBe("2026.3.0");
+		// The Unreleased entry sorts first once it has user-facing changes.
+		expect(display[0].version).toBe("Unreleased");
 	});
 
 	it("excludes versions with no user-facing changes", () => {

@@ -1,6 +1,19 @@
 {
-	"generatedAt": "2026-07-23",
+	"generatedAt": "2026-08-20",
 	"versions": [
+		{
+			"version": "Unreleased",
+			"tag": null,
+			"date": null,
+			"changes": {
+				"features": [
+					{
+						"en": "Groundwork for multi-device sync: the local database is now sync-ready. No change to how the app works.",
+						"fr": "Fondations pour la synchronisation multi-appareils : la base locale est désormais prête à être synchronisée. Aucun changement dans le fonctionnement de l'app."
+					}
+				]
+			}
+		},
 		{
 			"version": "2026.3.0",
 			"tag": "v2026.3.0",
