@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChangelogDialog } from "@/components/layout/ChangelogDialog";
 import { UpdateBanner } from "@/components/layout/UpdateBanner";
-import { createRepository } from "@/db";
+import { adaptDatabase, createRepository } from "@/db";
 // Load migration SQL at build time (Vite raw import)
 import migrationSql from "@/db/migrations/001_initial.sql?raw";
 import migration002 from "@/db/migrations/002_add_description.sql?raw";
@@ -12,6 +12,7 @@ import migration003 from "@/db/migrations/003_settings.sql?raw";
 import migration004 from "@/db/migrations/004_tags_project_scope.sql?raw";
 import migration005 from "@/db/migrations/005_project_groups.sql?raw";
 import migration006 from "@/db/migrations/006_extend_priority.sql?raw";
+import { runMigrations } from "@/db/migrations/run-migrations";
 import { useOverdueNotifications } from "@/hooks/useOverdueNotifications";
 import { UpdaterContext, useUpdater } from "@/hooks/useUpdater";
 import { getReleasedVersions, getVersionsSince } from "@/lib/changelog";
@@ -116,35 +117,14 @@ export default function App() {
 		async function init() {
 			try {
 				const db = await Database.load("sqlite:usagi.db");
-				const migrations = [
+				await runMigrations(adaptDatabase(db), [
 					migrationSql,
 					migration002,
 					migration003,
 					migration004,
 					migration005,
 					migration006,
-				];
-				// Track applied migrations via user_version so non-idempotent ones
-				// (e.g. the 006 table rebuild) run exactly once.
-				const versionRows = await db.select<{ user_version: number }[]>(
-					"PRAGMA user_version",
-				);
-				const applied = versionRows[0]?.user_version ?? 0;
-				for (let version = applied; version < migrations.length; version++) {
-					for (const statement of migrations[version]
-						.split(";")
-						.flatMap((s) => {
-							const trimmed = s.trim();
-							return trimmed ? [trimmed] : [];
-						})) {
-						// oxlint-disable-next-line react-doctor/async-await-in-loop -- intentional: migration statements are ordered DDL that must run sequentially; parallelizing would race the SQLite lock and corrupt schema order
-						await db.execute(statement).catch(() => {
-							// Ignore "duplicate column" errors from ALTER TABLE re-runs on
-							// legacy DBs whose user_version was never advanced.
-						});
-					}
-					await db.execute(`PRAGMA user_version = ${version + 1}`);
-				}
+				]);
 				setRepository(createRepository(db));
 				setReady(true);
 			} catch (err) {
