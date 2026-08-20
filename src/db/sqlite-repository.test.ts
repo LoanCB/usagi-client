@@ -404,17 +404,16 @@ describe("SqliteRepository — tasks", () => {
 		expect(sql).toContain("completed_at");
 	});
 
-	it("deleteTask hard-deletes the task", async () => {
+	it("deleteTask removes task_tags then tombstones the task (no hard delete)", async () => {
 		const db = makeDb();
 		const repo = new SqliteRepository(db);
 		await repo.deleteTask("task-1");
 		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls;
-		expect(
-			calls.some((call) => (call[0] as string).includes("DELETE FROM tasks")),
-		).toBe(true);
-		expect(
-			calls.some((call) => (call[1] as unknown[])?.includes("task-1")),
-		).toBe(true);
+		expect(calls).toHaveLength(2);
+		expect(calls[0][0]).toContain("DELETE FROM task_tags");
+		expect(calls[0][1]).toContain("task-1");
+		expect(calls[1][0]).toContain("UPDATE tasks SET purged_at");
+		expect(calls[1][1]).toContain("task-1");
 	});
 
 	it("archiveTask sets deleted_at (soft delete)", async () => {
@@ -460,8 +459,9 @@ describe("SqliteRepository — tasks", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
-				.mockResolvedValueOnce([taskRow])
-				.mockResolvedValueOnce([]),
+				.mockResolvedValueOnce([{ field_updated_at: null }]) // updateTask's own field_updated_at lookup
+				.mockResolvedValueOnce([taskRow]) // getTask after update
+				.mockResolvedValueOnce([]), // task_tags join
 		});
 		const repo = new SqliteRepository(db);
 		await repo.updateTask("task-1", { tagIds: ["tag-x", "tag-y"] });
@@ -507,6 +507,39 @@ describe("SqliteRepository — tasks", () => {
 		await repo.getTasks({ completed: true });
 		const [sql] = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
 		expect(sql).toContain("completed_at IS NOT NULL");
+	});
+});
+
+describe("SqliteRepository — field timestamps", () => {
+	it("createTask stamps every column it writes", async () => {
+		const db = makeDb({
+			select: vi.fn().mockResolvedValue([]),
+		});
+		const repo = new SqliteRepository(db);
+		await repo.createTask({ title: "T" }).catch(() => undefined);
+		const insert = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(insert[0]).toContain("field_updated_at");
+		const json = (insert[1] as unknown[]).find(
+			(p) => typeof p === "string" && p.startsWith("{"),
+		) as string;
+		expect(Object.keys(JSON.parse(json))).toContain("title");
+	});
+
+	it("updateTask stamps only the patched columns", async () => {
+		const db = makeDb({
+			select: vi.fn().mockResolvedValue([{ field_updated_at: null }]),
+		});
+		const repo = new SqliteRepository(db);
+		await repo.updateTask("t1", { priority: "high" }).catch(() => undefined);
+		const update = (db.execute as ReturnType<typeof vi.fn>).mock.calls.find(
+			(c) => String(c[0]).startsWith("UPDATE tasks SET"),
+		);
+		const json = (update?.[1] as unknown[]).find(
+			(p) => typeof p === "string" && p.startsWith("{"),
+		) as string;
+		const keys = Object.keys(JSON.parse(json));
+		expect(keys).toContain("priority");
+		expect(keys).not.toContain("title");
 	});
 });
 
@@ -735,6 +768,40 @@ describe("SqliteRepository — bulkImport", () => {
 	});
 });
 
+describe("SqliteRepository — purge", () => {
+	it("deleteTask writes a tombstone instead of removing the row", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.deleteTask("t1");
+		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls;
+		expect(calls.some((c) => String(c[0]).includes("DELETE FROM tasks"))).toBe(
+			false,
+		);
+		const purge = calls.find((c) => String(c[0]).includes("purged_at"));
+		expect(purge).toBeDefined();
+		expect(purge?.[1]).toContain("t1");
+	});
+
+	it("deleteTask clears content so the tombstone leaks nothing", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.deleteTask("t1");
+		const purge = (db.execute as ReturnType<typeof vi.fn>).mock.calls.find(
+			(c) => String(c[0]).includes("purged_at"),
+		);
+		expect(String(purge?.[0])).toContain("title = ''");
+		expect(String(purge?.[0])).toContain("description = NULL");
+	});
+
+	it("getTasks filters out purged rows", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.getTasks();
+		const select = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(String(select[0])).toContain("purged_at IS NULL");
+	});
+});
+
 describe("SqliteRepository — project groups", () => {
 	it("createProjectGroup inserts a row and returns a ProjectGroup", async () => {
 		const now = "2026-06-18T10:00:00.000Z";
@@ -860,5 +927,28 @@ describe("SqliteRepository — project groups", () => {
 		const call = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
 		expect(call[0]).toContain("UPDATE project_groups");
 		expect(call[1]).toContain("grp-1");
+	});
+});
+
+describe("SqliteRepository — reorder", () => {
+	it("writes both sort_key and sort_order during the transition release", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.reorderTasks(["a", "b", "c"]);
+		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls;
+		expect(calls).toHaveLength(3);
+		expect(String(calls[0][0])).toContain("sort_key = ?");
+		expect(String(calls[0][0])).toContain("sort_order = ?");
+	});
+
+	it("assigns strictly increasing sort_key values", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.reorderTasks(["a", "b", "c"]);
+		const keys = (db.execute as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c) => (c[1] as unknown[])[0] as string,
+		);
+		expect(keys).toEqual([...keys].sort());
+		expect(new Set(keys).size).toBe(3);
 	});
 });

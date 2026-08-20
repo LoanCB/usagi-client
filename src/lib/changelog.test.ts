@@ -9,7 +9,7 @@ import {
 describe("getDisplayVersions", () => {
 	it("lists the newest version first", () => {
 		const display = getDisplayVersions();
-		expect(display[0].version).toBe("2026.3.0");
+		expect(display[0].version).toBe("2026.3.1");
 	});
 
 	it("excludes versions with no user-facing changes", () => {
@@ -28,18 +28,22 @@ describe("getReleasedVersions", () => {
 
 	it("keeps the file's newest-first ordering", () => {
 		const released = getReleasedVersions();
-		expect(released[0].version).toBe("2026.3.0");
+		expect(released[0].version).toBe("2026.3.1");
 	});
 });
 
 describe("getVersionsSince", () => {
 	it("returns only versions newer than the given one", () => {
 		const since = getVersionsSince("2026.2.0");
-		expect(since.map((v) => v.version)).toEqual(["2026.3.0", "2026.2.1"]);
+		expect(since.map((v) => v.version)).toEqual([
+			"2026.3.1",
+			"2026.3.0",
+			"2026.2.1",
+		]);
 	});
 
 	it("returns nothing when already on the latest", () => {
-		expect(getVersionsSince("2026.3.0")).toEqual([]);
+		expect(getVersionsSince("2026.3.1")).toEqual([]);
 	});
 
 	it("falls back to the full history for an unknown marker", () => {

@@ -100,8 +100,19 @@ Tables concernées : `tasks`, `projects`, `tags`, `project_groups`.
 | `field_updated_at TEXT` | JSON `{"title":"2026-…","due_date":"2026-…"}`, base du LWW par champ |
 | `purged_at TEXT` | Tombstone de suppression définitive |
 
-`field_updated_at` est le **seul** point de `SqliteRepository` à modifier :
-`updateTask(id, patch)` reçoit déjà exactement la liste des champs modifiés.
+> **Correction (2026-08-20, après implémentation du plan 1).** Ce paragraphe affirmait
+> que `field_updated_at` était le **seul** point de `SqliteRepository` à modifier, au
+> motif que `updateTask(id, patch)` reçoit déjà la liste des champs modifiés. **C'est
+> faux.** Six autres méthodes écrivent des colonnes régies par le LWW sans passer par
+> `updateTask` : `archiveTask` / `unarchiveTask` (`deleted_at`), `completeTask` /
+> `uncompleteTask` (`completed_at`), `moveTasksToProject` (`project_id`) et
+> `reorderTasks` (`sort_key`, `sort_order`). Un moteur de fusion construit sur
+> l'affirmation d'origine ne verrait jamais l'archivage, la complétion ni le
+> déplacement comme des changements de champ. Voir la liste de prérequis en fin de
+> document.
+
+`updateTask(id, patch)` reçoit exactement la liste des champs modifiés et constitue
+donc le point d'entrée naturel de l'estampillage — mais pas le seul à instrumenter.
 
 ### 1.3 Archivé vs purgé
 
@@ -496,3 +507,76 @@ C'est le seul test qui attrape les bugs de non-convergence.
 - Synchronisation des `settings` et `shortcuts` : volontairement par appareil.
 - Multi-comptes / plusieurs serveurs simultanés.
 - Application web.
+
+---
+
+## 9. Prérequis issus de l'implémentation du plan 1
+
+Le plan 1 (fondations de schéma, branche `feat/sync-schema-groundwork`, 17 commits) a été
+implémenté et revu tâche par tâche. Il a livré des colonnes et une outbox **inertes** :
+rien ne les lit encore. Cinq points doivent être traités **avant** que le moteur de
+synchronisation ne s'appuie dessus. Ils sont listés par ordre de dépendance.
+
+### 9.1 Trancher la sémantique de `sort_key`, puis re-backfiller intégralement
+
+`sort_order` — et donc `sort_key`, qui le mirroir — encode un ordre **par vue filtrée** :
+`reorderTasks` écrit `0..N` pour le sous-ensemble affiché. Or la sync stocke un
+enregistrement par tâche, sans contexte de vue. **Un ordre par vue n'est représentable
+dans aucune clé unique par ligne**, quelle que soit la stratégie d'ancrage.
+
+Il faut choisir : ordre scopé par projet (une séquence de clés par projet) ou ordre global
+unique. Puis **re-backfiller toutes les lignes depuis zéro**.
+
+Ne faire confiance à **aucune** valeur de `sort_key` existante. Deux causes distinctes de
+divergence coexistent :
+- un réordonnancement de sous-ensemble ré-ancre à `a0` et entre en collision avec les
+  lignes non touchées ;
+- une tâche créée après le premier backfill a `sort_order = 0` (codé en dur) donc
+  s'affiche en haut, mais le backfill suivant lui attribue une clé **après le maximum
+  existant**, donc en bas. Le backfill étant idempotent, il n'y reviendra jamais.
+
+### 9.2 Renseigner `sort_key` à l'insertion
+
+`createTask`, `createProject` et `createProjectGroup` ne l'écrivent pas. Le backfill au
+démarrage ne doit pas rester le mécanisme de réparation — voir 9.1 pour pourquoi il
+« répare » en figeant une position erronée.
+
+### 9.3 Étendre l'estampillage `field_updated_at`
+
+Deux lacunes distinctes :
+- **Entre tables** : seule `tasks` est estampillée. `projects`, `tags` et `project_groups`
+  ont la colonne mais elle reste NULL.
+- **Dans `tasks`** : seuls `createTask` et `updateTask` estampillent. Les six méthodes
+  listées dans la correction du §1.2 écrivent des colonnes LWW sans estampiller —
+  y compris `deleteTask`, qui pose un tombstone sans stamp.
+
+### 9.4 Convertir `deleteProjectGroup` en tombstone
+
+La migration 007 a donné un `purged_at` à `project_groups` et la 009 un trigger DELETE,
+mais `deleteProjectGroup` fait toujours une suppression physique. Résultat : l'outbox
+reçoit une entrée pointant vers une ligne qui n'existe plus, et le moteur ne peut pas
+distinguer « purgé » de « n'a jamais existé ».
+
+Décider au passage ce que `bulkImport` doit faire des tombstones : en mode `replace` son
+`DELETE FROM tasks` les détruit physiquement, et en mode `merge` son `INSERT OR REPLACE`
+remet `field_updated_at`, `purged_at` et `sort_key` à NULL pour **toute** tâche importée.
+
+### 9.5 Ajouter la notion de transaction à `DbDriver`
+
+`DbDriver` (`src/db/driver.ts`) n'expose que `execute` et `select`. Le §4.1 exige que le
+moteur purge ses propres entrées d'outbox **dans la même transaction** que l'application
+d'un changement distant : c'est inexprimable avec l'interface actuelle. C'est la plus
+grosse lacune d'interface laissée par le plan 1.
+
+### 9.6 Pièges documentés
+
+- **Reconstruction de table** : toute migration reconstruisant une table synchronisée avec
+  une liste de colonnes explicite (comme le fait `006`) droppe **et** ses triggers **et**
+  les colonnes de sync ajoutées depuis. L'avertissement complet est dans l'en-tête de
+  `009_sync_outbox.sql`.
+- **`LOCAL_DEVICE_ID = "local"`** est un placeholder déjà persisté sur disque chez les
+  utilisateurs. Le moteur devra le remplacer par un identifiant réel stocké dans
+  `sync_state`, et réécrire les stamps existants.
+- **`isIgnorable`** ne tolère que `/duplicate column name/i`, vérifié sous `better-sqlite3`
+  mais **pas** sous `@tauri-apps/plugin-sql`. À confirmer par un rejeu hérité réel avant
+  de s'y fier (voir la porte de sortie de release).

@@ -5,7 +5,7 @@ import { SqliteRepository } from "./sqlite-repository";
 
 export type { TodoRepository } from "./repository";
 
-function adaptDatabase(db: Database): DbDriver {
+export function adaptDatabase(db: Database): DbDriver {
 	return {
 		async execute(query: string, bindValues?: unknown[]): Promise<QueryResult> {
 			const result = await db.execute(query, bindValues);
