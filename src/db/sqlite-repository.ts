@@ -1,3 +1,4 @@
+import { generateNKeysBetween } from "fractional-indexing";
 import type { ExportData } from "@/lib/dataTransfer";
 import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
 import type {
@@ -641,10 +642,13 @@ export class SqliteRepository implements TodoRepository {
 
 	async reorderTasks(orderedIds: string[]): Promise<void> {
 		const now = new Date().toISOString();
+		// sort_order is still written so this release can be rolled back; it is
+		// dropped once sync has shipped and sort_key is the sole ordering source.
+		const keys = generateNKeysBetween(null, null, orderedIds.length);
 		for (let i = 0; i < orderedIds.length; i++) {
 			await this.db.execute(
-				"UPDATE tasks SET sort_order = ?, updated_at = ? WHERE id = ?",
-				[i, now, orderedIds[i]],
+				"UPDATE tasks SET sort_key = ?, sort_order = ?, updated_at = ? WHERE id = ?",
+				[keys[i], i, now, orderedIds[i]],
 			);
 		}
 	}

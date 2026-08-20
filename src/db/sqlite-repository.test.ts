@@ -929,3 +929,26 @@ describe("SqliteRepository — project groups", () => {
 		expect(call[1]).toContain("grp-1");
 	});
 });
+
+describe("SqliteRepository — reorder", () => {
+	it("writes both sort_key and sort_order during the transition release", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.reorderTasks(["a", "b", "c"]);
+		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls;
+		expect(calls).toHaveLength(3);
+		expect(String(calls[0][0])).toContain("sort_key = ?");
+		expect(String(calls[0][0])).toContain("sort_order = ?");
+	});
+
+	it("assigns strictly increasing sort_key values", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.reorderTasks(["a", "b", "c"]);
+		const keys = (db.execute as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c) => (c[1] as unknown[])[0] as string,
+		);
+		expect(keys).toEqual([...keys].sort());
+		expect(new Set(keys).size).toBe(3);
+	});
+});
