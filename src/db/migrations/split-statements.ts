@@ -55,7 +55,12 @@ export function splitStatements(sql: string): string[] {
 
 		if (!inString && char === "/" && sql[i + 1] === "*") {
 			const close = sql.indexOf("*/", i + 2);
-			const stop = close === -1 ? sql.length : close + 2;
+			// Unlike a line comment, which legitimately ends at EOF, a block comment
+			// reaching EOF has swallowed the rest of the file rather than closed.
+			if (close === -1) {
+				throw new Error("Unterminated block comment in migration SQL");
+			}
+			const stop = close + 2;
 			current += sql.slice(i, stop);
 			i = stop - 1;
 			continue;

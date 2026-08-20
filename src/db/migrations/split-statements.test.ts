@@ -111,4 +111,12 @@ CREATE INDEX idx ON tasks(id);`;
 			/unterminated string literal/i,
 		);
 	});
+
+	// A line comment legitimately ends at EOF, but a block comment does not:
+	// running to EOF means it swallowed the rest of the file.
+	it("throws on an unterminated block comment", () => {
+		expect(() => splitStatements("SELECT 1; /* oops")).toThrow(
+			/unterminated block comment/i,
+		);
+	});
 });
