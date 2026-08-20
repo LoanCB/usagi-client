@@ -58,6 +58,31 @@ describe("backfillSortKeys", () => {
 		expect(second).toEqual(first);
 	});
 
+	// createTask/createProject hardcode sort_order to 0, so ties on
+	// (sort_order, created_at) are the normal case, not an edge case. The
+	// backfill must freeze whatever order the app's own query actually returns.
+	it("matches the app's own ordering when rows tie on sort_order and created_at", async () => {
+		driver = new BetterSqliteDriver();
+		await runMigrations(driver, ALL_MIGRATIONS);
+		// Inserted in an order that differs from lexical id order, so an id-based
+		// tie-break would visibly diverge from what the app query returns.
+		for (const id of ["c", "a", "b"]) {
+			await seedTask(driver, id, 0);
+		}
+
+		await backfillSortKeys(driver);
+
+		// Compare against the app's real ordering clause (sqlite-repository.ts)
+		// rather than a hardcoded list, so this stays honest if ties ever shift.
+		const appOrder = await driver.select<{ id: string }>(
+			"SELECT id FROM tasks WHERE deleted_at IS NULL ORDER BY sort_order, created_at",
+		);
+		const keyOrder = await driver.select<{ id: string }>(
+			"SELECT id FROM tasks ORDER BY sort_key",
+		);
+		expect(keyOrder.map((r) => r.id)).toEqual(appOrder.map((r) => r.id));
+	});
+
 	it("handles an empty table without throwing", async () => {
 		driver = new BetterSqliteDriver();
 		await runMigrations(driver, ALL_MIGRATIONS);

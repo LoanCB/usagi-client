@@ -10,9 +10,15 @@ const ORDERED_TABLES = ["tasks", "projects", "project_groups"] as const;
  */
 export async function backfillSortKeys(db: DbDriver): Promise<void> {
 	for (const table of ORDERED_TABLES) {
+		// The app orders by (sort_order, created_at) with no further tie-break, and
+		// creates rows with sort_order = 0, so ties are the normal case. SQLite
+		// leaves the order of tied rows unspecified, so there is no guaranteed
+		// pre-existing order to preserve; rowid is what it actually returns for
+		// these queries today, so tie-breaking on it freezes the currently visible
+		// order instead of silently reshuffling it (an id/UUID tie-break would).
 		// oxlint-disable-next-line react-doctor/async-await-in-loop -- intentional: each table is a separate ordered backfill; concurrency would interleave writes on one SQLite connection
 		const rows = await db.select<{ id: string }>(
-			`SELECT id FROM ${table} WHERE sort_key IS NULL ORDER BY sort_order ASC, created_at ASC, id ASC`,
+			`SELECT id FROM ${table} WHERE sort_key IS NULL ORDER BY sort_order ASC, created_at ASC, rowid ASC`,
 		);
 		if (rows.length === 0) continue;
 
