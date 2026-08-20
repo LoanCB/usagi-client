@@ -1,6 +1,19 @@
 {
-	"generatedAt": "2026-07-23",
+	"generatedAt": "2026-08-20",
 	"versions": [
+		{
+			"version": "2026.3.1",
+			"tag": "v2026.3.1",
+			"date": "2026-08-20",
+			"changes": {
+				"features": [
+					{
+						"en": "Groundwork for multi-device sync: the local database is now sync-ready. Permanently deleted items now leave a hidden marker behind instead of being erased outright, so the database file no longer shrinks when you delete them.",
+						"fr": "Fondations pour la synchronisation multi-appareils : la base locale est désormais prête à être synchronisée. Les éléments supprimés définitivement laissent maintenant un marqueur masqué au lieu d'être effacés, la base ne diminue donc plus lors de ces suppressions."
+					}
+				]
+			}
+		},
 		{
 			"version": "2026.3.0",
 			"tag": "v2026.3.0",
