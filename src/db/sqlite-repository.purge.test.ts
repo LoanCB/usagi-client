@@ -92,6 +92,10 @@ describe("SqliteRepository — purge behaviour against real SQLite", () => {
 			expect(row?.purged_at).not.toBeNull();
 			expect(row?.title).toBe("");
 			expect(row?.description).toBeNull();
+			// Pins the rollback property: a client that predates purged_at must
+			// see this row as archived, not as a live task, so deleted_at has to
+			// be stamped alongside purged_at.
+			expect(row?.deleted_at).not.toBeNull();
 		}
 	});
 

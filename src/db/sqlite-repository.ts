@@ -616,11 +616,15 @@ export class SqliteRepository implements TodoRepository {
 	async deleteTask(id: string): Promise<void> {
 		const now = new Date().toISOString();
 		// Keep the row as a tombstone so the deletion can propagate; blank the
-		// content so a purged task leaks nothing once synced.
+		// content so a purged task leaks nothing once synced. Also stamp
+		// deleted_at: it is not because the row is "archived", but so a client
+		// rolled back to a release that predates purged_at still filters this
+		// row out of the active list (deleted_at IS NULL) and only surfaces it
+		// under Archives instead of resurrecting it as a blank-titled phantom.
 		await this.db.execute("DELETE FROM task_tags WHERE task_id = ?", [id]);
 		await this.db.execute(
-			"UPDATE tasks SET purged_at = ?, updated_at = ?, title = '', description = NULL WHERE id = ?",
-			[now, now, id],
+			"UPDATE tasks SET purged_at = ?, deleted_at = ?, updated_at = ?, title = '', description = NULL WHERE id = ?",
+			[now, now, now, id],
 		);
 	}
 

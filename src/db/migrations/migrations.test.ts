@@ -140,4 +140,61 @@ describe("migrations", () => {
 		expect(await columns(driver, "projects")).toContain("sort_key");
 		expect(await columns(driver, "project_groups")).toContain("sort_key");
 	});
+
+	it("migrates a real legacy installation: 006-era schema with user_version stuck at 0", async () => {
+		// This is the path that actually happens in production: a database
+		// created before user_version tracking existed, left on a 005/006-era
+		// schema with user_version = 0. Unlike the fabricated-state test above,
+		// the sync columns genuinely do not exist yet here, so re-running 006's
+		// table rebuild loses nothing — value-level assertions are legitimate.
+		driver = new BetterSqliteDriver();
+		await runMigrations(driver, ALL_MIGRATIONS.slice(0, 6));
+
+		await driver.execute(
+			"INSERT INTO project_groups (id, name, color, sort_order, created_at, updated_at) VALUES ('g1', 'Personal', '#ff0000', 0, 'x', 'x')",
+		);
+		await driver.execute(
+			"INSERT INTO projects (id, name, sort_order, created_at, updated_at, group_id) VALUES ('p1', 'Work', 0, 'x', 'x', 'g1')",
+		);
+		for (let i = 0; i < 5; i++) {
+			await driver.execute(
+				"INSERT INTO tasks (id, title, project_id, priority, sort_order, created_at, updated_at) VALUES (?, ?, 'p1', 'medium', ?, 'x', 'x')",
+				[`t${i}`, `Legacy task ${i}`, i],
+			);
+		}
+
+		// Real legacy installs never had user_version advanced at all.
+		await driver.execute("PRAGMA user_version = 0");
+
+		await expect(
+			runMigrations(driver, ALL_MIGRATIONS),
+		).resolves.toBeUndefined();
+
+		const versionRows = await driver.select<{ user_version: number }>(
+			"PRAGMA user_version",
+		);
+		expect(versionRows[0]?.user_version).toBe(ALL_MIGRATIONS.length);
+
+		const taskRows = await driver.select<{ id: string; title: string }>(
+			"SELECT id, title FROM tasks ORDER BY id",
+		);
+		expect(taskRows).toEqual(
+			Array.from({ length: 5 }, (_, i) => ({
+				id: `t${i}`,
+				title: `Legacy task ${i}`,
+			})),
+		);
+
+		const projectRows = await driver.select<{ id: string; name: string }>(
+			"SELECT id, name FROM projects",
+		);
+		expect(projectRows).toEqual([{ id: "p1", name: "Work" }]);
+
+		for (const table of SYNCED_TABLES) {
+			const cols = await columns(driver, table);
+			expect(cols, `${table}.field_updated_at`).toContain("field_updated_at");
+			expect(cols, `${table}.purged_at`).toContain("purged_at");
+		}
+		expect(await columns(driver, "tasks")).toContain("sort_key");
+	});
 });
