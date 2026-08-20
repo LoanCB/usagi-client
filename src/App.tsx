@@ -5,13 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ChangelogDialog } from "@/components/layout/ChangelogDialog";
 import { UpdateBanner } from "@/components/layout/UpdateBanner";
 import { adaptDatabase, createRepository } from "@/db";
-// Load migration SQL at build time (Vite raw import)
-import migrationSql from "@/db/migrations/001_initial.sql?raw";
-import migration002 from "@/db/migrations/002_add_description.sql?raw";
-import migration003 from "@/db/migrations/003_settings.sql?raw";
-import migration004 from "@/db/migrations/004_tags_project_scope.sql?raw";
-import migration005 from "@/db/migrations/005_project_groups.sql?raw";
-import migration006 from "@/db/migrations/006_extend_priority.sql?raw";
+import { ALL_MIGRATIONS } from "@/db/migrations";
 import { runMigrations } from "@/db/migrations/run-migrations";
 import { useOverdueNotifications } from "@/hooks/useOverdueNotifications";
 import { UpdaterContext, useUpdater } from "@/hooks/useUpdater";
@@ -117,14 +111,7 @@ export default function App() {
 		async function init() {
 			try {
 				const db = await Database.load("sqlite:usagi.db");
-				await runMigrations(adaptDatabase(db), [
-					migrationSql,
-					migration002,
-					migration003,
-					migration004,
-					migration005,
-					migration006,
-				]);
+				await runMigrations(adaptDatabase(db), ALL_MIGRATIONS);
 				setRepository(createRepository(db));
 				setReady(true);
 			} catch (err) {
