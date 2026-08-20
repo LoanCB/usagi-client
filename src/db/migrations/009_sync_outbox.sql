@@ -12,8 +12,17 @@
 -- The engine must clear the outbox rows it caused, inside the same transaction,
 -- except where the merge produced state the server does not yet have.
 --
--- NOTE for future migrations: a table rebuild (see 006) drops its triggers.
--- Any migration rebuilding a synced table must recreate them.
+-- NOTE for future migrations: a table rebuild (see 006) is doubly destructive
+-- for a synced table, and both halves fail silently.
+--   1. It drops the table's triggers, so the table stops feeding this outbox
+--      and silently stops syncing.
+--   2. Its INSERT ... SELECT carries an explicit column list, frozen at the
+--      schema of the day it was written. Columns added later --
+--      field_updated_at, purged_at, sort_key -- are absent from that list, so
+--      the rebuilt rows get NULL for them: merge metadata and ordering are
+--      lost with no error raised.
+-- Any migration rebuilding a synced table must therefore carry the sync
+-- columns through its column list AND recreate the triggers.
 CREATE TABLE IF NOT EXISTS sync_outbox (
   entity_type TEXT NOT NULL,
   entity_id   TEXT NOT NULL,

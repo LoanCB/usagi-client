@@ -88,6 +88,20 @@ describe("migrations", () => {
 		// the schema is already at the latest shape, but the tracked version is
 		// stale. runMigrations must tolerate "already applied" DDL across the
 		// whole chain, not just the last migration covered by the other tests.
+		//
+		// Scope, deliberately: this asserts the chain is re-runnable end to end
+		// (it completes, reaches the final user_version, keeps every row, and
+		// still has the sync columns). It does NOT assert the *values* in
+		// field_updated_at / purged_at / sort_key, because 006 rebuilds tasks
+		// with a column list frozen at the 006-era schema, so re-running it over
+		// an already-migrated table copies those columns as NULL.
+		//
+		// That nulling is an artefact of the state this test fabricates, not a
+		// reachable bug: runMigrations only ever moves user_version upward, so
+		// production never re-runs 006 on a table that already has the sync
+		// columns. On the real legacy path the schema is 006-era and those
+		// columns do not exist yet, so nothing is lost. Do not "fix" 006 or add
+		// value assertions here in response to it.
 		driver = new BetterSqliteDriver();
 		await runMigrations(driver, ALL_MIGRATIONS);
 		await driver.execute(
