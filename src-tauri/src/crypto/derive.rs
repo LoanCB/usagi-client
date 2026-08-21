@@ -21,6 +21,13 @@ fn is_auth_salt(s: &str) -> bool {
 }
 
 /// Argon2id over the password, salted with the account's server-issued salt.
+///
+/// The salt fed to Argon2id is the **32 ASCII hex characters**, not the 16 bytes
+/// they encode. Spec §2.1 shows `password + email`; the email is never used, and
+/// a 128-bit per-account random salt dominates it anyway. Both details are
+/// invisible: a second client that decoded the hex first, or that mixed in the
+/// email, would derive a different master key with no error until the DEK failed
+/// to unwrap.
 pub fn derive_master_key(password: &str, auth_salt: &str) -> Result<[u8; 32], CryptoError> {
     if !is_auth_salt(auth_salt) {
         return Err(CryptoError::Input(

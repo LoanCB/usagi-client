@@ -26,7 +26,7 @@
   - `authVerifier` : `@MinLength(16) @MaxLength(512)`
   - `KDF_PARAMS_ALLOWLIST` ne contient que `DEFAULT_KDF_PARAMS = { memoryCost: 65536, timeCost: 3, parallelism: 4 }`. Envoyer autre chose à `PUT /v1/keys` est un 400.
   - **`RegisterDto` niche `wrappedDek`, `wrappedDekRecovery`, `publicKey` et `wrappedPrivateKey` sous un objet `keys`**, et n'accepte **aucun** champ `kdfParams`. L'inscription utilise toujours les paramètres par défaut du serveur.
-- **Aucune clé ne traverse la frontière IPC.** Les commandes acceptent un mot de passe ou des blobs, et rendent des blobs.
+- **Une seule matière clé traverse la frontière IPC : la phrase de récupération.** Les commandes acceptent un mot de passe ou des blobs et rendent des blobs — sauf `crypto_prepare_registration`, qui rend `recoveryPhrase`. Ce n'est pas une exception cosmétique : la phrase dérive la KEK de récupération, qui déballe la DEK. Elle est donc de la matière clé, et elle atterrit dans le tas JS. C'est inévitable — l'utilisateur doit la lire — mais l'affirmation en bloc « aucune clé ne traverse l'IPC » est exactement ce qui permet à un futur contributeur de se convaincre qu'un `console.log(material)` ou un store Zustand est sans conséquence. **Règle contraignante :** affichée une fois, jamais persistée, jamais journalisée, et retirée de l'état JS dès que l'utilisateur confirme l'avoir notée.
 - **HORS PÉRIMÈTRE :** persistance locale des blobs, appels réseau, UI. Plans 4 et 5.
 
 ---
@@ -54,6 +54,19 @@ Chaque dérivation et chaque enveloppement porte une chaîne distincte. Sans cel
 | AAD, enregistrement | `userId ‖ 0x1F ‖ entityType ‖ 0x1F ‖ entityId` |
 
 Le séparateur `0x1F` (unit separator) sur l'AAD d'enregistrement n'est pas cosmétique : sans lui, `("ab", "c")` et `("a", "bc")` produiraient la même AAD, et un serveur malveillant pourrait déplacer un blob d'une entité vers une autre.
+
+> **Correction (2026-08-21, revue finale de branche).** Le schéma à séparateur a été
+> remplacé par un **préfixage en longueur**, forme qui fait foi :
+> `len(domaine) ‖ domaine ‖ len(userId) ‖ userId ‖ len(entityType) ‖ entityType ‖ len(entityId) ‖ entityId`,
+> chaque longueur sur 8 octets big-endian, avec `domaine = b"usagi/record/v1"`.
+>
+> Le séparateur ne protégeait que tant qu'aucun champ ne contenait `0x1F` lui-même,
+> ce qui imposait une validation séparée : `record_aad` étant `pub`, tout appelant
+> l'invoquant directement perdait silencieusement la protection. Le préfixage rend la
+> collision *structurellement* impossible, sans validation. Le domaine explicite
+> remplace la distinction que les AAD d'enregistrement tiraient incidemment du fait
+> de contenir `0x1F` là où les constantes `AAD_*` n'en contiennent pas — les unes et
+> les autres étant utilisées sous la DEK.
 
 ## Format de fil des blobs
 

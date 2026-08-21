@@ -183,6 +183,25 @@ Le mot de passe ne quitte jamais l'appareil.
 > `authVerifier` et la KEK seraient identiques — et le serveur détiendrait alors la
 > clé d'enveloppement.
 
+> **Correction (2026-08-21, revue finale du plan 3) — l'entrée d'Argon2id.** Le schéma
+> ci-dessus montre `password + email`. L'implémentation ne touche **jamais** l'email :
+> elle passe le mot de passe en message et l'`authSalt` du compte en sel.
+>
+> ```
+> masterKey = Argon2id(password, salt = authSalt, m=64 MiB, t=3, p=4, out=32)
+> ```
+>
+> C'est cryptographiquement **plus fort** — un sel aléatoire de 128 bits par compte
+> domine largement un email, qui est deviné plutôt que tiré — mais le schéma est faux, et
+> un second client écrit à partir de lui dériverait une master key différente et
+> n'ouvrirait aucun coffre. C'est la forme ci-dessus qui fait foi.
+>
+> **Le sel passé à Argon2id est constitué des 32 caractères hexadécimaux ASCII,
+> pas des 16 octets décodés.** Ce point est contraignant et invisible : un futur client
+> JS ou mobile qui décoderait l'hexadécimal avant d'appeler Argon2id obtiendrait
+> silencieusement une autre master key, sans aucune erreur avant l'échec du
+> déballage de la DEK.
+
 L'indirection DEK/KEK est ce qui rend le système utilisable :
 
 - **Changer de mot de passe** ne ré-enveloppe qu'une clé de 32 octets, jamais les données.
@@ -235,6 +254,34 @@ XChaCha20-Poly1305, nonce aléatoire par chiffrement.
 **AAD = `user_id ‖ entity_type ‖ entity_id`.** Ce détail n'est pas cosmétique : il empêche
 un serveur malveillant de déplacer le blob d'une tâche vers une autre, ou de rejouer un
 ancien enregistrement sous une identité différente.
+
+> **Correction (2026-08-21, revue finale du plan 3).** La concaténation simple écrite
+> ci-dessus est **ambiguë** et n'est pas ce qui est livré : `("ab", "c")` et `("a", "bc")`
+> produisent la même AAD, donc un serveur malveillant pourrait faire glisser un blob de
+> l'une vers l'autre — précisément l'attaque que l'AAD existe pour bloquer.
+>
+> **Forme qui fait foi**, chaque champ précédé de sa longueur sur 8 octets big-endian :
+>
+> ```
+> AAD = len(domaine)     ‖ domaine
+>     ‖ len(user_id)     ‖ user_id
+>     ‖ len(entity_type) ‖ entity_type
+>     ‖ len(entity_id)   ‖ entity_id
+>
+> domaine = "usagi/record/v1"   (ASCII, 15 octets)
+> ```
+>
+> Le préfixage en longueur rend la collision **structurellement impossible** : deux
+> triplets distincts ne peuvent pas produire la même suite d'octets. Une variante à
+> séparateur (`0x1F`) a été implémentée d'abord, mais elle n'est correcte que si aucun
+> champ ne contient le séparateur, ce qui exige une validation séparée que tout appelant
+> peut contourner — et qui interdit à jamais cet octet dans un champ éventuellement
+> fourni par l'utilisateur.
+>
+> Le préfixe de domaine n'est pas décoratif. Les AAD d'enregistrement et les constantes
+> `usagi/wrap/*` sont toutes employées sous la DEK ; leur distinction reposait sur
+> « les AAD d'enregistrement contiennent `0x1F`, les constantes non ». Le préfixage
+> supprime cette garantie incidente, donc elle est rendue explicite.
 
 Payload en clair avant chiffrement :
 

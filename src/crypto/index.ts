@@ -28,8 +28,15 @@ export function toRegisterKeys(material: RegistrationMaterial): RegisterKeys {
 	};
 }
 
-// Keys never cross this boundary: these calls take a password or a blob and
-// return blobs. The unlocked vault lives in Rust memory and is zeroized on lock.
+// These calls take a password or a blob and return blobs. The unlocked vault
+// lives in Rust memory and is zeroized on lock.
+//
+// One exception, and it is real key material: prepareRegistration returns
+// `recoveryPhrase`, which derives the recovery KEK, which unwraps the DEK — so
+// it does land in the JS heap. It has to, because the user must read it. It
+// must be displayed once, never persisted (no store, no localStorage, no
+// database), never logged, and dropped from JS state as soon as the user
+// confirms they have written it down. Nothing else here is key material.
 
 export function prepareRegistration(
 	password: string,
