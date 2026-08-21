@@ -180,6 +180,23 @@ La clé de récupération (24 mots) enveloppe une **seconde copie de la même DE
 Paramètres Argon2id : `m=64 MiB, t=3, p=4` (à figer dans `kdf_params` côté serveur pour
 permettre une évolution ultérieure sans casser les comptes existants).
 
+**Relever les paramètres Argon2id ouvre une fenêtre d'énumération.** Les paramètres sont
+stockés par compte, précisément pour qu'un relèvement du défaut ne casse pas les comptes
+existants — leur vérificateur a été dérivé sous les anciens paramètres. Mais `prelogin`
+renvoie les paramètres *réels* d'un compte connu et le *défaut courant* pour un email
+inconnu : dès que les deux divergent, des paramètres non-défaut prouvent l'existence du
+compte.
+
+Ce n'est pas corrigeable : le client ne peut pas dériver son vérificateur sans les vrais
+paramètres de son compte, donc paramètres par compte et indiscernabilité parfaite sont
+mutuellement exclusifs. C'est le compromis que fait aussi Bitwarden.
+
+La mitigation est opérationnelle, pas cryptographique : **tout relèvement du défaut doit
+s'accompagner d'une re-dérivation paresseuse à la connexion suivante** (le client
+recalcule son vérificateur et appelle `PUT /v1/keys`), et la fenêtre reste ouverte pour les
+comptes non encore migrés. Sur une instance personnelle auto-hébergée l'enjeu est faible ;
+il grandit avec le nombre de comptes.
+
 **Format du sel — contrainte contraignante.** `authSalt` est **exactement 32 caractères
 hexadécimaux minuscules** (16 octets, la taille recommandée par la RFC 9106). Ce n'est pas
 un détail d'encodage : `prelogin` renvoie un sel leurre pour les emails inconnus, et si les
