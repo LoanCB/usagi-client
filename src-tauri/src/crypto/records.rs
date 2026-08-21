@@ -3,39 +3,27 @@ use super::wrap::{open, seal};
 use super::CryptoError;
 use zeroize::Zeroize;
 
-/// ASCII unit separator. Without it, ("ab","c") and ("a","bc") would produce the
-/// same AAD and a blob could be slid from one entity to the other.
-const SEP: u8 = 0x1F;
+/// Record AADs and the fixed `AAD_*` constants are all used under the DEK, so
+/// they must be distinguishable. A separator scheme got that incidentally
+/// ("record AADs contain 0x1F, the constants do not"); length-prefixing does
+/// not, so the domain is stated outright.
+const AAD_RECORD_DOMAIN: &[u8] = b"usagi/record/v1";
 
-pub fn record_aad(user_id: &str, entity_type: &str, entity_id: &str) -> Vec<u8> {
-    let mut aad = Vec::with_capacity(user_id.len() + entity_type.len() + entity_id.len() + 2);
-    aad.extend_from_slice(user_id.as_bytes());
-    aad.push(SEP);
-    aad.extend_from_slice(entity_type.as_bytes());
-    aad.push(SEP);
-    aad.extend_from_slice(entity_id.as_bytes());
-    aad
+fn push_field(aad: &mut Vec<u8>, field: &[u8]) {
+    // Fixed-width length prefix: a collision between two different field
+    // triples becomes structurally impossible rather than merely rejected,
+    // so no caller can bypass the guarantee by building an AAD directly.
+    aad.extend_from_slice(&(field.len() as u64).to_be_bytes());
+    aad.extend_from_slice(field);
 }
 
-/// `record_aad` joins its three fields with `SEP`, so the AAD only identifies one
-/// triple as long as no field embeds that byte itself. A smuggled separator
-/// forges a boundary: ("a\x1Fb", "c") and ("a", "b\x1Fc") build byte-identical
-/// AADs, which would let a hostile server slide one entity's ciphertext into the
-/// other entity's row — the exact substitution the AAD exists to prevent.
-fn reject_embedded_separator(
-    user_id: &str,
-    entity_type: &str,
-    entity_id: &str,
-) -> Result<(), CryptoError> {
-    if [user_id, entity_type, entity_id]
-        .iter()
-        .any(|part| part.as_bytes().contains(&SEP))
-    {
-        return Err(CryptoError::Input(
-            "record identifiers must not contain a field separator".into(),
-        ));
-    }
-    Ok(())
+pub fn record_aad(user_id: &str, entity_type: &str, entity_id: &str) -> Vec<u8> {
+    let mut aad = Vec::with_capacity(32 + user_id.len() + entity_type.len() + entity_id.len());
+    push_field(&mut aad, AAD_RECORD_DOMAIN);
+    push_field(&mut aad, user_id.as_bytes());
+    push_field(&mut aad, entity_type.as_bytes());
+    push_field(&mut aad, entity_id.as_bytes());
+    aad
 }
 
 pub fn encrypt_record(
@@ -45,11 +33,6 @@ pub fn encrypt_record(
     plaintext: &str,
 ) -> Result<String, CryptoError> {
     let (mut dek, user_id) = dek_and_user(state)?;
-    // Scrub the key before propagating: a rejected identifier must not leave it live.
-    if let Err(e) = reject_embedded_separator(&user_id, entity_type, entity_id) {
-        dek.zeroize();
-        return Err(e);
-    }
     let aad = record_aad(&user_id, entity_type, entity_id);
     let blob = seal(&dek, &aad, plaintext.as_bytes());
     dek.zeroize();
@@ -63,11 +46,6 @@ pub fn decrypt_record(
     blob: &str,
 ) -> Result<String, CryptoError> {
     let (mut dek, user_id) = dek_and_user(state)?;
-    // Scrub the key before propagating: a rejected identifier must not leave it live.
-    if let Err(e) = reject_embedded_separator(&user_id, entity_type, entity_id) {
-        dek.zeroize();
-        return Err(e);
-    }
     let aad = record_aad(&user_id, entity_type, entity_id);
     let opened = open(&dek, &aad, blob);
     dek.zeroize();
@@ -118,9 +96,9 @@ mod tests {
     }
 
     #[test]
-    fn the_separator_prevents_field_boundary_confusion() {
-        // Without a separator, ("ab","c") and ("a","bc") would build the same
-        // AAD, and a blob could slide between them.
+    fn length_prefixing_prevents_field_boundary_confusion() {
+        // Without length prefixes, ("ab","c") and ("a","bc") would build the
+        // same AAD, and a blob could slide between them.
         assert_ne!(record_aad("u", "ab", "c"), record_aad("u", "a", "bc"));
     }
 
@@ -134,54 +112,63 @@ mod tests {
     }
 
     #[test]
-    fn encrypting_refuses_a_separator_in_the_entity_type() {
+    fn a_unit_separator_inside_a_field_is_just_data() {
+        // Under the old separator scheme 0x1F had to be rejected outright. With
+        // length prefixes it carries no structural meaning, so identifiers
+        // holding one encrypt and decrypt like any others.
         let state = unlocked();
-        assert!(matches!(
-            encrypt_record(&state, "ta\u{1F}sk", "abc", "{}"),
-            Err(CryptoError::Input(_))
-        ));
-    }
-
-    #[test]
-    fn encrypting_refuses_a_separator_in_the_entity_id() {
-        let state = unlocked();
-        assert!(matches!(
-            encrypt_record(&state, "task", "ab\u{1F}c", "{}"),
-            Err(CryptoError::Input(_))
-        ));
-    }
-
-    #[test]
-    fn decrypting_refuses_a_separator_in_an_identifier() {
-        let state = unlocked();
-        let blob = encrypt_record(&state, "task", "abc", "{}").unwrap();
-        assert!(matches!(
-            decrypt_record(&state, "ta\u{1F}sk", "abc", &blob),
-            Err(CryptoError::Input(_))
-        ));
-        assert!(matches!(
-            decrypt_record(&state, "task", "ab\u{1F}c", &blob),
-            Err(CryptoError::Input(_))
-        ));
-    }
-
-    #[test]
-    fn identifiers_that_would_share_an_aad_are_both_refused() {
-        // A separator inside a field forges a boundary: these two triples build
-        // byte-identical AADs, so without the check a blob could still slide from
-        // one entity to the other. Refusing both is what closes that door.
+        let blob = encrypt_record(&state, "ta\u{1F}sk", "ab\u{1F}c", r#"{"n":1}"#).unwrap();
         assert_eq!(
+            decrypt_record(&state, "ta\u{1F}sk", "ab\u{1F}c", &blob).unwrap(),
+            r#"{"n":1}"#
+        );
+    }
+
+    #[test]
+    fn a_smuggled_separator_no_longer_forges_a_field_boundary() {
+        // Under the old scheme these two triples built byte-identical AADs and a
+        // blob could slide between them, which is why both had to be refused.
+        // Length prefixes make the collision impossible rather than rejected.
+        assert_ne!(
             record_aad("user-1", "a\u{1F}b", "c"),
             record_aad("user-1", "a", "b\u{1F}c")
         );
+
         let state = unlocked();
+        let blob = encrypt_record(&state, "a\u{1F}b", "c", "{}").unwrap();
         assert!(matches!(
-            encrypt_record(&state, "a\u{1F}b", "c", "{}"),
-            Err(CryptoError::Input(_))
+            decrypt_record(&state, "a", "b\u{1F}c", &blob),
+            Err(CryptoError::Decrypt)
         ));
-        assert!(matches!(
-            encrypt_record(&state, "a", "b\u{1F}c", "{}"),
-            Err(CryptoError::Input(_))
-        ));
+    }
+
+    #[test]
+    fn the_aad_layout_is_pinned() {
+        // The AAD is part of the wire format: changing its encoding makes every
+        // stored blob undecryptable. This vector is written out by hand from the
+        // documented layout, not pasted from what the code prints.
+        let mut expected = Vec::new();
+        for field in [b"usagi/record/v1".as_slice(), b"u", b"t", b"i"] {
+            expected.extend_from_slice(&(field.len() as u64).to_be_bytes());
+            expected.extend_from_slice(field);
+        }
+        assert_eq!(record_aad("u", "t", "i"), expected);
+        assert_eq!(expected.len(), 8 * 4 + 15 + 3);
+    }
+
+    #[test]
+    fn the_aad_is_domain_separated_from_the_fixed_wrapping_aads() {
+        // Record AADs and the AAD_* constants are used under the same DEK, so a
+        // record must never be openable as a wrapped private key or vice versa.
+        for fixed in [
+            crate::crypto::wrap::AAD_DEK,
+            crate::crypto::wrap::AAD_DEK_RECOVERY,
+            crate::crypto::wrap::AAD_PRIVATE_KEY,
+        ] {
+            assert_ne!(record_aad("user-1", "task", "abc"), fixed.to_vec());
+        }
+        assert!(record_aad("user-1", "task", "abc")
+            .windows(AAD_RECORD_DOMAIN.len())
+            .any(|w| w == AAD_RECORD_DOMAIN));
     }
 }
