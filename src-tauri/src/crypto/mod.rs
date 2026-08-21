@@ -1,4 +1,5 @@
 pub mod derive;
+pub mod recovery;
 pub mod wrap;
 
 use std::fmt;
