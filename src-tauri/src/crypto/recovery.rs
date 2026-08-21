@@ -1,6 +1,7 @@
 use bip39::{Language, Mnemonic};
 use hkdf::Hkdf;
 use sha2::Sha256;
+use zeroize::Zeroizing;
 
 use super::CryptoError;
 
@@ -9,23 +10,29 @@ const INFO_RECOVERY_KEK: &[u8] = b"usagi/recovery-kek/v1";
 /// 32 bytes of entropy renders as 24 BIP39 words. A wordlist rather than raw
 /// hex because the user copies this onto paper, and BIP39's checksum catches a
 /// mistyped word instead of silently deriving the wrong key.
+///
+/// The entropy is scrubbed on drop. `bip39 2.2.2` has no zeroize feature, so the
+/// `Mnemonic` struct's own copy of the words is a known residual we cannot erase.
 pub fn generate_recovery_phrase() -> String {
-    let mut entropy = [0u8; 32];
-    getrandom::fill(&mut entropy).expect("OS RNG unavailable");
-    Mnemonic::from_entropy(&entropy)
+    let mut entropy = Zeroizing::new([0u8; 32]);
+    getrandom::fill(entropy.as_mut()).expect("OS RNG unavailable");
+    Mnemonic::from_entropy(entropy.as_ref())
         .expect("32 bytes is a valid BIP39 entropy length")
         .to_string()
 }
 
 pub fn recovery_kek_from_phrase(phrase: &str) -> Result<[u8; 32], CryptoError> {
     // Normalise before parsing: a phrase retyped from paper carries stray
-    // spacing and casing that are not the user's mistake.
-    let normalised = phrase
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase();
-    let mnemonic = Mnemonic::parse_in(Language::English, &normalised)
+    // spacing and casing that are not the user's mistake. The copy is scrubbed
+    // on drop — this is a permanent, non-rotatable credential for the vault.
+    let normalised = Zeroizing::new(
+        phrase
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase(),
+    );
+    let mnemonic = Mnemonic::parse_in(Language::English, normalised.as_str())
         .map_err(|e| CryptoError::Input(e.to_string()))?;
     let (entropy, len) = mnemonic.to_entropy_array();
     let hk = Hkdf::<Sha256>::new(None, &entropy[..len]);

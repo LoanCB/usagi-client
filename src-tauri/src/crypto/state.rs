@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use super::derive::{derive_auth_verifier, derive_kek, derive_master_key};
 use super::recovery::recovery_kek_from_phrase;
@@ -27,9 +27,12 @@ impl CryptoState {
     pub fn begin_unlock(&mut self, password: &str, auth_salt: &str) -> Result<String, CryptoError> {
         // Drop any half-finished attempt before starting another.
         self.clear_pending();
-        let master_key = derive_master_key(password, auth_salt)?;
+        let mut master_key = derive_master_key(password, auth_salt)?;
         let verifier = derive_auth_verifier(&master_key);
+        // `[u8; 32]` is Copy: the assignment leaves this binding intact, so the
+        // local has to be scrubbed too — same hazard `complete_unlock` guards.
         self.pending_master_key = Some(master_key);
+        master_key.zeroize();
         Ok(verifier)
     }
 
@@ -100,16 +103,23 @@ fn with_state<T>(
     state: &Managed<'_>,
     f: impl FnOnce(&mut CryptoState) -> Result<T, CryptoError>,
 ) -> Result<T, String> {
-    let mut guard = state
-        .lock()
-        .map_err(|_| "crypto state poisoned".to_string())?;
+    // Recover from poisoning rather than propagating it: every mutation here is
+    // a single field assignment, so a panic cannot leave a half-built invariant
+    // behind. Refusing would strand the DEK in memory with no way to reach
+    // `lock` — the one command we most need to work after a panic.
+    let mut guard = state.lock().unwrap_or_else(|e| e.into_inner());
     f(&mut guard).map_err(Into::into)
 }
+
+// The secrets IPC hands these commands are owned Strings that would otherwise be
+// dropped unscrubbed. Moving them into `Zeroizing` reuses the same allocation
+// and erases it on the way out.
 
 #[tauri::command]
 pub fn crypto_prepare_registration(
     password: String,
 ) -> Result<super::account::RegistrationMaterial, String> {
+    let password = Zeroizing::new(password);
     super::account::prepare_registration(&password).map_err(Into::into)
 }
 
@@ -119,6 +129,7 @@ pub fn crypto_begin_unlock(
     auth_salt: String,
     state: Managed<'_>,
 ) -> Result<String, String> {
+    let password = Zeroizing::new(password);
     with_state(&state, |s| s.begin_unlock(&password, &auth_salt))
 }
 
@@ -138,6 +149,7 @@ pub fn crypto_unlock_with_recovery(
     user_id: String,
     state: Managed<'_>,
 ) -> Result<(), String> {
+    let recovery_phrase = Zeroizing::new(recovery_phrase);
     with_state(&state, |s| {
         s.unlock_with_recovery(&recovery_phrase, &wrapped_dek_recovery, &user_id)
     })
@@ -187,6 +199,8 @@ pub fn crypto_prepare_key_rotation(
     new_password: String,
     wrapped_dek: String,
 ) -> Result<super::account::RotationMaterial, String> {
+    let current_password = Zeroizing::new(current_password);
+    let new_password = Zeroizing::new(new_password);
     super::account::prepare_key_rotation(
         &current_password,
         &current_auth_salt,
