@@ -334,6 +334,7 @@ POST /v1/auth/logout
 
 GET  /v1/keys                            → wrapped_dek, wrapped_private_key, public_key
 PUT  /v1/keys                            (changement de mot de passe)
+  { current_auth_verifier, auth_verifier, auth_salt, keys } → 204
 
 GET  /v1/devices
 DELETE /v1/devices/:id                   (révocation)
@@ -356,6 +357,19 @@ GET  /v1/sync/pull?cursor=<seq>&limit=500
 > HMAC(secret serveur, email) comme sel de leurre). Sans cela, l'endpoint devient un
 > oracle d'énumération de comptes : une réponse différente entre email connu et inconnu
 > suffit à cartographier les utilisateurs d'une instance.
+
+> **Ajout (2026-08-21, lors de l'implémentation du plan 2).** `PUT /v1/keys` exige le
+> vérificateur **courant** en plus du nouveau. Sans cette preuve, un jeton d'accès volé
+> suffisait à écraser `auth_hash`, `auth_salt` et les quatre blobs en une transaction —
+> **y compris `wrapped_dek_recovery`**, donc la clé de récupération de 24 mots était
+> détruite avec le reste. Aucun chemin de retour n'existait : ni la récupération, ni un
+> autre appareil connecté, ni une sauvegarde serveur, puisque le serveur ne détient que
+> des blobs qu'il ne peut pas lire. Destruction de compte totale et irréversible depuis
+> un seul jeton court.
+>
+> Le coût pour le client est nul : il vient de dériver ce vérificateur pour
+> s'authentifier, et il demande de toute façon le mot de passe courant à l'utilisateur
+> dans un écran de changement de mot de passe.
 
 ### 4.0 Versionnage et compatibilité
 
