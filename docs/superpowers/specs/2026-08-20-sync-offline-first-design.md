@@ -180,6 +180,13 @@ La clé de récupération (24 mots) enveloppe une **seconde copie de la même DE
 Paramètres Argon2id : `m=64 MiB, t=3, p=4` (à figer dans `kdf_params` côté serveur pour
 permettre une évolution ultérieure sans casser les comptes existants).
 
+**Format du sel — contrainte contraignante.** `authSalt` est **exactement 32 caractères
+hexadécimaux minuscules** (16 octets, la taille recommandée par la RFC 9106). Ce n'est pas
+un détail d'encodage : `prelogin` renvoie un sel leurre pour les emails inconnus, et si les
+vrais sels pouvaient avoir une autre forme, comparer les deux suffirait à savoir quels
+comptes existent. Le serveur valide ce format à l'inscription et au changement de mot de
+passe ; le client doit l'émettre tel quel.
+
 ### 2.2 Chiffrement des enregistrements
 
 XChaCha20-Poly1305, nonce aléatoire par chiffrement.
