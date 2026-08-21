@@ -17,6 +17,27 @@ pub fn record_aad(user_id: &str, entity_type: &str, entity_id: &str) -> Vec<u8> 
     aad
 }
 
+/// `record_aad` joins its three fields with `SEP`, so the AAD only identifies one
+/// triple as long as no field embeds that byte itself. A smuggled separator
+/// forges a boundary: ("a\x1Fb", "c") and ("a", "b\x1Fc") build byte-identical
+/// AADs, which would let a hostile server slide one entity's ciphertext into the
+/// other entity's row — the exact substitution the AAD exists to prevent.
+fn reject_embedded_separator(
+    user_id: &str,
+    entity_type: &str,
+    entity_id: &str,
+) -> Result<(), CryptoError> {
+    if [user_id, entity_type, entity_id]
+        .iter()
+        .any(|part| part.as_bytes().contains(&SEP))
+    {
+        return Err(CryptoError::Input(
+            "record identifiers must not contain a field separator".into(),
+        ));
+    }
+    Ok(())
+}
+
 pub fn encrypt_record(
     state: &CryptoState,
     entity_type: &str,
@@ -24,6 +45,11 @@ pub fn encrypt_record(
     plaintext: &str,
 ) -> Result<String, CryptoError> {
     let (mut dek, user_id) = dek_and_user(state)?;
+    // Scrub the key before propagating: a rejected identifier must not leave it live.
+    if let Err(e) = reject_embedded_separator(&user_id, entity_type, entity_id) {
+        dek.zeroize();
+        return Err(e);
+    }
     let aad = record_aad(&user_id, entity_type, entity_id);
     let blob = seal(&dek, &aad, plaintext.as_bytes());
     dek.zeroize();
@@ -37,6 +63,11 @@ pub fn decrypt_record(
     blob: &str,
 ) -> Result<String, CryptoError> {
     let (mut dek, user_id) = dek_and_user(state)?;
+    // Scrub the key before propagating: a rejected identifier must not leave it live.
+    if let Err(e) = reject_embedded_separator(&user_id, entity_type, entity_id) {
+        dek.zeroize();
+        return Err(e);
+    }
     let aad = record_aad(&user_id, entity_type, entity_id);
     let opened = open(&dek, &aad, blob);
     dek.zeroize();
@@ -46,9 +77,18 @@ pub fn decrypt_record(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto::account::prepare_registration;
     use crate::crypto::wrap::{open, seal};
 
     const KEY: [u8; 32] = [9u8; 32];
+
+    fn unlocked() -> CryptoState {
+        let m = prepare_registration("correct horse").unwrap();
+        let mut state = CryptoState::default();
+        state.begin_unlock("correct horse", &m.auth_salt).unwrap();
+        state.complete_unlock(&m.wrapped_dek, "user-1").unwrap();
+        state
+    }
 
     #[test]
     fn a_record_round_trips() {
@@ -91,5 +131,57 @@ mod tests {
         assert!(text.contains("user-1"));
         assert!(text.contains("task"));
         assert!(text.contains("abc"));
+    }
+
+    #[test]
+    fn encrypting_refuses_a_separator_in_the_entity_type() {
+        let state = unlocked();
+        assert!(matches!(
+            encrypt_record(&state, "ta\u{1F}sk", "abc", "{}"),
+            Err(CryptoError::Input(_))
+        ));
+    }
+
+    #[test]
+    fn encrypting_refuses_a_separator_in_the_entity_id() {
+        let state = unlocked();
+        assert!(matches!(
+            encrypt_record(&state, "task", "ab\u{1F}c", "{}"),
+            Err(CryptoError::Input(_))
+        ));
+    }
+
+    #[test]
+    fn decrypting_refuses_a_separator_in_an_identifier() {
+        let state = unlocked();
+        let blob = encrypt_record(&state, "task", "abc", "{}").unwrap();
+        assert!(matches!(
+            decrypt_record(&state, "ta\u{1F}sk", "abc", &blob),
+            Err(CryptoError::Input(_))
+        ));
+        assert!(matches!(
+            decrypt_record(&state, "task", "ab\u{1F}c", &blob),
+            Err(CryptoError::Input(_))
+        ));
+    }
+
+    #[test]
+    fn identifiers_that_would_share_an_aad_are_both_refused() {
+        // A separator inside a field forges a boundary: these two triples build
+        // byte-identical AADs, so without the check a blob could still slide from
+        // one entity to the other. Refusing both is what closes that door.
+        assert_eq!(
+            record_aad("user-1", "a\u{1F}b", "c"),
+            record_aad("user-1", "a", "b\u{1F}c")
+        );
+        let state = unlocked();
+        assert!(matches!(
+            encrypt_record(&state, "a\u{1F}b", "c", "{}"),
+            Err(CryptoError::Input(_))
+        ));
+        assert!(matches!(
+            encrypt_record(&state, "a", "b\u{1F}c", "{}"),
+            Err(CryptoError::Input(_))
+        ));
     }
 }
