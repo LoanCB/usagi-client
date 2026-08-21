@@ -1,4 +1,5 @@
 pub mod derive;
+pub mod identity;
 pub mod recovery;
 pub mod wrap;
 
