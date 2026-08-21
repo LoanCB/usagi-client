@@ -43,6 +43,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_sql::Builder::new().build());
 
+    let builder = builder.manage(std::sync::Mutex::new(crypto::state::CryptoState::default()));
+
     #[cfg(desktop)]
     let builder = builder
         .plugin(tauri_plugin_process::init())
@@ -51,11 +53,25 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             send_app_notification,
             updater::check_update,
-            updater::install_update
+            updater::install_update,
+            crypto::state::crypto_prepare_registration,
+            crypto::state::crypto_begin_unlock,
+            crypto::state::crypto_complete_unlock,
+            crypto::state::crypto_unlock_with_recovery,
+            crypto::state::crypto_lock,
+            crypto::state::crypto_is_unlocked,
         ]);
 
     #[cfg(not(desktop))]
-    let builder = builder.invoke_handler(tauri::generate_handler![send_app_notification]);
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        send_app_notification,
+        crypto::state::crypto_prepare_registration,
+        crypto::state::crypto_begin_unlock,
+        crypto::state::crypto_complete_unlock,
+        crypto::state::crypto_unlock_with_recovery,
+        crypto::state::crypto_lock,
+        crypto::state::crypto_is_unlocked,
+    ]);
 
     builder
         .run(tauri::generate_context!())

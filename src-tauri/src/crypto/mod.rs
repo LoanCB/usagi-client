@@ -2,6 +2,7 @@ pub mod account;
 pub mod derive;
 pub mod identity;
 pub mod recovery;
+pub mod state;
 pub mod wrap;
 
 use std::fmt;
