@@ -86,6 +86,17 @@ mod tests {
     }
 
     #[test]
+    fn the_base64_alphabet_is_pinned_to_standard() {
+        // The 72-byte test above decodes with the same engine the implementation
+        // encodes with, so it cannot see an alphabet switch — and a switch to
+        // URL-safe would go flaky rather than fail: 72 random bytes contain a
+        // '-' or '_' about 95% of the time. This vector exercises both
+        // characters where the two alphabets diverge. The server validates the
+        // blobs with @IsBase64, which rejects the URL-safe alphabet.
+        assert_eq!(b64().encode([0xFB, 0xFF, 0xBE]), "+/++");
+    }
+
+    #[test]
     fn every_seal_uses_a_fresh_nonce() {
         assert_ne!(seal(&KEY, AAD_DEK, b"same"), seal(&KEY, AAD_DEK, b"same"));
     }

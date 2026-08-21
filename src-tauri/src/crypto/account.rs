@@ -242,6 +242,18 @@ mod tests {
         assert_ne!(a.auth_verifier, b.auth_verifier);
         assert_ne!(a.recovery_phrase, b.recovery_phrase);
         assert_ne!(a.public_key, b.public_key);
+
+        // The DEKs themselves, unwrapped. Comparing the sealed blobs would prove
+        // nothing — each seal draws a fresh nonce — so an RNG that handed every
+        // account the same data key would slip past every other test on the
+        // branch: both wrappings would still agree, rotation would still keep
+        // the DEK, and the whole scenario walk would still pass while every
+        // vault in the fleet shared one key.
+        let dek_of = |m: &RegistrationMaterial| {
+            let kek = derive_kek(&derive_master_key("correct horse", &m.auth_salt).unwrap());
+            open(&kek, AAD_DEK, &m.wrapped_dek).unwrap()
+        };
+        assert_ne!(dek_of(&a), dek_of(&b));
     }
 
     #[test]
