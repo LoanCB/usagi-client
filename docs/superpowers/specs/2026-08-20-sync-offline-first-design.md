@@ -187,15 +187,23 @@ renvoie les paramètres *réels* d'un compte connu et le *défaut courant* pour 
 inconnu : dès que les deux divergent, des paramètres non-défaut prouvent l'existence du
 compte.
 
-Ce n'est pas corrigeable : le client ne peut pas dériver son vérificateur sans les vrais
-paramètres de son compte, donc paramètres par compte et indiscernabilité parfaite sont
-mutuellement exclusifs. C'est le compromis que fait aussi Bitwarden.
+> **Correction (2026-08-21).** Une version antérieure de ce paragraphe affirmait que la
+> fuite « n'est pas corrigeable ». **C'est faux, et la nuance compte.** Ce qui est
+> impossible, c'est la *migration transparente* : le client ne peut pas dériver son
+> vérificateur sans les vrais paramètres de son compte. L'*oracle*, lui, se corrige.
+>
+> Il n'existe que parce que la voie leurre renvoie une **constante** là où la voie réelle
+> renvoie une **distribution**. Faire échantillonner le leurre dans la même distribution —
+> en indexant `HMAC(PRELOGIN_SALT_SECRET, email)`, déjà présent, sur les jeux de paramètres
+> réellement déployés — tue l'inférence « paramètres non-défaut ⇒ compte réel ». Variante
+> la plus simple le jour d'un relèvement : continuer à servir l'**ancien** défaut comme
+> leurre jusqu'à la fin de la migration, ce qui fait ressembler la majorité non migrée à
+> des leurres.
 
-La mitigation est opérationnelle, pas cryptographique : **tout relèvement du défaut doit
-s'accompagner d'une re-dérivation paresseuse à la connexion suivante** (le client
-recalcule son vérificateur et appelle `PUT /v1/keys`), et la fenêtre reste ouverte pour les
-comptes non encore migrés. Sur une instance personnelle auto-hébergée l'enjeu est faible ;
-il grandit avec le nombre de comptes.
+Tout relèvement du défaut doit s'accompagner d'une **re-dérivation paresseuse à la
+connexion suivante** : le client recalcule son vérificateur et appelle `PUT /v1/keys` en
+transmettant les nouveaux `kdfParams`. Tant que la migration n'est pas achevée, adapter le
+leurre comme ci-dessus.
 
 **Format du sel — contrainte contraignante.** `authSalt` est **exactement 32 caractères
 hexadécimaux minuscules** (16 octets, la taille recommandée par la RFC 9106). Ce n'est pas
@@ -332,9 +340,9 @@ POST /v1/auth/login
 POST /v1/auth/refresh
 POST /v1/auth/logout
 
-GET  /v1/keys                            → wrapped_dek, wrapped_private_key, public_key
+GET  /v1/keys                            → wrappedDek, wrappedDekRecovery, publicKey, wrappedPrivateKey
 PUT  /v1/keys                            (changement de mot de passe)
-  { current_auth_verifier, auth_verifier, auth_salt, keys } → 204
+  { currentAuthVerifier, authVerifier, authSalt, kdfParams, wrappedDek } → 204
 
 GET  /v1/devices
 DELETE /v1/devices/:id                   (révocation)
@@ -370,6 +378,19 @@ GET  /v1/sync/pull?cursor=<seq>&limit=500
 > Le coût pour le client est nul : il vient de dériver ce vérificateur pour
 > s'authentifier, et il demande de toute façon le mot de passe courant à l'utilisateur
 > dans un écran de changement de mot de passe.
+
+> **Nommage des champs (2026-08-21, après implémentation du plan 2).** Les noms ci-dessus
+> étaient écrits en `snake_case`. **L'API réelle utilise le `camelCase`** — c'est la
+> convention naturelle d'une API NestJS/TypeScript, et l'implémentation est cohérente de
+> bout en bout. Le spec est corrigé pour s'aligner sur elle, et non l'inverse.
+>
+> Ce n'est pas cosmétique : le serveur applique `forbidNonWhitelisted`, donc un client
+> écrit d'après l'ancienne graphie recevrait un 400 sur **chaque** requête, pas une
+> dégradation silencieuse. Le client Rust du plan 3 doit être écrit d'après cette page.
+>
+> Correction associée : `GET /v1/keys` renvoie **quatre** blobs, pas trois — la ligne
+> ci-dessus omettait `wrappedDekRecovery`, sans lequel la clé de récupération de 24 mots
+> serait inutilisable.
 
 ### 4.0 Versionnage et compatibilité
 
