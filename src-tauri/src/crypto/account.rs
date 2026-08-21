@@ -82,7 +82,7 @@ pub fn prepare_registration(password: &str) -> Result<RegistrationMaterial, Cryp
 }
 
 /// Exactly what PUT /v1/keys accepts, and nothing more.
-#[derive(Serialize, Debug)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RotationMaterial {
     pub current_auth_verifier: String,
@@ -90,6 +90,21 @@ pub struct RotationMaterial {
     pub auth_salt: String,
     pub kdf_params: KdfParams,
     pub wrapped_dek: String,
+}
+
+// Hand-written because the two verifiers are the credentials the server
+// authenticates against: a derived Debug would put them verbatim into any log
+// line or panic message that formats this struct.
+impl std::fmt::Debug for RotationMaterial {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RotationMaterial")
+            .field("current_auth_verifier", &"<redacted>")
+            .field("auth_verifier", &"<redacted>")
+            .field("auth_salt", &self.auth_salt)
+            .field("kdf_params", &self.kdf_params)
+            .field("wrapped_dek", &self.wrapped_dek)
+            .finish()
+    }
 }
 
 /// Re-wraps the existing DEK under a new password. The DEK itself is unchanged,
