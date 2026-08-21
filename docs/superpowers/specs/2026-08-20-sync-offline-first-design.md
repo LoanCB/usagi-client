@@ -155,7 +155,7 @@ diffère. Le client la reconstruit à partir du champ `tags` après chaque merge
 ```
 password + email
       │
-      ├─ Argon2id ──▶ masterKey ─┬─ Argon2id ──▶ authVerifier ──▶ serveur
+      ├─ Argon2id ──▶ masterKey ─┬─ HKDF ──────▶ authVerifier ──▶ serveur
       │                          │                (le serveur en stocke un hash)
       │                          └─ HKDF ──────▶ KEK   (ne sort jamais de l'appareil)
       │
@@ -166,6 +166,41 @@ X25519 keypair              ──privée chiffrée par DEK─▶ wrapped_privat
 ```
 
 Le mot de passe ne quitte jamais l'appareil.
+
+> **Correction (2026-08-21, avant le plan 3).** Le schéma faisait dériver
+> `authVerifier` par un **second passage Argon2id**. Remplacé par HKDF-SHA256, avec
+> une chaîne d'information distincte de celle de la KEK.
+>
+> Le rôle du second passage est uniquement d'empêcher le serveur de remonter à la
+> clé de chiffrement à partir de ce qu'il reçoit. HKDF le garantit déjà : il n'est
+> pas inversible, et `masterKey` porte déjà 256 bits d'entropie — l'étirer une
+> seconde fois n'ajoute rien contre un attaquant qui ne devine pas le mot de passe.
+> En revanche, le coût est réel : deux passages Argon2id, c'est 128 Mio et environ
+> deux secondes à chaque connexion et à chaque changement de mot de passe, sur un
+> téléphone comme sur un poste.
+>
+> Les deux dérivations doivent utiliser des chaînes `info` distinctes, sans quoi
+> `authVerifier` et la KEK seraient identiques — et le serveur détiendrait alors la
+> clé d'enveloppement.
+
+> **Correction (2026-08-21, revue finale du plan 3) — l'entrée d'Argon2id.** Le schéma
+> ci-dessus montre `password + email`. L'implémentation ne touche **jamais** l'email :
+> elle passe le mot de passe en message et l'`authSalt` du compte en sel.
+>
+> ```
+> masterKey = Argon2id(password, salt = authSalt, m=64 MiB, t=3, p=4, out=32)
+> ```
+>
+> C'est cryptographiquement **plus fort** — un sel aléatoire de 128 bits par compte
+> domine largement un email, qui est deviné plutôt que tiré — mais le schéma est faux, et
+> un second client écrit à partir de lui dériverait une master key différente et
+> n'ouvrirait aucun coffre. C'est la forme ci-dessus qui fait foi.
+>
+> **Le sel passé à Argon2id est constitué des 32 caractères hexadécimaux ASCII,
+> pas des 16 octets décodés.** Ce point est contraignant et invisible : un futur client
+> JS ou mobile qui décoderait l'hexadécimal avant d'appeler Argon2id obtiendrait
+> silencieusement une autre master key, sans aucune erreur avant l'échec du
+> déballage de la DEK.
 
 L'indirection DEK/KEK est ce qui rend le système utilisable :
 
@@ -180,6 +215,38 @@ La clé de récupération (24 mots) enveloppe une **seconde copie de la même DE
 Paramètres Argon2id : `m=64 MiB, t=3, p=4` (à figer dans `kdf_params` côté serveur pour
 permettre une évolution ultérieure sans casser les comptes existants).
 
+**Relever les paramètres Argon2id ouvre une fenêtre d'énumération.** Les paramètres sont
+stockés par compte, précisément pour qu'un relèvement du défaut ne casse pas les comptes
+existants — leur vérificateur a été dérivé sous les anciens paramètres. Mais `prelogin`
+renvoie les paramètres *réels* d'un compte connu et le *défaut courant* pour un email
+inconnu : dès que les deux divergent, des paramètres non-défaut prouvent l'existence du
+compte.
+
+> **Correction (2026-08-21).** Une version antérieure de ce paragraphe affirmait que la
+> fuite « n'est pas corrigeable ». **C'est faux, et la nuance compte.** Ce qui est
+> impossible, c'est la *migration transparente* : le client ne peut pas dériver son
+> vérificateur sans les vrais paramètres de son compte. L'*oracle*, lui, se corrige.
+>
+> Il n'existe que parce que la voie leurre renvoie une **constante** là où la voie réelle
+> renvoie une **distribution**. Faire échantillonner le leurre dans la même distribution —
+> en indexant `HMAC(PRELOGIN_SALT_SECRET, email)`, déjà présent, sur les jeux de paramètres
+> réellement déployés — tue l'inférence « paramètres non-défaut ⇒ compte réel ». Variante
+> la plus simple le jour d'un relèvement : continuer à servir l'**ancien** défaut comme
+> leurre jusqu'à la fin de la migration, ce qui fait ressembler la majorité non migrée à
+> des leurres.
+
+Tout relèvement du défaut doit s'accompagner d'une **re-dérivation paresseuse à la
+connexion suivante** : le client recalcule son vérificateur et appelle `PUT /v1/keys` en
+transmettant les nouveaux `kdfParams`. Tant que la migration n'est pas achevée, adapter le
+leurre comme ci-dessus.
+
+**Format du sel — contrainte contraignante.** `authSalt` est **exactement 32 caractères
+hexadécimaux minuscules** (16 octets, la taille recommandée par la RFC 9106). Ce n'est pas
+un détail d'encodage : `prelogin` renvoie un sel leurre pour les emails inconnus, et si les
+vrais sels pouvaient avoir une autre forme, comparer les deux suffirait à savoir quels
+comptes existent. Le serveur valide ce format à l'inscription et au changement de mot de
+passe ; le client doit l'émettre tel quel.
+
 ### 2.2 Chiffrement des enregistrements
 
 XChaCha20-Poly1305, nonce aléatoire par chiffrement.
@@ -187,6 +254,34 @@ XChaCha20-Poly1305, nonce aléatoire par chiffrement.
 **AAD = `user_id ‖ entity_type ‖ entity_id`.** Ce détail n'est pas cosmétique : il empêche
 un serveur malveillant de déplacer le blob d'une tâche vers une autre, ou de rejouer un
 ancien enregistrement sous une identité différente.
+
+> **Correction (2026-08-21, revue finale du plan 3).** La concaténation simple écrite
+> ci-dessus est **ambiguë** et n'est pas ce qui est livré : `("ab", "c")` et `("a", "bc")`
+> produisent la même AAD, donc un serveur malveillant pourrait faire glisser un blob de
+> l'une vers l'autre — précisément l'attaque que l'AAD existe pour bloquer.
+>
+> **Forme qui fait foi**, chaque champ précédé de sa longueur sur 8 octets big-endian :
+>
+> ```
+> AAD = len(domaine)     ‖ domaine
+>     ‖ len(user_id)     ‖ user_id
+>     ‖ len(entity_type) ‖ entity_type
+>     ‖ len(entity_id)   ‖ entity_id
+>
+> domaine = "usagi/record/v1"   (ASCII, 15 octets)
+> ```
+>
+> Le préfixage en longueur rend la collision **structurellement impossible** : deux
+> triplets distincts ne peuvent pas produire la même suite d'octets. Une variante à
+> séparateur (`0x1F`) a été implémentée d'abord, mais elle n'est correcte que si aucun
+> champ ne contient le séparateur, ce qui exige une validation séparée que tout appelant
+> peut contourner — et qui interdit à jamais cet octet dans un champ éventuellement
+> fourni par l'utilisateur.
+>
+> Le préfixe de domaine n'est pas décoratif. Les AAD d'enregistrement et les constantes
+> `usagi/wrap/*` sont toutes employées sous la DEK ; leur distinction reposait sur
+> « les AAD d'enregistrement contiennent `0x1F`, les constantes non ». Le préfixage
+> supprime cette garantie incidente, donc elle est rendue explicite.
 
 Payload en clair avant chiffrement :
 
@@ -301,13 +396,16 @@ Ce point doit faire l'objet d'un test de non-régression dédié.
 GET  /v1/server-info                     (non authentifié)
   → { name, version, protocol_version, registration_enabled, min_client_version }
 
-POST /v1/auth/register                   (si registration_enabled)
+POST /v1/auth/prelogin                   (non authentifié)
+  { email } → { salt, kdf_params }
+POST /v1/auth/register                   (si registration_enabled, ou jeton d'invitation)
 POST /v1/auth/login
 POST /v1/auth/refresh
 POST /v1/auth/logout
 
-GET  /v1/keys                            → wrapped_dek, wrapped_private_key, public_key
+GET  /v1/keys                            → wrappedDek, wrappedDekRecovery, publicKey, wrappedPrivateKey
 PUT  /v1/keys                            (changement de mot de passe)
+  { currentAuthVerifier, authVerifier, authSalt, kdfParams, wrappedDek } → 204
 
 GET  /v1/devices
 DELETE /v1/devices/:id                   (révocation)
@@ -319,6 +417,43 @@ POST /v1/sync/push
 GET  /v1/sync/pull?cursor=<seq>&limit=500
   → { records: [ … ], next_cursor, has_more, server_time }
 ```
+
+> **Ajout (2026-08-21, lors de la rédaction du plan 2).** `prelogin` manquait à la
+> version d'origine, ce qui rendait la connexion **impossible** : pour calculer son
+> `authVerifier`, le client doit connaître le sel et les paramètres Argon2id du compte,
+> qu'il ne peut obtenir qu'après s'être connecté — une dépendance circulaire.
+>
+> Contrainte de sécurité attachée : `prelogin` doit renvoyer des paramètres **plausibles
+> et stables pour un email inconnu**, dérivés déterministiquement de l'email (par exemple
+> HMAC(secret serveur, email) comme sel de leurre). Sans cela, l'endpoint devient un
+> oracle d'énumération de comptes : une réponse différente entre email connu et inconnu
+> suffit à cartographier les utilisateurs d'une instance.
+
+> **Ajout (2026-08-21, lors de l'implémentation du plan 2).** `PUT /v1/keys` exige le
+> vérificateur **courant** en plus du nouveau. Sans cette preuve, un jeton d'accès volé
+> suffisait à écraser `auth_hash`, `auth_salt` et les quatre blobs en une transaction —
+> **y compris `wrapped_dek_recovery`**, donc la clé de récupération de 24 mots était
+> détruite avec le reste. Aucun chemin de retour n'existait : ni la récupération, ni un
+> autre appareil connecté, ni une sauvegarde serveur, puisque le serveur ne détient que
+> des blobs qu'il ne peut pas lire. Destruction de compte totale et irréversible depuis
+> un seul jeton court.
+>
+> Le coût pour le client est nul : il vient de dériver ce vérificateur pour
+> s'authentifier, et il demande de toute façon le mot de passe courant à l'utilisateur
+> dans un écran de changement de mot de passe.
+
+> **Nommage des champs (2026-08-21, après implémentation du plan 2).** Les noms ci-dessus
+> étaient écrits en `snake_case`. **L'API réelle utilise le `camelCase`** — c'est la
+> convention naturelle d'une API NestJS/TypeScript, et l'implémentation est cohérente de
+> bout en bout. Le spec est corrigé pour s'aligner sur elle, et non l'inverse.
+>
+> Ce n'est pas cosmétique : le serveur applique `forbidNonWhitelisted`, donc un client
+> écrit d'après l'ancienne graphie recevrait un 400 sur **chaque** requête, pas une
+> dégradation silencieuse. Le client Rust du plan 3 doit être écrit d'après cette page.
+>
+> Correction associée : `GET /v1/keys` renvoie **quatre** blobs, pas trois — la ligne
+> ci-dessus omettait `wrappedDekRecovery`, sans lequel la clé de récupération de 24 mots
+> serait inutilisable.
 
 ### 4.0 Versionnage et compatibilité
 
@@ -402,9 +537,22 @@ qui n'existent pas — ce qui est impossible.
 vérifier la compatibilité de protocole **avant** toute saisie, et savoir s'il faut afficher
 le formulaire d'inscription.
 
-`ALLOW_REGISTRATION` (défaut `false`) plus une commande CLI de création du premier compte :
-la plupart des instances seront personnelles et leur propriétaire ne veut pas qu'un inconnu
-y crée un compte.
+`ALLOW_REGISTRATION` (défaut `false`) : la plupart des instances seront personnelles et leur
+propriétaire ne veut pas qu'un inconnu y crée un compte.
+
+Pour amorcer une instance fermée, une CLI émet un **jeton d'invitation à usage unique**,
+que le client fournit à l'inscription. Le serveur ne stocke que le hash du jeton, avec une
+date d'expiration et une date d'utilisation.
+
+> **Correction (2026-08-21, lors de la rédaction du plan 2).** La version d'origine
+> prévoyait « une commande CLI de création du premier compte ». **C'est impossible sous
+> E2EE** : le serveur ne connaît pas le mot de passe, il ne peut donc produire ni
+> `wrapped_dek` ni `wrapped_private_key`. Les fabriquer côté serveur reviendrait à
+> détruire le chiffrement de bout en bout — le serveur détiendrait les clés.
+>
+> La CLI n'émet donc pas un compte mais une **autorisation de s'inscrire**. Toute la
+> cryptographie reste sur l'appareil. Bénéfice de bord : le même mécanisme sert plus tard
+> à inviter un second utilisateur sans jamais rouvrir l'inscription publique.
 
 **Validation d'URL côté client :** `https://` imposé, avec exception explicite pour
 `localhost`, `127.0.0.1` et les domaines `.local`, sans quoi l'auto-hébergement en réseau

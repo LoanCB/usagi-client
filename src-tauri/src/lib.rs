@@ -29,6 +29,8 @@ fn send_app_notification(app: tauri::AppHandle, title: String, body: String) -> 
         .map_err(|e| e.to_string())
 }
 
+pub mod crypto;
+
 #[cfg(desktop)]
 mod updater;
 
@@ -41,6 +43,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_sql::Builder::new().build());
 
+    let builder = builder.manage(std::sync::Mutex::new(crypto::state::CryptoState::default()));
+
     #[cfg(desktop)]
     let builder = builder
         .plugin(tauri_plugin_process::init())
@@ -49,11 +53,31 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             send_app_notification,
             updater::check_update,
-            updater::install_update
+            updater::install_update,
+            crypto::state::crypto_prepare_registration,
+            crypto::state::crypto_begin_unlock,
+            crypto::state::crypto_complete_unlock,
+            crypto::state::crypto_unlock_with_recovery,
+            crypto::state::crypto_lock,
+            crypto::state::crypto_is_unlocked,
+            crypto::state::crypto_encrypt_record,
+            crypto::state::crypto_decrypt_record,
+            crypto::state::crypto_prepare_key_rotation,
         ]);
 
     #[cfg(not(desktop))]
-    let builder = builder.invoke_handler(tauri::generate_handler![send_app_notification]);
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        send_app_notification,
+        crypto::state::crypto_prepare_registration,
+        crypto::state::crypto_begin_unlock,
+        crypto::state::crypto_complete_unlock,
+        crypto::state::crypto_unlock_with_recovery,
+        crypto::state::crypto_lock,
+        crypto::state::crypto_is_unlocked,
+        crypto::state::crypto_encrypt_record,
+        crypto::state::crypto_decrypt_record,
+        crypto::state::crypto_prepare_key_rotation,
+    ]);
 
     builder
         .run(tauri::generate_context!())
