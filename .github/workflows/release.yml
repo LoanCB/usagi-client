@@ -57,7 +57,10 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - run: pnpm install --frozen-lockfile
+      # --ignore-scripts skips better-sqlite3's node-gyp rebuild. It is a
+      # test-harness-only dependency (never bundled in the app), and compiling it
+      # breaks on windows-latest since node-gyp cannot detect Visual Studio 2026.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Set version from git tag
         shell: bash
