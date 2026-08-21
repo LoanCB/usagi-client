@@ -3,6 +3,7 @@ pub mod derive;
 pub mod identity;
 pub mod records;
 pub mod recovery;
+mod scenario;
 pub mod state;
 pub mod wrap;
 
