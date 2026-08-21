@@ -87,7 +87,7 @@ impl Drop for CryptoState {
     }
 }
 
-pub(crate) fn dek_and_user(state: &CryptoState) -> Result<([u8; 32], String), CryptoError> {
+pub fn dek_and_user(state: &CryptoState) -> Result<([u8; 32], String), CryptoError> {
     match (&state.dek, &state.user_id) {
         (Some(dek), Some(user)) => Ok((*dek, user.clone())),
         _ => Err(CryptoError::Locked),
