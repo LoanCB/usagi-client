@@ -155,7 +155,7 @@ diffère. Le client la reconstruit à partir du champ `tags` après chaque merge
 ```
 password + email
       │
-      ├─ Argon2id ──▶ masterKey ─┬─ Argon2id ──▶ authVerifier ──▶ serveur
+      ├─ Argon2id ──▶ masterKey ─┬─ HKDF ──────▶ authVerifier ──▶ serveur
       │                          │                (le serveur en stocke un hash)
       │                          └─ HKDF ──────▶ KEK   (ne sort jamais de l'appareil)
       │
@@ -166,6 +166,22 @@ X25519 keypair              ──privée chiffrée par DEK─▶ wrapped_privat
 ```
 
 Le mot de passe ne quitte jamais l'appareil.
+
+> **Correction (2026-08-21, avant le plan 3).** Le schéma faisait dériver
+> `authVerifier` par un **second passage Argon2id**. Remplacé par HKDF-SHA256, avec
+> une chaîne d'information distincte de celle de la KEK.
+>
+> Le rôle du second passage est uniquement d'empêcher le serveur de remonter à la
+> clé de chiffrement à partir de ce qu'il reçoit. HKDF le garantit déjà : il n'est
+> pas inversible, et `masterKey` porte déjà 256 bits d'entropie — l'étirer une
+> seconde fois n'ajoute rien contre un attaquant qui ne devine pas le mot de passe.
+> En revanche, le coût est réel : deux passages Argon2id, c'est 128 Mio et environ
+> deux secondes à chaque connexion et à chaque changement de mot de passe, sur un
+> téléphone comme sur un poste.
+>
+> Les deux dérivations doivent utiliser des chaînes `info` distinctes, sans quoi
+> `authVerifier` et la KEK seraient identiques — et le serveur détiendrait alors la
+> clé d'enveloppement.
 
 L'indirection DEK/KEK est ce qui rend le système utilisable :
 
