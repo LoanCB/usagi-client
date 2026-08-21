@@ -212,7 +212,7 @@ Dans `.github/workflows/pr-checks.yml`, ajouter un quatrième job après le job 
         with:
           components: rustfmt, clippy
 
-      - uses: swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
@@ -242,9 +242,9 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-Expected : les trois commandes sortent en 0. `cargo test` fait passer les 9 tests préexistants d'`updater.rs` **plus** le nouveau — c'est la première fois qu'ils s'exécutent en CI.
+Expected : `cargo clippy` et `cargo test` sortent en 0. `cargo test` fait passer les **11** tests préexistants d'`updater.rs` **plus** le nouveau — c'est la première fois qu'ils s'exécutent en CI.
 
-Si `cargo fmt --check` échoue sur du code préexistant, lancer `cargo fmt --all` et inclure le reformatage dans le commit, en le signalant dans le rapport.
+`cargo fmt --all --check` **échouera** : le dépôt n'a jamais été passé à rustfmt et `updater.rs` porte deux écarts préexistants (un `enum` à champs nommés aux lignes ~38 et un `assert!` multi-arguments à la ligne ~198). Lancer `cargo fmt --all`, inclure le reformatage dans le commit, et le signaler dans le rapport — c'est attendu, pas un défaut de cette tâche.
 
 - [ ] **Step 8 : Commit**
 
