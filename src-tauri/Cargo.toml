@@ -26,6 +26,17 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Verified by compilation, not from memory: argon2 has no stable 0.6 (release
+# candidates only), and x25519-dalek 3.0 gates StaticSecret behind a feature.
+argon2 = "0.5.3"
+chacha20poly1305 = "0.11.0"
+x25519-dalek = { version = "3.0.0", features = ["static_secrets"] }
+hkdf = "0.13.0"
+sha2 = "0.11.0"
+bip39 = "2.2.2"
+zeroize = { version = "1.9.0", features = ["derive"] }
+getrandom = "0.4.3"
+base64 = "0.22"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 mac-notification-sys = "0.6"

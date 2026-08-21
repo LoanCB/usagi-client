@@ -29,6 +29,8 @@ fn send_app_notification(app: tauri::AppHandle, title: String, body: String) -> 
         .map_err(|e| e.to_string())
 }
 
+mod crypto;
+
 #[cfg(desktop)]
 mod updater;
 

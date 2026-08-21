@@ -38,9 +38,13 @@ pub struct UpdateInfo {
 #[serde(tag = "event", content = "data")]
 pub enum DownloadEvent {
     #[serde(rename_all = "camelCase")]
-    Started { content_length: Option<u64> },
+    Started {
+        content_length: Option<u64>,
+    },
     #[serde(rename_all = "camelCase")]
-    Progress { chunk_length: usize },
+    Progress {
+        chunk_length: usize,
+    },
     Finished,
 }
 
@@ -198,7 +202,11 @@ mod tests {
 
     #[test]
     fn falls_back_when_tag_is_unparseable() {
-        assert!(release_is_newer(&v("26.1.1"), Some("not-a-version"), &v("26.2.0")));
+        assert!(release_is_newer(
+            &v("26.1.1"),
+            Some("not-a-version"),
+            &v("26.2.0")
+        ));
     }
 
     #[test]
