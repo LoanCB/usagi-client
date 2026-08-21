@@ -301,7 +301,9 @@ Ce point doit faire l'objet d'un test de non-régression dédié.
 GET  /v1/server-info                     (non authentifié)
   → { name, version, protocol_version, registration_enabled, min_client_version }
 
-POST /v1/auth/register                   (si registration_enabled)
+POST /v1/auth/prelogin                   (non authentifié)
+  { email } → { salt, kdf_params }
+POST /v1/auth/register                   (si registration_enabled, ou jeton d'invitation)
 POST /v1/auth/login
 POST /v1/auth/refresh
 POST /v1/auth/logout
@@ -319,6 +321,17 @@ POST /v1/sync/push
 GET  /v1/sync/pull?cursor=<seq>&limit=500
   → { records: [ … ], next_cursor, has_more, server_time }
 ```
+
+> **Ajout (2026-08-21, lors de la rédaction du plan 2).** `prelogin` manquait à la
+> version d'origine, ce qui rendait la connexion **impossible** : pour calculer son
+> `authVerifier`, le client doit connaître le sel et les paramètres Argon2id du compte,
+> qu'il ne peut obtenir qu'après s'être connecté — une dépendance circulaire.
+>
+> Contrainte de sécurité attachée : `prelogin` doit renvoyer des paramètres **plausibles
+> et stables pour un email inconnu**, dérivés déterministiquement de l'email (par exemple
+> HMAC(secret serveur, email) comme sel de leurre). Sans cela, l'endpoint devient un
+> oracle d'énumération de comptes : une réponse différente entre email connu et inconnu
+> suffit à cartographier les utilisateurs d'une instance.
 
 ### 4.0 Versionnage et compatibilité
 
@@ -402,9 +415,22 @@ qui n'existent pas — ce qui est impossible.
 vérifier la compatibilité de protocole **avant** toute saisie, et savoir s'il faut afficher
 le formulaire d'inscription.
 
-`ALLOW_REGISTRATION` (défaut `false`) plus une commande CLI de création du premier compte :
-la plupart des instances seront personnelles et leur propriétaire ne veut pas qu'un inconnu
-y crée un compte.
+`ALLOW_REGISTRATION` (défaut `false`) : la plupart des instances seront personnelles et leur
+propriétaire ne veut pas qu'un inconnu y crée un compte.
+
+Pour amorcer une instance fermée, une CLI émet un **jeton d'invitation à usage unique**,
+que le client fournit à l'inscription. Le serveur ne stocke que le hash du jeton, avec une
+date d'expiration et une date d'utilisation.
+
+> **Correction (2026-08-21, lors de la rédaction du plan 2).** La version d'origine
+> prévoyait « une commande CLI de création du premier compte ». **C'est impossible sous
+> E2EE** : le serveur ne connaît pas le mot de passe, il ne peut donc produire ni
+> `wrapped_dek` ni `wrapped_private_key`. Les fabriquer côté serveur reviendrait à
+> détruire le chiffrement de bout en bout — le serveur détiendrait les clés.
+>
+> La CLI n'émet donc pas un compte mais une **autorisation de s'inscrire**. Toute la
+> cryptographie reste sur l'appareil. Bénéfice de bord : le même mécanisme sert plus tard
+> à inviter un second utilisateur sans jamais rouvrir l'inscription publique.
 
 **Validation d'URL côté client :** `https://` imposé, avec exception explicite pour
 `localhost`, `127.0.0.1` et les domaines `.local`, sans quoi l'auto-hébergement en réseau
