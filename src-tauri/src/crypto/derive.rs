@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use argon2::{Algorithm, Argon2, Params, Version};
 use hkdf::Hkdf;
 use sha2::Sha256;
