@@ -28,8 +28,13 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Verified by compilation, not from memory: argon2 has no stable 0.6 (release
 # candidates only), and x25519-dalek 3.0 gates StaticSecret behind a feature.
-argon2 = "0.5.3"
-chacha20poly1305 = "0.11.0"
+# `zeroize` is explicit because neither crate enables it by default: argon2 then
+# #[cfg]s out the scrubbing of its 64 MiB internal state (which holds a hash
+# taken directly over the password), and chacha20poly1305 gates its Drop body on
+# the feature, leaving a copy of every key handed to seal/open in the dropped
+# cipher. The module's manual .zeroize() calls only reach the caller's copy.
+argon2 = { version = "0.5.3", features = ["zeroize"] }
+chacha20poly1305 = { version = "0.11.0", features = ["zeroize"] }
 x25519-dalek = { version = "3.0.0", features = ["static_secrets"] }
 hkdf = "0.13.0"
 sha2 = "0.11.0"
