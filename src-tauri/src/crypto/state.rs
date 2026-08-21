@@ -180,6 +180,22 @@ pub fn crypto_decrypt_record(
     })
 }
 
+#[tauri::command]
+pub fn crypto_prepare_key_rotation(
+    current_password: String,
+    current_auth_salt: String,
+    new_password: String,
+    wrapped_dek: String,
+) -> Result<super::account::RotationMaterial, String> {
+    super::account::prepare_key_rotation(
+        &current_password,
+        &current_auth_salt,
+        &new_password,
+        &wrapped_dek,
+    )
+    .map_err(Into::into)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

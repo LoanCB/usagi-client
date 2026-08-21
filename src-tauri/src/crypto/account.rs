@@ -8,10 +8,10 @@ use super::derive::{
 };
 use super::identity::generate_identity;
 use super::recovery::{generate_recovery_phrase, recovery_kek_from_phrase};
-use super::wrap::{seal, AAD_DEK, AAD_DEK_RECOVERY, AAD_PRIVATE_KEY};
+use super::wrap::{open, seal, AAD_DEK, AAD_DEK_RECOVERY, AAD_PRIVATE_KEY};
 use super::CryptoError;
 
-#[derive(Serialize, Clone, Copy)]
+#[derive(Serialize, Clone, Copy, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct KdfParams {
     pub memory_cost: u32,
@@ -78,6 +78,55 @@ pub fn prepare_registration(password: &str) -> Result<RegistrationMaterial, Cryp
         wrapped_private_key,
         kdf_params: KdfParams::current(),
         recovery_phrase,
+    })
+}
+
+/// Exactly what PUT /v1/keys accepts, and nothing more.
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RotationMaterial {
+    pub current_auth_verifier: String,
+    pub auth_verifier: String,
+    pub auth_salt: String,
+    pub kdf_params: KdfParams,
+    pub wrapped_dek: String,
+}
+
+/// Re-wraps the existing DEK under a new password. The DEK itself is unchanged,
+/// which is what leaves the recovery phrase and the X25519 private key working.
+pub fn prepare_key_rotation(
+    current_password: &str,
+    current_auth_salt: &str,
+    new_password: &str,
+    wrapped_dek: &str,
+) -> Result<RotationMaterial, CryptoError> {
+    let mut current_master = derive_master_key(current_password, current_auth_salt)?;
+    let current_auth_verifier = derive_auth_verifier(&current_master);
+    let mut current_kek = derive_kek(&current_master);
+    current_master.zeroize();
+
+    let opened = open(&current_kek, AAD_DEK, wrapped_dek);
+    current_kek.zeroize();
+    let mut dek: [u8; 32] = opened?
+        .try_into()
+        .map_err(|_| CryptoError::Input("wrapped DEK did not hold 32 bytes".into()))?;
+
+    let auth_salt = generate_auth_salt();
+    let mut new_master = derive_master_key(new_password, &auth_salt)?;
+    let auth_verifier = derive_auth_verifier(&new_master);
+    let mut new_kek = derive_kek(&new_master);
+    new_master.zeroize();
+
+    let rewrapped = seal(&new_kek, AAD_DEK, &dek);
+    new_kek.zeroize();
+    dek.zeroize();
+
+    Ok(RotationMaterial {
+        current_auth_verifier,
+        auth_verifier,
+        auth_salt,
+        kdf_params: KdfParams::current(),
+        wrapped_dek: rewrapped,
     })
 }
 
@@ -220,5 +269,78 @@ mod tests {
             ),
             (65536, 3, 4)
         );
+    }
+
+    #[test]
+    fn rotation_keeps_the_same_dek() {
+        let m = prepare_registration("old password").unwrap();
+        let r = prepare_key_rotation("old password", &m.auth_salt, "new password", &m.wrapped_dek)
+            .unwrap();
+
+        let old_kek = derive_kek(&derive_master_key("old password", &m.auth_salt).unwrap());
+        let new_kek = derive_kek(&derive_master_key("new password", &r.auth_salt).unwrap());
+
+        assert_eq!(
+            open(&old_kek, AAD_DEK, &m.wrapped_dek).unwrap(),
+            open(&new_kek, AAD_DEK, &r.wrapped_dek).unwrap()
+        );
+    }
+
+    #[test]
+    fn rotation_leaves_the_recovery_path_working() {
+        // The recovery wrap is untouched, so it still opens the same DEK.
+        let m = prepare_registration("old password").unwrap();
+        let r = prepare_key_rotation("old password", &m.auth_salt, "new password", &m.wrapped_dek)
+            .unwrap();
+
+        let rkek = recovery_kek_from_phrase(&m.recovery_phrase).unwrap();
+        let new_kek = derive_kek(&derive_master_key("new password", &r.auth_salt).unwrap());
+
+        assert_eq!(
+            open(&rkek, AAD_DEK_RECOVERY, &m.wrapped_dek_recovery).unwrap(),
+            open(&new_kek, AAD_DEK, &r.wrapped_dek).unwrap()
+        );
+    }
+
+    #[test]
+    fn rotation_issues_a_fresh_salt_and_verifier() {
+        let m = prepare_registration("old password").unwrap();
+        let r = prepare_key_rotation("old password", &m.auth_salt, "new password", &m.wrapped_dek)
+            .unwrap();
+        assert_ne!(r.auth_salt, m.auth_salt);
+        assert_ne!(r.auth_verifier, m.auth_verifier);
+        assert_eq!(r.current_auth_verifier, m.auth_verifier);
+    }
+
+    #[test]
+    fn rotation_refuses_a_wrong_current_password() {
+        let m = prepare_registration("old password").unwrap();
+        assert_eq!(
+            prepare_key_rotation("wrong", &m.auth_salt, "new password", &m.wrapped_dek)
+                .unwrap_err(),
+            CryptoError::Decrypt
+        );
+    }
+
+    #[test]
+    fn rotation_serialises_to_the_field_names_put_keys_expects() {
+        let m = prepare_registration("old password").unwrap();
+        let r = prepare_key_rotation("old password", &m.auth_salt, "new password", &m.wrapped_dek)
+            .unwrap();
+        let json = serde_json::to_value(&r).unwrap();
+        for key in [
+            "currentAuthVerifier",
+            "authVerifier",
+            "authSalt",
+            "kdfParams",
+            "wrappedDek",
+        ] {
+            assert!(json.get(key).is_some(), "missing {key}");
+        }
+        // The endpoint no longer accepts the other three blobs, and sending them
+        // would trip forbidNonWhitelisted.
+        for key in ["wrappedDekRecovery", "publicKey", "wrappedPrivateKey"] {
+            assert!(json.get(key).is_none(), "must not send {key}");
+        }
     }
 }

@@ -62,6 +62,7 @@ pub fn run() {
             crypto::state::crypto_is_unlocked,
             crypto::state::crypto_encrypt_record,
             crypto::state::crypto_decrypt_record,
+            crypto::state::crypto_prepare_key_rotation,
         ]);
 
     #[cfg(not(desktop))]
@@ -75,6 +76,7 @@ pub fn run() {
         crypto::state::crypto_is_unlocked,
         crypto::state::crypto_encrypt_record,
         crypto::state::crypto_decrypt_record,
+        crypto::state::crypto_prepare_key_rotation,
     ]);
 
     builder
