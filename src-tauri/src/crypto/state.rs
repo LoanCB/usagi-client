@@ -156,6 +156,30 @@ pub fn crypto_is_unlocked(state: Managed<'_>) -> Result<bool, String> {
     with_state(&state, |s| Ok(s.is_unlocked()))
 }
 
+#[tauri::command]
+pub fn crypto_encrypt_record(
+    entity_type: String,
+    entity_id: String,
+    plaintext: String,
+    state: Managed<'_>,
+) -> Result<String, String> {
+    with_state(&state, |s| {
+        super::records::encrypt_record(s, &entity_type, &entity_id, &plaintext)
+    })
+}
+
+#[tauri::command]
+pub fn crypto_decrypt_record(
+    entity_type: String,
+    entity_id: String,
+    blob: String,
+    state: Managed<'_>,
+) -> Result<String, String> {
+    with_state(&state, |s| {
+        super::records::decrypt_record(s, &entity_type, &entity_id, &blob)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,6 +289,19 @@ mod tests {
         assert_eq!(
             state.complete_unlock(&a.wrapped_dek, "user-1").unwrap_err(),
             CryptoError::Decrypt
+        );
+    }
+
+    #[test]
+    fn record_commands_refuse_while_locked() {
+        let state = CryptoState::default();
+        assert_eq!(
+            crate::crypto::records::encrypt_record(&state, "task", "abc", "{}").unwrap_err(),
+            CryptoError::Locked
+        );
+        assert_eq!(
+            crate::crypto::records::decrypt_record(&state, "task", "abc", "AAAA").unwrap_err(),
+            CryptoError::Locked
         );
     }
 }

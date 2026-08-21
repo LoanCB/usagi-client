@@ -1,6 +1,7 @@
 pub mod account;
 pub mod derive;
 pub mod identity;
+pub mod records;
 pub mod recovery;
 pub mod state;
 pub mod wrap;

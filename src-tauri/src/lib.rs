@@ -60,6 +60,8 @@ pub fn run() {
             crypto::state::crypto_unlock_with_recovery,
             crypto::state::crypto_lock,
             crypto::state::crypto_is_unlocked,
+            crypto::state::crypto_encrypt_record,
+            crypto::state::crypto_decrypt_record,
         ]);
 
     #[cfg(not(desktop))]
@@ -71,6 +73,8 @@ pub fn run() {
         crypto::state::crypto_unlock_with_recovery,
         crypto::state::crypto_lock,
         crypto::state::crypto_is_unlocked,
+        crypto::state::crypto_encrypt_record,
+        crypto::state::crypto_decrypt_record,
     ]);
 
     builder
