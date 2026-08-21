@@ -111,4 +111,31 @@ mod tests {
         let replaced = phrase.replacen(phrase.split_whitespace().next().unwrap(), "notaword", 1);
         assert!(recovery_kek_from_phrase(&replaced).is_err());
     }
+
+    #[test]
+    fn derives_the_pinned_key_for_a_known_phrase() {
+        // A pinned vector, derived independently of this implementation: the
+        // canonical phrase below is by definition the mnemonic for 32 zero
+        // bytes of entropy, so the expected key is simply
+        //   HKDF-SHA256(salt = None, ikm = [0u8; 32]).expand(INFO_RECOVERY_KEK)
+        // computed from that definition rather than from anything this file
+        // produces. Never refresh it by pasting what the code prints.
+        //
+        // Every other test here is a self-consistency round-trip, so all of
+        // them would still pass if the entropy slice were wrong — e.g.
+        // `&entropy[..33]`, which appends BIP39's checksum byte to the key
+        // material and yields
+        // 2f45895474d42e37e070d598ce127d782e3dd004f0a138caca77414b3e30c4eb.
+        // Determinism and distinctness would still hold while every user's key
+        // was silently wrong, and that only surfaces when someone finally needs
+        // their recovery phrase. This assertion is the net for that.
+        let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon \
+             abandon abandon abandon abandon abandon abandon abandon abandon abandon \
+             abandon abandon abandon abandon abandon abandon art";
+        let key = recovery_kek_from_phrase(phrase).unwrap();
+        assert_eq!(
+            hex::encode(key),
+            "903e80fdeb25ef66f412f17eb008de0015a21ea70aaa21b7f24523a71f3fa925"
+        );
+    }
 }
