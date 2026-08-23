@@ -21,11 +21,14 @@ interface TaskRow {
 }
 
 function makeDb(overrides: Partial<DbDriver> = {}): DbDriver {
-	return {
+	const db: DbDriver = {
 		execute: vi.fn().mockResolvedValue({ rowsAffected: 1, lastInsertId: 0 }),
 		select: vi.fn().mockResolvedValue([]),
+		// Runs work against this same mock — none of these tests exercise rollback.
+		transaction: vi.fn().mockImplementation((work) => work(db)),
 		...overrides,
 	};
+	return db;
 }
 
 describe("SqliteRepository — projects", () => {

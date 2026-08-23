@@ -5,6 +5,11 @@ import { splitStatements } from "./split-statements";
  * Errors that are safe to ignore: legacy databases whose user_version was never
  * advanced re-run ALTER TABLE statements whose column already exists. Anything
  * else must abort so user_version is not advanced over a half-applied schema.
+ *
+ * Confirmed under both engines this driver runs on: better-sqlite3 ("duplicate
+ * column name: <col>") and, via a same-version sqlx-sqlite 0.8.6 probe standing
+ * in for @tauri-apps/plugin-sql 2.4.0 ("error returned from database: (code: 1)
+ * duplicate column name: <col>"). Both match this pattern.
  */
 function isIgnorable(message: string): boolean {
 	return /duplicate column name/i.test(message);

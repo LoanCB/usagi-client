@@ -17,6 +17,20 @@ export function adaptDatabase(db: Database): DbDriver {
 		async select<T>(query: string, bindValues?: unknown[]): Promise<T[]> {
 			return db.select<T[]>(query, bindValues);
 		},
+		async transaction<T>(work: (tx: DbDriver) => Promise<T>): Promise<T> {
+			// tauri-plugin-sql has no transaction API of its own; the statements go
+			// through execute like any other. Nested calls are not supported — SQLite
+			// would reject the inner BEGIN — and nothing in this codebase nests.
+			await this.execute("BEGIN", []);
+			try {
+				const out = await work(this);
+				await this.execute("COMMIT", []);
+				return out;
+			} catch (error) {
+				await this.execute("ROLLBACK", []);
+				throw error;
+			}
+		},
 	};
 }
 
