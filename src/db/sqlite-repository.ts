@@ -55,6 +55,14 @@ const IMPORT_STAMPED_FIELDS = {
 	],
 } as const;
 
+/**
+ * How many ids one statement may bind.
+ *
+ * Well under SQLite's SQLITE_MAX_VARIABLE_NUMBER, so a bulk write stays bounded
+ * by the number of statements rather than by the size of the payload.
+ */
+const ID_CHUNK_SIZE = 500;
+
 /** Tables carrying a sort_key. */
 type OrderedTable = "tasks" | "projects" | "project_groups";
 
@@ -328,8 +336,10 @@ export class SqliteRepository implements TodoRepository {
 	async createProject(input: CreateProjectInput): Promise<Project> {
 		const id = crypto.randomUUID();
 		const now = new Date().toISOString();
-		const sortKey = await this._headKey("projects");
 		await this.db.transaction(async (tx) => {
+			// Derived inside the transaction: a key read from the outer connection
+			// could be taken from a state another write has since moved on from.
+			const sortKey = await this._headKey("projects", tx);
 			await tx.execute(
 				"INSERT INTO projects (id, name, color, icon, sort_order, sort_key, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)",
 				[
@@ -446,8 +456,9 @@ export class SqliteRepository implements TodoRepository {
 		// group last on that number line while its sort_key put it first, so the
 		// group appeared in two different places depending on which one a reader
 		// used. It is now written as 0, like every other create path.
-		const sortKey = await this._headKey("project_groups");
 		await this.db.transaction(async (tx) => {
+			// Derived inside the transaction — see createProject.
+			const sortKey = await this._headKey("project_groups", tx);
 			await tx.execute(
 				"INSERT INTO project_groups (id, name, color, sort_order, sort_key, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?)",
 				[id, input.name, input.color, sortKey, now, now],
@@ -539,10 +550,12 @@ export class SqliteRepository implements TodoRepository {
 		nextId: string | null,
 	): Promise<void> {
 		const now = new Date().toISOString();
-		const prevKey = prevId ? await this._keyOf("projects", prevId) : null;
-		const nextKey = nextId ? await this._keyOf("projects", nextId) : null;
-		const key = generateKeyBetween(prevKey, nextKey);
 		await this.db.transaction(async (tx) => {
+			// The neighbours are read inside the transaction that writes between
+			// them, so the key cannot be derived from an order already superseded.
+			const prevKey = prevId ? await this._keyOf("projects", prevId, tx) : null;
+			const nextKey = nextId ? await this._keyOf("projects", nextId, tx) : null;
+			const key = generateKeyBetween(prevKey, nextKey);
 			await tx.execute(
 				"UPDATE projects SET sort_key = ?, updated_at = ? WHERE id = ?",
 				[key, now, id],
@@ -558,10 +571,14 @@ export class SqliteRepository implements TodoRepository {
 		nextId: string | null,
 	): Promise<void> {
 		const now = new Date().toISOString();
-		const prevKey = prevId ? await this._keyOf("project_groups", prevId) : null;
-		const nextKey = nextId ? await this._keyOf("project_groups", nextId) : null;
-		const key = generateKeyBetween(prevKey, nextKey);
 		await this.db.transaction(async (tx) => {
+			const prevKey = prevId
+				? await this._keyOf("project_groups", prevId, tx)
+				: null;
+			const nextKey = nextId
+				? await this._keyOf("project_groups", nextId, tx)
+				: null;
+			const key = generateKeyBetween(prevKey, nextKey);
 			await tx.execute(
 				"UPDATE project_groups SET sort_key = ?, updated_at = ? WHERE id = ?",
 				[key, now, id],
@@ -988,10 +1005,10 @@ export class SqliteRepository implements TodoRepository {
 		nextId: string | null,
 	): Promise<void> {
 		const now = new Date().toISOString();
-		const prevKey = prevId ? await this._keyOf("tasks", prevId) : null;
-		const nextKey = nextId ? await this._keyOf("tasks", nextId) : null;
-		const key = generateKeyBetween(prevKey, nextKey);
 		await this.db.transaction(async (tx) => {
+			const prevKey = prevId ? await this._keyOf("tasks", prevId, tx) : null;
+			const nextKey = nextId ? await this._keyOf("tasks", nextId, tx) : null;
+			const key = generateKeyBetween(prevKey, nextKey);
 			await tx.execute(
 				"UPDATE tasks SET sort_key = ?, updated_at = ? WHERE id = ?",
 				[key, now, id],
@@ -1182,22 +1199,25 @@ export class SqliteRepository implements TodoRepository {
 		now: string,
 		tx: DbDriver,
 	): Promise<void> {
-		const keptIds = kept.map((r) => r.id);
+		// The absent set is computed in memory rather than with a NOT IN over the
+		// kept ids: binding one variable per kept id put a ceiling of roughly
+		// SQLITE_MAX_VARIABLE_NUMBER on how large a backup could be imported, and
+		// a restore is exactly when the payload is at its largest.
+		const keptIds = new Set(kept.map((r) => r.id));
 		const blank =
 			table === "tasks" ? ", title = '', description = NULL" : ", name = ''";
-		const rows = await tx.select<{ id: string }>(
-			keptIds.length > 0
-				? `SELECT id FROM ${table} WHERE purged_at IS NULL AND id NOT IN (${keptIds.map(() => "?").join(", ")})`
-				: `SELECT id FROM ${table} WHERE purged_at IS NULL`,
-			keptIds,
+		const live = await tx.select<{ id: string }>(
+			`SELECT id FROM ${table} WHERE purged_at IS NULL`,
 		);
+		const rows = live.filter((r) => !keptIds.has(r.id));
 		if (rows.length === 0) return;
-		await tx.execute(
-			keptIds.length > 0
-				? `UPDATE ${table} SET purged_at = ?, deleted_at = ?, updated_at = ?${blank} WHERE purged_at IS NULL AND id NOT IN (${keptIds.map(() => "?").join(", ")})`
-				: `UPDATE ${table} SET purged_at = ?, deleted_at = ?, updated_at = ?${blank} WHERE purged_at IS NULL`,
-			[now, now, now, ...keptIds],
-		);
+		for (let i = 0; i < rows.length; i += ID_CHUNK_SIZE) {
+			const ids = rows.slice(i, i + ID_CHUNK_SIZE).map((r) => r.id);
+			await tx.execute(
+				`UPDATE ${table} SET purged_at = ?, deleted_at = ?, updated_at = ?${blank} WHERE purged_at IS NULL AND id IN (${ids.map(() => "?").join(", ")})`,
+				[now, now, now, ...ids],
+			);
+		}
 		for (const row of rows) {
 			const fields =
 				table === "tasks"

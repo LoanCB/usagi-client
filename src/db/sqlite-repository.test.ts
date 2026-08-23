@@ -1890,6 +1890,26 @@ describe("bulkImport under sync", () => {
 		expect((await stampsOf(db, task.id)).future_column).toBeDefined();
 	});
 
+	it("tombstones more absent rows than one statement can bind", async () => {
+		// Pins the chunk loop, not the ceiling itself: proving the old NOT IN
+		// actually broke would need a payload past SQLITE_MAX_VARIABLE_NUMBER,
+		// which is far too slow to seed. What this does catch is a chunk boundary
+		// that drops or double-counts rows, which is how the fix can go wrong.
+		const kept: Array<{ id: string; title: string }> = [];
+		for (let i = 0; i < 1200; i++) {
+			await db.execute(
+				"INSERT INTO tasks (id, title, sort_order, sort_key, created_at, updated_at) VALUES (?, 'x', 0, ?, 'x', 'x')",
+				[`t${i}`, `a${i}`],
+			);
+			if (i % 2 === 0) kept.push({ id: `t${i}`, title: "x" });
+		}
+		await repo.bulkImport(exportWith(kept), "replace");
+		const rows = await db.select<{ n: number }>(
+			"SELECT COUNT(*) AS n FROM tasks WHERE purged_at IS NOT NULL",
+		);
+		expect(rows[0].n).toBe(600);
+	});
+
 	it("applies the whole import atomically", async () => {
 		// A pre-existing task gives the replace's tombstoning UPDATE something
 		// real to roll back — an empty table would leave this test passing even
