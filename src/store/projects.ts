@@ -40,7 +40,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
 	async createProject(repo, input) {
 		const project = await repo.createProject(input);
-		set((s) => ({ projects: [...s.projects, project] }));
+		// Prepended, because the repository keys a new project above every other
+		// one. Appending showed it in one place until the next reload moved it.
+		set((s) => ({ projects: [project, ...s.projects] }));
 		return project;
 	},
 

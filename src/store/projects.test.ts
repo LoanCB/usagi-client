@@ -9,6 +9,7 @@ const baseProject: Project = {
 	color: "#3b82f6",
 	icon: null,
 	sortOrder: 0,
+	sortKey: "a0",
 	groupId: null,
 	createdAt: "2026-04-01T00:00:00.000Z",
 	updatedAt: "2026-04-01T00:00:00.000Z",

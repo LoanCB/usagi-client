@@ -60,6 +60,7 @@ describe("SqliteRepository — projects", () => {
 						color: "#6366f1",
 						icon: "💼",
 						sort_order: 0,
+						sort_key: "a0",
 						created_at: "2026-04-10T10:00:00.000Z",
 						updated_at: "2026-04-10T10:00:00.000Z",
 					},
@@ -87,6 +88,7 @@ describe("SqliteRepository — projects", () => {
 					color: null,
 					icon: null,
 					sort_order: 0,
+					sort_key: "a0",
 					created_at: "2026-04-10T10:00:00.000Z",
 					updated_at: "2026-04-10T10:00:00.000Z",
 				},
@@ -96,6 +98,7 @@ describe("SqliteRepository — projects", () => {
 					color: "#f00",
 					icon: "🚀",
 					sort_order: 1,
+					sort_key: "a1",
 					created_at: "2026-04-10T10:00:00.000Z",
 					updated_at: "2026-04-10T10:00:00.000Z",
 				},
@@ -155,6 +158,7 @@ describe("SqliteRepository — projects", () => {
 						color: null,
 						icon: null,
 						sort_order: 0,
+						sort_key: "a0",
 						created_at: "2026-04-10T10:00:00.000Z",
 						updated_at: "2026-04-10T11:00:00.000Z",
 					},
@@ -656,6 +660,7 @@ const sampleExportData: ExportData = {
 			color: "#f00",
 			icon: null,
 			sortOrder: 0,
+			sortKey: "a0",
 			groupId: null,
 			createdAt: "2026-01-01T00:00:00.000Z",
 			updatedAt: "2026-01-01T00:00:00.000Z",
@@ -865,8 +870,7 @@ describe("SqliteRepository — project groups", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
-				.mockResolvedValueOnce([{ max_order: null }]) // MAX(sort_order) query
-				.mockResolvedValueOnce([]) // _headKey — no existing rows
+				.mockResolvedValueOnce([]) // _headKey — no existing rows in the shared key space
 				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
 				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
 				.mockResolvedValueOnce([
@@ -875,6 +879,7 @@ describe("SqliteRepository — project groups", () => {
 						name: "Perso",
 						color: "#6366f1",
 						sort_order: 0,
+						sort_key: "a0",
 						created_at: now,
 						updated_at: now,
 					},
@@ -901,6 +906,7 @@ describe("SqliteRepository — project groups", () => {
 					name: "Work",
 					color: "#3b82f6",
 					sort_order: 0,
+					sort_key: "a0",
 					created_at: now,
 					updated_at: now,
 				},
@@ -909,6 +915,7 @@ describe("SqliteRepository — project groups", () => {
 					name: "Perso",
 					color: "#22c55e",
 					sort_order: 1,
+					sort_key: "a1",
 					created_at: now,
 					updated_at: now,
 				},
@@ -981,6 +988,7 @@ describe("SqliteRepository — project groups", () => {
 						name: "Updated",
 						color: "#3b82f6",
 						sort_order: 0,
+						sort_key: "a0",
 						created_at: now,
 						updated_at: now,
 					},
@@ -1256,6 +1264,30 @@ describe("moveTask", () => {
 			a.id,
 			b.id,
 		]);
+	});
+
+	it("keys a project between two groups from one shared space", async () => {
+		// The sidebar's top level interleaves groups and standalone projects, so
+		// their keys have to be comparable. With one key space per table the two
+		// group neighbours resolve to null, the moved project lands on the head
+		// key of the projects table, and the merged list loses its ordering source.
+		const g1 = await repo.createProjectGroup({ name: "g1", color: "#000" });
+		const g2 = await repo.createProjectGroup({ name: "g2", color: "#000" });
+		const p = await repo.createProject({ name: "p" });
+		await repo.moveProject(p.id, g2.id, g1.id);
+
+		const keyOfRow = async (table: string, id: string) => {
+			const rows = await db.select<{ sort_key: string }>(
+				`SELECT sort_key FROM ${table} WHERE id = ?`,
+				[id],
+			);
+			return rows[0].sort_key;
+		};
+		const keyG1 = await keyOfRow("project_groups", g1.id);
+		const keyG2 = await keyOfRow("project_groups", g2.id);
+		const keyP = await keyOfRow("projects", p.id);
+		expect(keyG2 < keyP).toBe(true);
+		expect(keyP < keyG1).toBe(true);
 	});
 
 	it("getTasks reflects moveTask through the same read path the UI uses", async () => {

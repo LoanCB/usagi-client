@@ -54,7 +54,8 @@ export function ProjectFilter({ value, onChange }: ProjectFilterProps) {
 
 	// A group is a selection shortcut: its rows expand to its member project ids.
 	const groupSections: { group: ProjectGroup; members: Project[] }[] = [];
-	for (const group of [...groups].sort((a, b) => a.sortOrder - b.sortOrder)) {
+	// groups already arrives in repository order; sortOrder is a dead column.
+	for (const group of groups) {
 		const members = projects.filter((p) => p.groupId === group.id);
 		if (members.length > 0) groupSections.push({ group, members });
 	}

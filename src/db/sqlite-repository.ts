@@ -21,6 +21,24 @@ import type { TodoRepository } from "./repository";
 // never arrive from an arbitrary string into SQL.
 type SyncedTable = "tasks" | "projects" | "tags" | "project_groups";
 
+/** Tables carrying a sort_key. */
+type OrderedTable = "tasks" | "projects" | "project_groups";
+
+/**
+ * The tables whose sort_key values are comparable with each other.
+ *
+ * Projects and project groups share one space because the sidebar's top level
+ * interleaves them: a project dropped between two groups needs a key that sits
+ * between theirs. Before fractional keys they shared a single sort_order number
+ * line; keeping one space preserves that. Two independent spaces would leave the
+ * merged list with no ordering source at all.
+ */
+const KEY_SPACE: Record<OrderedTable, readonly OrderedTable[]> = {
+	tasks: ["tasks"],
+	projects: ["projects", "project_groups"],
+	project_groups: ["projects", "project_groups"],
+};
+
 function buildProjectIdsCondition(
 	projectIds: string[] | undefined,
 ): { clause: string; params: string[] } | null {
@@ -48,6 +66,7 @@ interface ProjectRow {
 	color: string | null;
 	icon: string | null;
 	sort_order: number;
+	sort_key: string;
 	group_id: string | null;
 	created_at: string;
 	updated_at: string;
@@ -58,6 +77,7 @@ interface ProjectGroupRow {
 	name: string;
 	color: string;
 	sort_order: number;
+	sort_key: string;
 	created_at: string;
 	updated_at: string;
 }
@@ -100,6 +120,7 @@ function mapProject(row: ProjectRow): Project {
 		color: row.color,
 		icon: row.icon,
 		sortOrder: row.sort_order,
+		sortKey: row.sort_key,
 		groupId: row.group_id,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
@@ -112,6 +133,7 @@ function mapProjectGroup(row: ProjectGroupRow): ProjectGroup {
 		name: row.name,
 		color: row.color,
 		sortOrder: row.sort_order,
+		sortKey: row.sort_key,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -179,39 +201,74 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	/**
-	 * A key that sorts before every existing row of `table`.
+	 * The lowest sort_key across `table`'s whole key space, or null if empty.
+	 *
+	 * Reads through `tx` so a key derived inside a transaction sees that
+	 * transaction's own writes rather than the pre-transaction snapshot.
+	 */
+	private async _minKey(
+		table: OrderedTable,
+		tx: DbDriver = this.db,
+	): Promise<string | null> {
+		const space = KEY_SPACE[table];
+		const rows = await tx.select<{ sort_key: string | null }>(
+			space
+				.map(
+					(t) =>
+						`SELECT MIN(sort_key) AS sort_key FROM ${t} WHERE sort_key IS NOT NULL`,
+				)
+				.join(" UNION ALL "),
+		);
+		const keys = rows
+			.map((r) => r.sort_key)
+			.filter((k): k is string => typeof k === "string");
+		if (keys.length === 0) return null;
+		return keys.reduce((lowest, k) => (k < lowest ? k : lowest));
+	}
+
+	/**
+	 * A key that sorts before every existing row of `table`'s key space.
 	 *
 	 * New rows go to the top: that is where the optimistic store already shows
 	 * them, and disagreeing here makes a freshly created row jump on the next
 	 * reload.
 	 */
-	private async _headKey(table: SyncedTable): Promise<string> {
-		const rows = await this.db.select<{ sort_key: string | null }>(
-			`SELECT sort_key FROM ${table} WHERE sort_key IS NOT NULL ORDER BY sort_key LIMIT 1`,
-		);
-		return generateKeyBetween(null, rows[0]?.sort_key ?? null);
+	private async _headKey(
+		table: OrderedTable,
+		tx: DbDriver = this.db,
+	): Promise<string> {
+		return generateKeyBetween(null, await this._minKey(table, tx));
 	}
 
 	/**
-	 * `id`'s current sort_key, or null if the row has none.
+	 * `id`'s current sort_key, or null if no row in `table`'s key space has it.
 	 *
 	 * Feeds generateKeyBetween in moveTask/moveProject/moveProjectGroup: the new
 	 * key is derived from the two neighbours the row was dropped between, not
-	 * from any positional index.
+	 * from any positional index. The lookup spans the whole key space because a
+	 * top-level neighbour may be a group where the moved row is a project, or
+	 * the other way round.
 	 */
-	private async _keyOf(table: SyncedTable, id: string): Promise<string | null> {
-		const rows = await this.db.select<{ sort_key: string | null }>(
-			`SELECT sort_key FROM ${table} WHERE id = ?`,
-			[id],
+	private async _keyOf(
+		table: OrderedTable,
+		id: string,
+		tx: DbDriver = this.db,
+	): Promise<string | null> {
+		const space = KEY_SPACE[table];
+		const rows = await tx.select<{ sort_key: string | null }>(
+			space
+				.map((t) => `SELECT sort_key FROM ${t} WHERE id = ?`)
+				.join(" UNION ALL "),
+			space.map(() => id),
 		);
-		return rows[0]?.sort_key ?? null;
+		return rows.find((r) => typeof r.sort_key === "string")?.sort_key ?? null;
 	}
 
 	// ---------- Projects ----------
 
 	async getProjects(): Promise<Project[]> {
 		const rows = await this.db.select<ProjectRow>(
-			"SELECT id, name, color, icon, sort_order, group_id, created_at, updated_at FROM projects WHERE deleted_at IS NULL ORDER BY sort_key",
+			"SELECT id, name, color, icon, sort_order, sort_key, group_id, created_at, updated_at FROM projects WHERE deleted_at IS NULL ORDER BY sort_key",
 		);
 		return rows.map(mapProject);
 	}
@@ -313,7 +370,7 @@ export class SqliteRepository implements TodoRepository {
 
 	private async _getProject(id: string): Promise<Project | null> {
 		const rows = await this.db.select<ProjectRow>(
-			"SELECT id, name, color, icon, sort_order, group_id, created_at, updated_at FROM projects WHERE id = ? AND deleted_at IS NULL",
+			"SELECT id, name, color, icon, sort_order, sort_key, group_id, created_at, updated_at FROM projects WHERE id = ? AND deleted_at IS NULL",
 			[id],
 		);
 		return rows[0] ? mapProject(rows[0]) : null;
@@ -323,7 +380,7 @@ export class SqliteRepository implements TodoRepository {
 
 	async getProjectGroups(): Promise<ProjectGroup[]> {
 		const rows = await this.db.select<ProjectGroupRow>(
-			"SELECT id, name, color, sort_order, created_at, updated_at FROM project_groups WHERE purged_at IS NULL ORDER BY sort_key",
+			"SELECT id, name, color, sort_order, sort_key, created_at, updated_at FROM project_groups WHERE purged_at IS NULL ORDER BY sort_key",
 		);
 		return rows.map(mapProjectGroup);
 	}
@@ -333,15 +390,15 @@ export class SqliteRepository implements TodoRepository {
 	): Promise<ProjectGroup> {
 		const id = crypto.randomUUID();
 		const now = new Date().toISOString();
-		const maxRows = await this.db.select<{ max_order: number | null }>(
-			"SELECT MAX(sort_order) as max_order FROM project_groups",
-		);
-		const nextOrder = (maxRows[0]?.max_order ?? -1) + 1;
+		// sort_order is a dead column: writing MAX(sort_order) + 1 here put the new
+		// group last on that number line while its sort_key put it first, so the
+		// group appeared in two different places depending on which one a reader
+		// used. It is now written as 0, like every other create path.
 		const sortKey = await this._headKey("project_groups");
 		await this.db.transaction(async (tx) => {
 			await tx.execute(
-				"INSERT INTO project_groups (id, name, color, sort_order, sort_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-				[id, input.name, input.color, nextOrder, sortKey, now, now],
+				"INSERT INTO project_groups (id, name, color, sort_order, sort_key, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?)",
+				[id, input.name, input.color, sortKey, now, now],
 			);
 			await this._stamp(
 				"project_groups",
@@ -477,7 +534,7 @@ export class SqliteRepository implements TodoRepository {
 
 	private async _getProjectGroup(id: string): Promise<ProjectGroup | null> {
 		const rows = await this.db.select<ProjectGroupRow>(
-			"SELECT id, name, color, sort_order, created_at, updated_at FROM project_groups WHERE id = ?",
+			"SELECT id, name, color, sort_order, sort_key, created_at, updated_at FROM project_groups WHERE id = ?",
 			[id],
 		);
 		return rows[0] ? mapProjectGroup(rows[0]) : null;

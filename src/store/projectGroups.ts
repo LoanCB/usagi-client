@@ -33,7 +33,9 @@ export const useProjectGroupStore = create<ProjectGroupStore>((set) => ({
 
 	async createGroup(repo, input) {
 		const group = await repo.createProjectGroup(input);
-		set((s) => ({ groups: [...s.groups, group] }));
+		// Prepended, to match the head key the repository gives a new group — see
+		// the same note in store/projects.ts.
+		set((s) => ({ groups: [group, ...s.groups] }));
 		return group;
 	},
 

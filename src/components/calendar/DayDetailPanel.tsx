@@ -181,12 +181,16 @@ export function DayDetailPanel({
 					group.completed.push(task);
 				}
 				const ids = [...map.keys()];
+				// Rank by position in `projects`, which is already in repository
+				// order — sortOrder is a dead column no write path maintains.
+				const rankOf = (id: string) => {
+					const index = projects.findIndex((p) => p.id === id);
+					return index === -1 ? projects.length : index;
+				};
 				ids.sort((a, b) => {
 					if (a === null) return 1;
 					if (b === null) return -1;
-					const pa = projects.find((p) => p.id === a)?.sortOrder ?? 0;
-					const pb = projects.find((p) => p.id === b)?.sortOrder ?? 0;
-					return pa - pb;
+					return rankOf(a) - rankOf(b);
 				});
 				return ids.map((pid) => ({
 					projectId: pid,
