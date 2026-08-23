@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExportData } from "@/lib/dataTransfer";
 import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
 import { BetterSqliteDriver } from "@/test-harness/BetterSqliteDriver";
-import type { Task } from "@/types";
+import type { Project, Task } from "@/types";
 import type { DbDriver } from "./driver";
 import { ALL_MIGRATIONS } from "./migrations/index";
 import { runMigrations } from "./migrations/run-migrations";
@@ -1817,6 +1817,77 @@ describe("bulkImport under sync", () => {
 			"t2",
 			existing.id,
 		]);
+	});
+
+	it("stamps completed_at on an imported task", async () => {
+		// createTask never stamps completed_at, so presence alone is a genuine
+		// discriminator here. An unstamped completed_at loses to any remote value
+		// and reverts on the first sync: the import silently un-does itself.
+		await repo.bulkImport(
+			exportWith([
+				{ id: "t1", title: "x", completedAt: "2020-02-02T00:00:00.000Z" },
+			]),
+			"merge",
+		);
+		expect((await stampsOf(db, "t1")).completed_at).toBeDefined();
+	});
+
+	it("stamps purged_at when an import resurrects a tombstone", async () => {
+		// OR REPLACE is a DELETE-then-INSERT: purged_at comes back NULL whether or
+		// not the statement names it, so only the stamp proves the resurrection is
+		// a change this device will push rather than a local-only edit.
+		const task = await repo.createTask({ title: "x" });
+		await repo.deleteTask(task.id);
+		const before = (await stampsOf(db, task.id)).purged_at.t;
+		await new Promise((resolve) => setTimeout(resolve, 2));
+		await repo.bulkImport(exportWith([{ id: task.id, title: "x" }]), "merge");
+		expect((await stampsOf(db, task.id)).purged_at.t).not.toBe(before);
+	});
+
+	it("keeps a project's group through an import", async () => {
+		// group_id was absent from the projects column list, so every colliding
+		// project came back ungrouped — and unstamped, so the ungrouping spread.
+		const group = await repo.createProjectGroup({ name: "g", color: "#000" });
+		const created = await repo.createProject({ name: "p" });
+		await repo.assignProjectToGroup(created.id, group.id);
+		const grouped = (await repo.getProjects()).find(
+			(p) => p.id === created.id,
+		) as Project;
+
+		await repo.bulkImport(
+			{
+				version: 1,
+				exportedAt: "2020-01-01T00:00:00.000Z",
+				projects: [grouped],
+				tags: [],
+				tasks: [],
+			},
+			"merge",
+		);
+
+		const after = (await repo.getProjects()).find((p) => p.id === created.id);
+		expect(after?.groupId).toBe(group.id);
+		const rows = await db.select<{ field_updated_at: string | null }>(
+			"SELECT field_updated_at FROM projects WHERE id = ?",
+			[created.id],
+		);
+		expect(JSON.parse(rows[0].field_updated_at ?? "{}").group_id).toBeDefined();
+	});
+
+	it("keeps stamps for columns the import does not write", async () => {
+		// Seeded rather than produced by a write path, because today's column list
+		// happens to cover every field any write path stamps. The contract still
+		// has to hold: the next column added to the schema would otherwise have
+		// its stamp erased by any import that touches the row.
+		const task = await repo.createTask({ title: "x" });
+		await db.execute("UPDATE tasks SET field_updated_at = ? WHERE id = ?", [
+			JSON.stringify({
+				future_column: { t: "2020-01-01T00:00:00.000Z", d: "x" },
+			}),
+			task.id,
+		]);
+		await repo.bulkImport(exportWith([{ id: task.id, title: "x" }]), "merge");
+		expect((await stampsOf(db, task.id)).future_column).toBeDefined();
 	});
 
 	it("applies the whole import atomically", async () => {

@@ -21,6 +21,40 @@ import type { TodoRepository } from "./repository";
 // never arrive from an arbitrary string into SQL.
 type SyncedTable = "tasks" | "projects" | "tags" | "project_groups";
 
+/**
+ * Every column bulkImport's INSERT OR REPLACE writes *or resets*, per table.
+ *
+ * The reset ones matter as much as the written ones: OR REPLACE is a
+ * DELETE-then-INSERT, so a column left out of the statement comes back NULL.
+ * An un-completed task or a resurrected tombstone that carries no stamp for
+ * that column loses to any remote value and reverts on the first sync — the
+ * §1.2 failure the whole plan exists to close.
+ */
+const IMPORT_STAMPED_FIELDS = {
+	projects: [
+		"name",
+		"color",
+		"icon",
+		"group_id",
+		"sort_key",
+		"deleted_at",
+		"purged_at",
+	],
+	tags: ["name", "color", "project_id", "deleted_at", "purged_at"],
+	tasks: [
+		"title",
+		"description",
+		"project_id",
+		"priority",
+		"due_date",
+		"tags",
+		"sort_key",
+		"completed_at",
+		"deleted_at",
+		"purged_at",
+	],
+} as const;
+
 /** Tables carrying a sort_key. */
 type OrderedTable = "tasks" | "projects" | "project_groups";
 
@@ -198,6 +232,24 @@ export class SqliteRepository implements TodoRepository {
 			stampFields(prior[0]?.field_updated_at ?? null, fields, now, deviceId),
 			id,
 		]);
+	}
+
+	/**
+	 * Every row's current stamp map for `table`, keyed by id.
+	 *
+	 * Read in one unfiltered pass rather than per row: a bulk write still has to
+	 * merge into the stamps a row already carries, and binding one variable per
+	 * payload id would hit SQLite's parameter ceiling on a large backup.
+	 */
+	private async _priorStamps(
+		table: SyncedTable,
+		tx: DbDriver,
+	): Promise<Map<string, string | null>> {
+		const rows = await tx.select<{
+			id: string;
+			field_updated_at: string | null;
+		}>(`SELECT id, field_updated_at FROM ${table}`);
+		return new Map(rows.map((r) => [r.id, r.field_updated_at ?? null]));
 	}
 
 	/**
@@ -982,6 +1034,9 @@ export class SqliteRepository implements TodoRepository {
 	 * The whole import is one transaction: a partial import would leave some
 	 * rows stamped-and-pushable and others not, a state the merge engine has no
 	 * way to reconcile.
+	 *
+	 * See IMPORT_STAMPED_FIELDS for why the columns OR REPLACE *resets* are
+	 * stamped alongside the ones it writes.
 	 */
 	async bulkImport(
 		data: ExportData,
@@ -1010,21 +1065,25 @@ export class SqliteRepository implements TodoRepository {
 				data.projects.length,
 			);
 
+			// group_id used to be absent from the column list, so OR REPLACE
+			// silently ungrouped every colliding project.
+			const priorProjectStamps = await this._priorStamps("projects", tx);
 			for (const [index, p] of data.projects.entries()) {
 				await tx.execute(
-					"INSERT OR REPLACE INTO projects (id, name, color, icon, sort_order, sort_key, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+					"INSERT OR REPLACE INTO projects (id, name, color, icon, group_id, sort_order, sort_key, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 					[
 						p.id,
 						p.name,
 						p.color,
 						p.icon,
+						p.groupId,
 						p.sortOrder,
 						projectKeys[index],
 						p.createdAt,
 						p.updatedAt,
 						stampFields(
-							null,
-							["name", "color", "icon", "sort_key"],
+							priorProjectStamps.get(p.id) ?? null,
+							[...IMPORT_STAMPED_FIELDS.projects],
 							now,
 							deviceId,
 						),
@@ -1038,6 +1097,7 @@ export class SqliteRepository implements TodoRepository {
 				strategy === "merge"
 					? "INSERT OR IGNORE INTO tags (id, name, color, project_id, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
 					: "INSERT OR REPLACE INTO tags (id, name, color, project_id, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)";
+			const priorTagStamps = await this._priorStamps("tags", tx);
 			for (const tag of data.tags) {
 				await tx.execute(tagSql, [
 					tag.id,
@@ -1046,7 +1106,12 @@ export class SqliteRepository implements TodoRepository {
 					tag.projectId,
 					data.exportedAt,
 					data.exportedAt,
-					stampFields(null, ["name", "color", "project_id"], now, deviceId),
+					stampFields(
+						priorTagStamps.get(tag.id) ?? null,
+						[...IMPORT_STAMPED_FIELDS.tags],
+						now,
+						deviceId,
+					),
 				]);
 			}
 
@@ -1061,6 +1126,7 @@ export class SqliteRepository implements TodoRepository {
 				data.tasks.length,
 			);
 
+			const priorTaskStamps = await this._priorStamps("tasks", tx);
 			for (const [index, task] of data.tasks.entries()) {
 				await tx.execute(
 					"INSERT OR REPLACE INTO tasks (id, title, description, project_id, priority, due_date, completed_at, deleted_at, sort_order, sort_key, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -1078,16 +1144,8 @@ export class SqliteRepository implements TodoRepository {
 						task.createdAt,
 						task.updatedAt,
 						stampFields(
-							null,
-							[
-								"title",
-								"description",
-								"project_id",
-								"priority",
-								"due_date",
-								"tags",
-								"sort_key",
-							],
+							priorTaskStamps.get(task.id) ?? null,
+							[...IMPORT_STAMPED_FIELDS.tasks],
 							now,
 							deviceId,
 						),
