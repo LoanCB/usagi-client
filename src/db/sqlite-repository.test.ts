@@ -1780,6 +1780,45 @@ describe("bulkImport under sync", () => {
 		expect(rows[0].purged_at).toBeNull();
 	});
 
+	it("keeps the payload order of an imported task list", async () => {
+		// Export reads display order, so a per-row head key made every
+		// export-then-import invert the user's entire list — silently, because
+		// nothing here had ever asserted more than one imported row's position.
+		await repo.bulkImport(
+			exportWith([
+				{ id: "t1", title: "first" },
+				{ id: "t2", title: "second" },
+				{ id: "t3", title: "third" },
+				{ id: "t4", title: "fourth" },
+			]),
+			"replace",
+		);
+		expect((await repo.getTasks({ allTasks: true })).map((t) => t.id)).toEqual([
+			"t1",
+			"t2",
+			"t3",
+			"t4",
+		]);
+	});
+
+	it("keeps an imported list above the rows already present", async () => {
+		// The block of keys has to start above the current head, not from nothing:
+		// generating from null would interleave the import with existing rows.
+		const existing = await repo.createTask({ title: "already here" });
+		await repo.bulkImport(
+			exportWith([
+				{ id: "t1", title: "first" },
+				{ id: "t2", title: "second" },
+			]),
+			"merge",
+		);
+		expect((await repo.getTasks({ allTasks: true })).map((t) => t.id)).toEqual([
+			"t1",
+			"t2",
+			existing.id,
+		]);
+	});
+
 	it("applies the whole import atomically", async () => {
 		// A pre-existing task gives the replace's tombstoning UPDATE something
 		// real to roll back — an empty table would leave this test passing even

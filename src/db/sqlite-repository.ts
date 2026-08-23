@@ -1,4 +1,4 @@
-import { generateKeyBetween } from "fractional-indexing";
+import { generateKeyBetween, generateNKeysBetween } from "fractional-indexing";
 import type { ExportData } from "@/lib/dataTransfer";
 import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
 import type {
@@ -1000,8 +1000,17 @@ export class SqliteRepository implements TodoRepository {
 				await tx.execute("DELETE FROM task_tags", []);
 			}
 
-			for (const p of data.projects) {
-				const sortKey = await this._headKey("projects");
+			// One block of keys above the current head, assigned in payload order.
+			// Deriving a head key per row instead put each row above the previous
+			// one, so an import came back in exactly the reverse of the order it was
+			// exported in. It also ran a MIN(sort_key) per row inside the transaction.
+			const projectKeys = generateNKeysBetween(
+				null,
+				await this._minKey("projects", tx),
+				data.projects.length,
+			);
+
+			for (const [index, p] of data.projects.entries()) {
 				await tx.execute(
 					"INSERT OR REPLACE INTO projects (id, name, color, icon, sort_order, sort_key, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 					[
@@ -1010,7 +1019,7 @@ export class SqliteRepository implements TodoRepository {
 						p.color,
 						p.icon,
 						p.sortOrder,
-						sortKey,
+						projectKeys[index],
 						p.createdAt,
 						p.updatedAt,
 						stampFields(
@@ -1045,8 +1054,14 @@ export class SqliteRepository implements TodoRepository {
 			// mode this prevents dangling references when the "tags" checkbox was unchecked.
 			const exportedTagIds = new Set(data.tags.map((t) => t.id));
 
-			for (const task of data.tasks) {
-				const sortKey = await this._headKey("tasks");
+			// Same block-of-keys reasoning as the projects loop above.
+			const taskKeys = generateNKeysBetween(
+				null,
+				await this._minKey("tasks", tx),
+				data.tasks.length,
+			);
+
+			for (const [index, task] of data.tasks.entries()) {
 				await tx.execute(
 					"INSERT OR REPLACE INTO tasks (id, title, description, project_id, priority, due_date, completed_at, deleted_at, sort_order, sort_key, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 					[
@@ -1059,7 +1074,7 @@ export class SqliteRepository implements TodoRepository {
 						task.completedAt,
 						task.deletedAt,
 						task.sortOrder,
-						sortKey,
+						taskKeys[index],
 						task.createdAt,
 						task.updatedAt,
 						stampFields(
