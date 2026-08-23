@@ -270,7 +270,7 @@ const fr: typeof en = {
 		merge: "Fusionner",
 		replace: "Remplacer",
 		mergeExplanation:
-			"Les tâches, projets et tags de la sauvegarde sont ajoutés à vos données actuelles. Les entrées déjà présentes sont écrasées par la version de la sauvegarde.",
+			"Les tâches, projets et tags de la sauvegarde sont ajoutés à vos données actuelles, ici et sur vos autres appareils synchronisés. Les entrées déjà présentes sont écrasées par la version de la sauvegarde.",
 		replaceExplanation:
 			"En plus d'ajouter et d'écraser comme la fusion, tout ce qui ne figure pas dans la sauvegarde est supprimé — y compris sur vos autres appareils synchronisés.",
 		replaceWarning:

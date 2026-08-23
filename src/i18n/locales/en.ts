@@ -268,7 +268,7 @@ const en = {
 		merge: "Merge",
 		replace: "Replace",
 		mergeExplanation:
-			"Tasks, projects and tags from the backup are added to your current data. Entries that already exist are overwritten with the backup's version.",
+			"Tasks, projects and tags from the backup are added to your current data, here and on your other synced devices. Entries that already exist are overwritten with the backup's version.",
 		replaceExplanation:
 			"On top of adding and overwriting like merge does, anything missing from the backup is deleted — including on your other synced devices.",
 		replaceWarning:

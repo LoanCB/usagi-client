@@ -67,12 +67,25 @@ describe("ImportConfirmDialog", () => {
 		);
 	});
 
-	it("does not mention other devices in merge mode", async () => {
+	it("names the consequence for other devices in merge mode too", async () => {
+		// A merge propagates like any other write: the spec's worked scenario is a
+		// merge collision resurrecting a tombstone on another device.
+		const user = userEvent.setup();
+		renderDialog();
+		await selectMode(user, "merge");
+		expect(screen.getByRole("alertdialog")).toHaveTextContent(
+			/other .*devices|autres appareils/i,
+		);
+	});
+
+	it("does not claim merge deletes anything", async () => {
+		// Deletion is the actual difference between the two modes — not whether
+		// other devices are affected, which the copy used to imply.
 		const user = userEvent.setup();
 		renderDialog();
 		await selectMode(user, "merge");
 		expect(screen.getByRole("alertdialog")).not.toHaveTextContent(
-			/other .*devices|autres appareils/i,
+			/delete|supprim/i,
 		);
 	});
 
