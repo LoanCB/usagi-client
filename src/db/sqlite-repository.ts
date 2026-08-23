@@ -155,40 +155,27 @@ export class SqliteRepository implements TodoRepository {
 	 * Every method that writes an LWW-governed column has to call this, not just
 	 * updateTask — see the §1.2 correction in the spec for the list and for what
 	 * a merge engine does when a write path skips it.
+	 *
+	 * Pass the `tx` from the enclosing `transaction` call: a column that moved
+	 * without its stamp moving is invisible to the merge engine, so the two
+	 * writes have to commit together or not at all.
 	 */
 	private async _stamp(
 		table: SyncedTable,
 		id: string,
 		fields: string[],
 		now: string,
+		tx: DbDriver = this.db,
 	): Promise<void> {
-		const deviceId = await getOrCreateDeviceId(this.db);
-		const prior = await this.db.select<{ field_updated_at: string | null }>(
+		const deviceId = await getOrCreateDeviceId(tx);
+		const prior = await tx.select<{ field_updated_at: string | null }>(
 			`SELECT field_updated_at FROM ${table} WHERE id = ?`,
 			[id],
 		);
-		await this.db.execute(
-			`UPDATE ${table} SET field_updated_at = ? WHERE id = ?`,
-			[
-				stampFields(prior[0]?.field_updated_at ?? null, fields, now, deviceId),
-				id,
-			],
-		);
-	}
-
-	/**
-	 * The fractional key a row currently holds, or null if it has none yet.
-	 *
-	 * Unused until Task 7 rewrites reorderTasks to call it — noUnusedLocals
-	 * would otherwise fail the build for a private method with no call site yet.
-	 */
-	// @ts-expect-error — see doc comment above; drop this line once Task 7 lands.
-	private async _keyOf(table: SyncedTable, id: string): Promise<string | null> {
-		const rows = await this.db.select<{ sort_key: string | null }>(
-			`SELECT sort_key FROM ${table} WHERE id = ?`,
-			[id],
-		);
-		return rows[0]?.sort_key ?? null;
+		await tx.execute(`UPDATE ${table} SET field_updated_at = ? WHERE id = ?`, [
+			stampFields(prior[0]?.field_updated_at ?? null, fields, now, deviceId),
+			id,
+		]);
 	}
 
 	// ---------- Projects ----------
@@ -616,22 +603,29 @@ export class SqliteRepository implements TodoRepository {
 	): Promise<void> {
 		if (taskIds.length === 0) return;
 		const now = new Date().toISOString();
-		for (const id of taskIds) {
-			await this.db.execute(
-				"UPDATE tasks SET project_id = ?, updated_at = ? WHERE id = ?",
-				[projectId, now, id],
-			);
-			await this._stamp("tasks", id, ["project_id"], now);
-		}
+		// One transaction for the whole batch, not one per task: transactions do
+		// not nest here, and a half-applied move is not a state the merge engine
+		// should ever have to reconcile.
+		await this.db.transaction(async (tx) => {
+			for (const id of taskIds) {
+				await tx.execute(
+					"UPDATE tasks SET project_id = ?, updated_at = ? WHERE id = ?",
+					[projectId, now, id],
+				);
+				await this._stamp("tasks", id, ["project_id"], now, tx);
+			}
+		});
 	}
 
 	async completeTask(id: string): Promise<Task> {
 		const now = new Date().toISOString();
-		await this.db.execute(
-			"UPDATE tasks SET completed_at = ?, updated_at = ? WHERE id = ?",
-			[now, now, id],
-		);
-		await this._stamp("tasks", id, ["completed_at"], now);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				"UPDATE tasks SET completed_at = ?, updated_at = ? WHERE id = ?",
+				[now, now, id],
+			);
+			await this._stamp("tasks", id, ["completed_at"], now, tx);
+		});
 		const completed = await this.getTask(id);
 		if (!completed) throw new Error(`Task not found after write: ${id}`);
 		return completed;
@@ -639,11 +633,13 @@ export class SqliteRepository implements TodoRepository {
 
 	async uncompleteTask(id: string): Promise<Task> {
 		const now = new Date().toISOString();
-		await this.db.execute(
-			"UPDATE tasks SET completed_at = NULL, updated_at = ? WHERE id = ?",
-			[now, id],
-		);
-		await this._stamp("tasks", id, ["completed_at"], now);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				"UPDATE tasks SET completed_at = NULL, updated_at = ? WHERE id = ?",
+				[now, id],
+			);
+			await this._stamp("tasks", id, ["completed_at"], now, tx);
+		});
 		const uncompleted = await this.getTask(id);
 		if (!uncompleted) throw new Error(`Task not found after write: ${id}`);
 		return uncompleted;
@@ -651,11 +647,13 @@ export class SqliteRepository implements TodoRepository {
 
 	async archiveTask(id: string): Promise<void> {
 		const now = new Date().toISOString();
-		await this.db.execute(
-			"UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?",
-			[now, now, id],
-		);
-		await this._stamp("tasks", id, ["deleted_at"], now);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				"UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?",
+				[now, now, id],
+			);
+			await this._stamp("tasks", id, ["deleted_at"], now, tx);
+		});
 	}
 
 	async deleteTask(id: string): Promise<void> {
@@ -666,26 +664,31 @@ export class SqliteRepository implements TodoRepository {
 		// rolled back to a release that predates purged_at still filters this
 		// row out of the active list (deleted_at IS NULL) and only surfaces it
 		// under Archives instead of resurrecting it as a blank-titled phantom.
-		await this.db.execute("DELETE FROM task_tags WHERE task_id = ?", [id]);
-		await this.db.execute(
-			"UPDATE tasks SET purged_at = ?, deleted_at = ?, updated_at = ?, title = '', description = NULL WHERE id = ?",
-			[now, now, now, id],
-		);
-		await this._stamp(
-			"tasks",
-			id,
-			["purged_at", "deleted_at", "title", "description"],
-			now,
-		);
+		await this.db.transaction(async (tx) => {
+			await tx.execute("DELETE FROM task_tags WHERE task_id = ?", [id]);
+			await tx.execute(
+				"UPDATE tasks SET purged_at = ?, deleted_at = ?, updated_at = ?, title = '', description = NULL WHERE id = ?",
+				[now, now, now, id],
+			);
+			await this._stamp(
+				"tasks",
+				id,
+				["purged_at", "deleted_at", "title", "description"],
+				now,
+				tx,
+			);
+		});
 	}
 
 	async unarchiveTask(id: string): Promise<void> {
 		const now = new Date().toISOString();
-		await this.db.execute(
-			"UPDATE tasks SET deleted_at = NULL, updated_at = ? WHERE id = ?",
-			[now, id],
-		);
-		await this._stamp("tasks", id, ["deleted_at"], now);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				"UPDATE tasks SET deleted_at = NULL, updated_at = ? WHERE id = ?",
+				[now, id],
+			);
+			await this._stamp("tasks", id, ["deleted_at"], now, tx);
+		});
 	}
 
 	async getArchivedTasks(): Promise<Task[]> {

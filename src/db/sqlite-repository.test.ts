@@ -1034,28 +1034,46 @@ describe("field stamping beyond updateTask", () => {
 	it("uncompleteTask stamps completed_at", async () => {
 		const task = await repo.createTask({ title: "x" });
 		await repo.completeTask(task.id);
+		// completeTask already stamped completed_at, so presence alone would hold
+		// even if uncompleteTask stamped nothing — only a changed `t` proves it.
+		const before = (await stampsOf(repo, db, task.id)).completed_at.t;
+		await new Promise((resolve) => setTimeout(resolve, 2));
 		await repo.uncompleteTask(task.id);
-		expect((await stampsOf(repo, db, task.id)).completed_at).toBeDefined();
+		expect((await stampsOf(repo, db, task.id)).completed_at.t).not.toBe(before);
 	});
 
 	it("moveTasksToProject stamps project_id on every task moved", async () => {
 		const a = await repo.createTask({ title: "a" });
 		const b = await repo.createTask({ title: "b" });
 		const project = await repo.createProject({ name: "p" });
+		// createTask already stamps project_id, so asserting presence would pass
+		// against an unstamped move — capture the creation stamp and require it
+		// to move.
+		const beforeA = (await stampsOf(repo, db, a.id)).project_id.t;
+		const beforeB = (await stampsOf(repo, db, b.id)).project_id.t;
+		await new Promise((resolve) => setTimeout(resolve, 2));
 		await repo.moveTasksToProject([a.id, b.id], project.id);
-		expect((await stampsOf(repo, db, a.id)).project_id).toBeDefined();
-		expect((await stampsOf(repo, db, b.id)).project_id).toBeDefined();
+		const afterA = (await stampsOf(repo, db, a.id)).project_id;
+		const afterB = (await stampsOf(repo, db, b.id)).project_id;
+		expect(afterA.t).not.toBe(beforeA);
+		expect(afterB.t).not.toBe(beforeB);
+		expect(afterA.d).toMatch(/^[0-9a-f-]{36}$/);
+		expect(afterB.d).toMatch(/^[0-9a-f-]{36}$/);
 	});
 
 	it("deleteTask stamps the columns its tombstone writes", async () => {
 		const task = await repo.createTask({ title: "x" });
+		// createTask stamps title too, so only a changed `t` shows the tombstone
+		// registered blanking it as a field change of its own.
+		const beforeTitle = (await stampsOf(repo, db, task.id)).title.t;
+		await new Promise((resolve) => setTimeout(resolve, 2));
 		await repo.deleteTask(task.id);
 		const stamps = await stampsOf(repo, db, task.id);
 		// purged_at is what tells another device this row is gone; without a
 		// stamp the tombstone loses every tie against a stale live copy.
 		expect(stamps.purged_at).toBeDefined();
 		expect(stamps.deleted_at).toBeDefined();
-		expect(stamps.title).toBeDefined();
+		expect(stamps.title.t).not.toBe(beforeTitle);
 	});
 
 	it("stamps carry the real device id, not the placeholder", async () => {
@@ -1064,5 +1082,20 @@ describe("field stamping beyond updateTask", () => {
 		const stamps = await stampsOf(repo, db, task.id);
 		expect(stamps.deleted_at.d).not.toBe("local");
 		expect(stamps.deleted_at.d).toMatch(/^[0-9a-f-]{36}$/);
+	});
+
+	it("rolls the column write back when the stamp fails", async () => {
+		const task = await repo.createTask({ title: "x" });
+		// The stamp is a second statement after the column write. If it fails and
+		// the column write survives, the row is archived with no record that
+		// deleted_at ever changed — invisible to the merge engine, which is the
+		// exact failure this task exists to prevent.
+		db.failNextExecuteMatching(/SET field_updated_at/);
+		await expect(repo.archiveTask(task.id)).rejects.toThrow();
+		const rows = await db.select<{ deleted_at: string | null }>(
+			"SELECT deleted_at FROM tasks WHERE id = ?",
+			[task.id],
+		);
+		expect(rows[0]?.deleted_at).toBeNull();
 	});
 });
