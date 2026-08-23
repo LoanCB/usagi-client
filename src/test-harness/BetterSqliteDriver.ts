@@ -11,25 +11,28 @@ export class BetterSqliteDriver implements DbDriver {
 	private writes = 0;
 	private failNext: RegExp | null = null;
 
-	constructor(filename = ":memory:") {
-		this.db = new Database(filename);
+	constructor(filename?: string);
+	/**
+	 * Adopt an already-open connection. Used by `reopen`: a second
+	 * `new Database(":memory:")` would be a distinct, empty database.
+	 */
+	constructor(connection: Database.Database);
+	constructor(source: string | Database.Database = ":memory:") {
+		// One initialization path for every field, so a field added later cannot
+		// be skipped the way a hand-copied list would skip it.
+		this.db = typeof source === "string" ? new Database(source) : source;
 		// Match tauri-plugin-sql, which enables FK enforcement per connection.
 		this.db.pragma("foreign_keys = ON");
 	}
 
 	/**
-	 * Wrap an already-open connection instead of opening a new one. Needed by
-	 * `reopen`: a second `new Database(":memory:")` would be a distinct, empty
-	 * database, defeating the point of reopening.
+	 * Run a statement outside the instrumentation. Transaction control is
+	 * bookkeeping, not a write under test: counting it would inflate
+	 * `countWrites`, and a broad `failNextExecuteMatching` pattern must not be
+	 * able to intercept the COMMIT.
 	 */
-	private static fromConnection(db: Database.Database): BetterSqliteDriver {
-		const driver = Object.create(
-			BetterSqliteDriver.prototype,
-		) as BetterSqliteDriver;
-		driver.db = db;
-		driver.writes = 0;
-		driver.failNext = null;
-		return driver;
+	private raw(query: string): void {
+		this.db.prepare(query).run();
 	}
 
 	execute(query: string, bindValues: unknown[] = []): Promise<QueryResult> {
@@ -55,20 +58,27 @@ export class BetterSqliteDriver implements DbDriver {
 	async transaction<T>(work: (tx: DbDriver) => Promise<T>): Promise<T> {
 		// better-sqlite3's own `transaction()` helper only wraps synchronous
 		// functions; `work` is async, so drive the statements by hand.
-		await this.execute("BEGIN", []);
+		this.raw("BEGIN");
 		try {
 			const out = await work(this);
-			await this.execute("COMMIT", []);
+			this.raw("COMMIT");
 			return out;
 		} catch (error) {
-			await this.execute("ROLLBACK", []);
+			try {
+				this.raw("ROLLBACK");
+			} catch {
+				// A failing ROLLBACK must not replace the error being handled: the
+				// original is the one explaining why the transaction aborted.
+				// `Error.cause` would carry both, but it needs an ES2022 lib and
+				// this project targets ES2020.
+			}
 			throw error;
 		}
 	}
 
 	/** A second driver over the same database, with no memoised state. */
 	reopen(): BetterSqliteDriver {
-		return BetterSqliteDriver.fromConnection(this.db);
+		return new BetterSqliteDriver(this.db);
 	}
 
 	/** Statements executed so far. Task 7 asserts a move writes one row, not N. */

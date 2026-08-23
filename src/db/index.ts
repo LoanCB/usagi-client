@@ -27,7 +27,14 @@ export function adaptDatabase(db: Database): DbDriver {
 				await this.execute("COMMIT", []);
 				return out;
 			} catch (error) {
-				await this.execute("ROLLBACK", []);
+				try {
+					await this.execute("ROLLBACK", []);
+				} catch {
+					// A failing ROLLBACK must not replace the error being handled: the
+					// original is the one explaining why the transaction aborted.
+					// `Error.cause` would carry both, but it needs an ES2022 lib and
+					// this project targets ES2020.
+				}
 				throw error;
 			}
 		},

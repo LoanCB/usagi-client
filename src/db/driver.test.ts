@@ -52,4 +52,26 @@ describe("DbDriver.transaction", () => {
 		);
 		expect(rows.map((r) => r.id)).toEqual(["a"]);
 	});
+
+	it("does not count BEGIN and COMMIT as writes", async () => {
+		// Task 7 asserts a move writes one row, not N. If transaction control
+		// counted, a move wrapped in a transaction would report 3 and the natural
+		// reaction would be to bump the expected number rather than distrust it.
+		const before = db.countWrites();
+		await db.transaction(async (tx) => {
+			await tx.execute("INSERT INTO t (id, v) VALUES ('a', '1')", []);
+		});
+		expect(db.countWrites() - before).toBe(1);
+	});
+
+	it("does not let a failure pattern intercept COMMIT", async () => {
+		// An armed pattern must not be able to sabotage the transaction control
+		// that carries the statement under test: the commit has to go through.
+		db.failNextExecuteMatching(/COMMIT/);
+		await db.transaction(async (tx) => {
+			await tx.execute("INSERT INTO t (id, v) VALUES ('a', '1')", []);
+		});
+		const rows = await db.select<{ id: string }>("SELECT id FROM t");
+		expect(rows.map((r) => r.id)).toEqual(["a"]);
+	});
 });
