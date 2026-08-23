@@ -8,6 +8,7 @@ import m007 from "./007_sync_columns.sql?raw";
 import m008 from "./008_sort_key.sql?raw";
 import m009 from "./009_sync_outbox.sql?raw";
 import m010 from "./010_device_id_restamp.sql?raw";
+import m011 from "./011_reset_sort_keys.sql?raw";
 
 /** Ordered migration list. Append only — the index is the schema version. */
 export const ALL_MIGRATIONS = [
@@ -21,4 +22,5 @@ export const ALL_MIGRATIONS = [
 	m008,
 	m009,
 	m010,
+	m011,
 ];
