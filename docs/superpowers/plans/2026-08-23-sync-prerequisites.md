@@ -1391,3 +1391,11 @@ git commit -m "feat: :sparkles: confirm before an import rewrites other devices"
 - **`sort_order` reste dans le schéma**, désormais non lu et non écrit. Le supprimer demande une reconstruction de table, et le §9.6 avertit qu'une reconstruction droppe les triggers et les colonnes de sync ajoutées depuis. À faire dans une migration dédiée, pas en passant.
 - **Le serveur n'a rien de tout ça.** Ni table d'enregistrements, ni `/v1/sync/push`, ni `/v1/sync/pull` — plan 4b.
 - **`LOCAL_DEVICE_ID` disparaît, mais les estampilles héritées gardent un `d` vide.** C'est assumé : on ne peut pas savoir quelle installation les a écrites, et revendiquer leur paternité serait pire.
+
+## Contrainte de livraison
+
+**Les Tasks 2 et 3 doivent partir dans la même release.** Découvert à l'exécution de la Task 2 : `runMigrations` est verrouillé par `user_version` et ne rejoue jamais une migration déjà appliquée. La migration 010 ne nettoie donc que les estampilles `"local"` présentes **avant** la mise à jour — elle ne peut pas repasser.
+
+Or `sqlite-repository.ts` continue d'écrire `"local"` jusqu'à ce que la Task 3 remplace ses points d'appel. Livrer la Task 2 sans la Task 3 produirait des estampilles `"local"` qu'aucun mécanisme ne rattraperait ensuite.
+
+Le cas résiduel, assumé : un utilisateur qui met à jour, revient à une build antérieure, écrit d'autres estampilles, puis remet à jour. La 010 ne se redéclenchera pas pour lui. Il gardera des estampilles sans auteur, qui perdent les égalités au lieu de corrompre des données — jugé préférable à une passe de nettoyage au démarrage qui tournerait à chaque lancement pour toujours.
