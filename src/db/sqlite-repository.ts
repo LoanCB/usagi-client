@@ -190,10 +190,13 @@ export class SqliteRepository implements TodoRepository {
 	async createProject(input: CreateProjectInput): Promise<Project> {
 		const id = crypto.randomUUID();
 		const now = new Date().toISOString();
-		await this.db.execute(
-			"INSERT INTO projects (id, name, color, icon, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?)",
-			[id, input.name, input.color ?? null, input.icon ?? null, now, now],
-		);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				"INSERT INTO projects (id, name, color, icon, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?)",
+				[id, input.name, input.color ?? null, input.icon ?? null, now, now],
+			);
+			await this._stamp("projects", id, ["name", "color", "icon"], now, tx);
+		});
 		const project = await this._getProject(id);
 		if (!project) throw new Error(`Project not found after write: ${id}`);
 		return project;
@@ -206,23 +209,30 @@ export class SqliteRepository implements TodoRepository {
 		const now = new Date().toISOString();
 		const sets: string[] = ["updated_at = ?"];
 		const params: unknown[] = [now];
+		const touched: string[] = [];
 		if ("name" in patch) {
 			sets.push("name = ?");
 			params.push(patch.name);
+			touched.push("name");
 		}
 		if ("color" in patch) {
 			sets.push("color = ?");
 			params.push(patch.color ?? null);
+			touched.push("color");
 		}
 		if ("icon" in patch) {
 			sets.push("icon = ?");
 			params.push(patch.icon ?? null);
+			touched.push("icon");
 		}
 		params.push(id);
-		await this.db.execute(
-			`UPDATE projects SET ${sets.join(", ")} WHERE id = ?`,
-			params,
-		);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				`UPDATE projects SET ${sets.join(", ")} WHERE id = ?`,
+				params,
+			);
+			await this._stamp("projects", id, touched, now, tx);
+		});
 		const project = await this._getProject(id);
 		if (!project) throw new Error(`Project not found after write: ${id}`);
 		return project;
@@ -230,18 +240,31 @@ export class SqliteRepository implements TodoRepository {
 
 	async deleteProject(id: string): Promise<void> {
 		const now = new Date().toISOString();
-		await this.db.execute(
-			"DELETE FROM task_tags WHERE tag_id IN (SELECT id FROM tags WHERE project_id = ?)",
-			[id],
-		);
-		await this.db.execute(
-			"UPDATE tags SET deleted_at = ?, updated_at = ? WHERE project_id = ?",
-			[now, now, id],
-		);
-		await this.db.execute(
-			"UPDATE projects SET deleted_at = ?, updated_at = ? WHERE id = ?",
-			[now, now, id],
-		);
+		await this.db.transaction(async (tx) => {
+			const tags = await tx.select<{ id: string }>(
+				"SELECT id FROM tags WHERE project_id = ?",
+				[id],
+			);
+			await tx.execute(
+				"DELETE FROM task_tags WHERE tag_id IN (SELECT id FROM tags WHERE project_id = ?)",
+				[id],
+			);
+			await tx.execute(
+				"UPDATE tags SET deleted_at = ?, updated_at = ? WHERE project_id = ?",
+				[now, now, id],
+			);
+			// The cascade blanks deleted_at on every tag under this project — each
+			// one needs its own stamp, or the cascaded delete comes straight back
+			// the moment another device pushes its own stale copy of that tag.
+			for (const tag of tags) {
+				await this._stamp("tags", tag.id, ["deleted_at"], now, tx);
+			}
+			await tx.execute(
+				"UPDATE projects SET deleted_at = ?, updated_at = ? WHERE id = ?",
+				[now, now, id],
+			);
+			await this._stamp("projects", id, ["deleted_at"], now, tx);
+		});
 	}
 
 	private async _getProject(id: string): Promise<Project | null> {
@@ -270,10 +293,13 @@ export class SqliteRepository implements TodoRepository {
 			"SELECT MAX(sort_order) as max_order FROM project_groups",
 		);
 		const nextOrder = (maxRows[0]?.max_order ?? -1) + 1;
-		await this.db.execute(
-			"INSERT INTO project_groups (id, name, color, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-			[id, input.name, input.color, nextOrder, now, now],
-		);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				"INSERT INTO project_groups (id, name, color, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+				[id, input.name, input.color, nextOrder, now, now],
+			);
+			await this._stamp("project_groups", id, ["name", "color"], now, tx);
+		});
 		const group = await this._getProjectGroup(id);
 		if (!group) throw new Error(`ProjectGroup not found after write: ${id}`);
 		return group;
@@ -286,19 +312,25 @@ export class SqliteRepository implements TodoRepository {
 		const now = new Date().toISOString();
 		const sets: string[] = ["updated_at = ?"];
 		const params: unknown[] = [now];
+		const touched: string[] = [];
 		if ("name" in patch) {
 			sets.push("name = ?");
 			params.push(patch.name);
+			touched.push("name");
 		}
 		if ("color" in patch) {
 			sets.push("color = ?");
 			params.push(patch.color);
+			touched.push("color");
 		}
 		params.push(id);
-		await this.db.execute(
-			`UPDATE project_groups SET ${sets.join(", ")} WHERE id = ?`,
-			params,
-		);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				`UPDATE project_groups SET ${sets.join(", ")} WHERE id = ?`,
+				params,
+			);
+			await this._stamp("project_groups", id, touched, now, tx);
+		});
 		const group = await this._getProjectGroup(id);
 		if (!group) throw new Error(`ProjectGroup not found after write: ${id}`);
 		return group;
@@ -372,10 +404,20 @@ export class SqliteRepository implements TodoRepository {
 	async createTag(input: CreateTagInput): Promise<Tag> {
 		const id = crypto.randomUUID();
 		const now = new Date().toISOString();
-		await this.db.execute(
-			"INSERT INTO tags (id, name, color, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-			[id, input.name, input.color ?? null, input.projectId ?? null, now, now],
-		);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				"INSERT INTO tags (id, name, color, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+				[
+					id,
+					input.name,
+					input.color ?? null,
+					input.projectId ?? null,
+					now,
+					now,
+				],
+			);
+			await this._stamp("tags", id, ["name", "color", "project_id"], now, tx);
+		});
 		const tag = await this._getTag(id);
 		if (!tag) throw new Error(`Tag not found after write: ${id}`);
 		return tag;
@@ -385,23 +427,30 @@ export class SqliteRepository implements TodoRepository {
 		const now = new Date().toISOString();
 		const sets: string[] = ["updated_at = ?"];
 		const params: unknown[] = [now];
+		const touched: string[] = [];
 		if ("name" in patch) {
 			sets.push("name = ?");
 			params.push(patch.name);
+			touched.push("name");
 		}
 		if ("color" in patch) {
 			sets.push("color = ?");
 			params.push(patch.color ?? null);
+			touched.push("color");
 		}
 		if ("projectId" in patch) {
 			sets.push("project_id = ?");
 			params.push(patch.projectId ?? null);
+			touched.push("project_id");
 		}
 		params.push(id);
-		await this.db.execute(
-			`UPDATE tags SET ${sets.join(", ")} WHERE id = ?`,
-			params,
-		);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				`UPDATE tags SET ${sets.join(", ")} WHERE id = ?`,
+				params,
+			);
+			await this._stamp("tags", id, touched, now, tx);
+		});
 		const tag = await this._getTag(id);
 		if (!tag) throw new Error(`Tag not found after write: ${id}`);
 		return tag;
@@ -409,10 +458,13 @@ export class SqliteRepository implements TodoRepository {
 
 	async deleteTag(id: string): Promise<void> {
 		const now = new Date().toISOString();
-		await this.db.execute(
-			"UPDATE tags SET deleted_at = ?, updated_at = ? WHERE id = ?",
-			[now, now, id],
-		);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				"UPDATE tags SET deleted_at = ?, updated_at = ? WHERE id = ?",
+				[now, now, id],
+			);
+			await this._stamp("tags", id, ["deleted_at"], now, tx);
+		});
 	}
 
 	private async _getTag(id: string): Promise<Tag | null> {

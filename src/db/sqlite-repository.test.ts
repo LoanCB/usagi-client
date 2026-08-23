@@ -48,17 +48,21 @@ function makeDb(overrides: Partial<DbDriver> = {}): DbDriver {
 describe("SqliteRepository — projects", () => {
 	it("createProject inserts a row and returns a Project", async () => {
 		const db = makeDb({
-			select: vi.fn().mockResolvedValueOnce([
-				{
-					id: "proj-1",
-					name: "Boulot",
-					color: "#6366f1",
-					icon: "💼",
-					sort_order: 0,
-					created_at: "2026-04-10T10:00:00.000Z",
-					updated_at: "2026-04-10T10:00:00.000Z",
-				},
-			]),
+			select: vi
+				.fn()
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
+				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
+				.mockResolvedValueOnce([
+					{
+						id: "proj-1",
+						name: "Boulot",
+						color: "#6366f1",
+						icon: "💼",
+						sort_order: 0,
+						created_at: "2026-04-10T10:00:00.000Z",
+						updated_at: "2026-04-10T10:00:00.000Z",
+					},
+				]), // _getProject after insert
 		});
 		const repo = new SqliteRepository(db);
 		const project = await repo.createProject({
@@ -69,7 +73,8 @@ describe("SqliteRepository — projects", () => {
 		expect(project.name).toBe("Boulot");
 		expect(project.color).toBe("#6366f1");
 		expect(typeof project.id).toBe("string");
-		expect(db.execute).toHaveBeenCalledOnce();
+		// INSERT + the stamp's own UPDATE ... SET field_updated_at
+		expect(db.execute).toHaveBeenCalledTimes(2);
 	});
 
 	it("getProjects returns only non-deleted rows, mapped to Project", async () => {
@@ -114,32 +119,45 @@ describe("SqliteRepository — projects", () => {
 	});
 
 	it("deleteProject cascades: removes task_tags, soft-deletes tags, then soft-deletes project", async () => {
-		const db = makeDb();
+		// No tags under this project, so the cascade's per-tag stamping loop is a
+		// no-op — isolates this test to the write ordering, not the cascade stamp.
+		const db = makeDb({
+			select: vi
+				.fn()
+				.mockResolvedValueOnce([]) // tags under this project (none)
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
+				.mockResolvedValueOnce([{ field_updated_at: null }]), // _stamp's prior lookup
+		});
 		const repo = new SqliteRepository(db);
 		await repo.deleteProject("proj-1");
 		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls;
-		expect(calls).toHaveLength(3);
 		expect(calls[0][0]).toContain("DELETE FROM task_tags");
 		expect(calls[0][1]).toContain("proj-1");
 		expect(calls[1][0]).toContain("UPDATE tags SET deleted_at");
 		expect(calls[1][1]).toContain("proj-1");
-		expect(calls[2][0]).toContain("UPDATE projects SET deleted_at");
-		expect(calls[2][1]).toContain("proj-1");
+		const projectUpdate = calls.find((c) =>
+			String(c[0]).startsWith("UPDATE projects SET deleted_at"),
+		);
+		expect(projectUpdate?.[1]).toContain("proj-1");
 	});
 
 	it("updateProject updates specified fields and sets updated_at", async () => {
 		const db = makeDb({
-			select: vi.fn().mockResolvedValueOnce([
-				{
-					id: "p1",
-					name: "Updated",
-					color: null,
-					icon: null,
-					sort_order: 0,
-					created_at: "2026-04-10T10:00:00.000Z",
-					updated_at: "2026-04-10T11:00:00.000Z",
-				},
-			]),
+			select: vi
+				.fn()
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
+				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
+				.mockResolvedValueOnce([
+					{
+						id: "p1",
+						name: "Updated",
+						color: null,
+						icon: null,
+						sort_order: 0,
+						created_at: "2026-04-10T10:00:00.000Z",
+						updated_at: "2026-04-10T11:00:00.000Z",
+					},
+				]), // _getProject after update
 		});
 		const repo = new SqliteRepository(db);
 		await repo.updateProject("p1", { name: "Updated" });
@@ -154,9 +172,11 @@ describe("SqliteRepository — tags", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
+				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
 				.mockResolvedValueOnce([
 					{ id: "tag-1", name: "urgent", color: "#f00", project_id: null },
-				]),
+				]), // _getTag after insert
 		});
 		const repo = new SqliteRepository(db);
 		const tag = await repo.createTag({ name: "urgent", color: "#f00" });
@@ -169,9 +189,11 @@ describe("SqliteRepository — tags", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
+				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
 				.mockResolvedValueOnce([
 					{ id: "tag-2", name: "work-tag", color: null, project_id: "proj-1" },
-				]),
+				]), // _getTag after insert
 		});
 		const repo = new SqliteRepository(db);
 		await repo.createTag({ name: "work-tag", projectId: "proj-1" });
@@ -244,9 +266,11 @@ describe("SqliteRepository — tags", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
+				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
 				.mockResolvedValueOnce([
 					{ id: "t1", name: "urgent", color: "#f00", project_id: null },
-				]),
+				]), // _getTag after update
 		});
 		const repo = new SqliteRepository(db);
 		await repo.updateTag("t1", { color: "#f00" });
@@ -259,9 +283,11 @@ describe("SqliteRepository — tags", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
+				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
 				.mockResolvedValueOnce([
 					{ id: "t1", name: "urgent", color: null, project_id: "proj-1" },
-				]),
+				]), // _getTag after update
 		});
 		const repo = new SqliteRepository(db);
 		await repo.updateTag("t1", { projectId: "proj-1" });
@@ -834,6 +860,8 @@ describe("SqliteRepository — project groups", () => {
 			select: vi
 				.fn()
 				.mockResolvedValueOnce([{ max_order: null }]) // MAX(sort_order) query
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
+				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
 				.mockResolvedValueOnce([
 					{
 						id: "grp-1",
@@ -843,7 +871,7 @@ describe("SqliteRepository — project groups", () => {
 						created_at: now,
 						updated_at: now,
 					},
-				]),
+				]), // _getProjectGroup after insert
 		});
 		const repo = new SqliteRepository(db);
 		const group = await repo.createProjectGroup({
@@ -853,7 +881,8 @@ describe("SqliteRepository — project groups", () => {
 		expect(group.name).toBe("Perso");
 		expect(group.color).toBe("#6366f1");
 		expect(typeof group.id).toBe("string");
-		expect(db.execute).toHaveBeenCalledOnce();
+		// INSERT + the stamp's own UPDATE ... SET field_updated_at
+		expect(db.execute).toHaveBeenCalledTimes(2);
 	});
 
 	it("getProjectGroups returns mapped ProjectGroup[]", async () => {
@@ -934,21 +963,26 @@ describe("SqliteRepository — project groups", () => {
 	it("updateProjectGroup updates name and returns updated group", async () => {
 		const now = "2026-06-18T10:00:00.000Z";
 		const db = makeDb({
-			select: vi.fn().mockResolvedValueOnce([
-				{
-					id: "grp-1",
-					name: "Updated",
-					color: "#3b82f6",
-					sort_order: 0,
-					created_at: now,
-					updated_at: now,
-				},
-			]),
+			select: vi
+				.fn()
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
+				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
+				.mockResolvedValueOnce([
+					{
+						id: "grp-1",
+						name: "Updated",
+						color: "#3b82f6",
+						sort_order: 0,
+						created_at: now,
+						updated_at: now,
+					},
+				]), // _getProjectGroup after update
 		});
 		const repo = new SqliteRepository(db);
 		const updated = await repo.updateProjectGroup("grp-1", { name: "Updated" });
 		expect(updated.name).toBe("Updated");
-		expect(db.execute).toHaveBeenCalledOnce();
+		// UPDATE + the stamp's own UPDATE ... SET field_updated_at
+		expect(db.execute).toHaveBeenCalledTimes(2);
 		const call = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
 		expect(call[0]).toContain("UPDATE project_groups");
 		expect(call[1]).toContain("grp-1");
@@ -1097,5 +1131,132 @@ describe("field stamping beyond updateTask", () => {
 			[task.id],
 		);
 		expect(rows[0]?.deleted_at).toBeNull();
+	});
+});
+
+describe("field stamping — projects, tags, project groups", () => {
+	// Same failure mode as tasks: a write path that skips _stamp leaves
+	// field_updated_at NULL, so a merge engine has nothing to compare and the
+	// remote value wins by default — the local edit silently reverts.
+	async function stampsOf(
+		db: BetterSqliteDriver,
+		table: "projects" | "tags" | "project_groups",
+		id: string,
+	) {
+		const rows = await db.select<{ field_updated_at: string | null }>(
+			`SELECT field_updated_at FROM ${table} WHERE id = ?`,
+			[id],
+		);
+		return JSON.parse(rows[0]?.field_updated_at ?? "{}") as Record<
+			string,
+			{ t: string; d: string }
+		>;
+	}
+
+	let db: BetterSqliteDriver;
+	let repo: SqliteRepository;
+
+	beforeEach(async () => {
+		db = new BetterSqliteDriver();
+		await runMigrations(db, ALL_MIGRATIONS);
+		repo = new SqliteRepository(db);
+	});
+
+	afterEach(() => db?.close());
+
+	it("createProject stamps the fields it writes", async () => {
+		const project = await repo.createProject({
+			name: "p",
+			color: "#fff",
+			icon: "🏠",
+		});
+		const stamps = await stampsOf(db, "projects", project.id);
+		expect(stamps.name).toBeDefined();
+		expect(stamps.color).toBeDefined();
+		expect(stamps.icon).toBeDefined();
+		expect(stamps.name.d).toMatch(/^[0-9a-f-]{36}$/);
+	});
+
+	it("updateProject stamps only the fields in the patch", async () => {
+		// createProject already stamps name, color and icon regardless of which
+		// were passed in, so presence on `color` would pass even if update never
+		// re-stamped it — only a changed `t` proves this write touched it.
+		const project = await repo.createProject({ name: "p" });
+		const before = await stampsOf(db, "projects", project.id);
+		await new Promise((resolve) => setTimeout(resolve, 2));
+		await repo.updateProject(project.id, { color: "#fff" });
+		const after = await stampsOf(db, "projects", project.id);
+		expect(after.color.t).not.toBe(before.color.t);
+		// An untouched field keeps its old stamp: re-stamping everything on every
+		// write would make the last writer win the whole row, not the field.
+		expect(after.name.t).toBe(before.name.t);
+	});
+
+	it("deleteProject stamps deleted_at on the project", async () => {
+		const project = await repo.createProject({ name: "p" });
+		await repo.deleteProject(project.id);
+		const stamps = await stampsOf(db, "projects", project.id);
+		expect(stamps.deleted_at).toBeDefined();
+	});
+
+	it("deleteProject stamps the cascaded tag deletions too", async () => {
+		const project = await repo.createProject({ name: "p" });
+		const tag = await repo.createTag({ name: "t", projectId: project.id });
+		// createTag already stamps deleted_at? No — creation never touches
+		// deleted_at, so presence alone is a genuine assertion here.
+		await repo.deleteProject(project.id);
+		// The cascade writes deleted_at on the tag; unstamped, the tag would come
+		// back the moment another device pushed its own stale copy.
+		const stamps = await stampsOf(db, "tags", tag.id);
+		expect(stamps.deleted_at).toBeDefined();
+	});
+
+	it("createProjectGroup stamps the fields it writes", async () => {
+		const group = await repo.createProjectGroup({ name: "g", color: "#000" });
+		const stamps = await stampsOf(db, "project_groups", group.id);
+		expect(stamps.name).toBeDefined();
+		expect(stamps.color).toBeDefined();
+		expect(stamps.name.d).toMatch(/^[0-9a-f-]{36}$/);
+	});
+
+	it("updateProjectGroup stamps only the fields in the patch", async () => {
+		const group = await repo.createProjectGroup({ name: "g", color: "#000" });
+		const before = await stampsOf(db, "project_groups", group.id);
+		await new Promise((resolve) => setTimeout(resolve, 2));
+		await repo.updateProjectGroup(group.id, { name: "g2" });
+		const after = await stampsOf(db, "project_groups", group.id);
+		expect(after.name).toBeDefined();
+		expect(after.name.t).not.toBe(before.name.t);
+		// color was not in the patch — its stamp must not move.
+		expect(after.color.t).toBe(before.color.t);
+	});
+
+	it("createTag stamps the fields it writes", async () => {
+		const tag = await repo.createTag({ name: "t", color: "#abc" });
+		const stamps = await stampsOf(db, "tags", tag.id);
+		expect(stamps.name).toBeDefined();
+		expect(stamps.color).toBeDefined();
+		expect(stamps.project_id).toBeDefined();
+		expect(stamps.name.d).toMatch(/^[0-9a-f-]{36}$/);
+	});
+
+	it("updateTag stamps only the fields in the patch", async () => {
+		const tag = await repo.createTag({ name: "t", color: "#abc" });
+		const before = await stampsOf(db, "tags", tag.id);
+		await new Promise((resolve) => setTimeout(resolve, 2));
+		await repo.updateTag(tag.id, { color: "#def" });
+		const after = await stampsOf(db, "tags", tag.id);
+		expect(after.color.t).not.toBe(before.color.t);
+		// name was not in the patch — its stamp must not move.
+		expect(after.name.t).toBe(before.name.t);
+	});
+
+	it("deleteTag stamps deleted_at", async () => {
+		const tag = await repo.createTag({ name: "t" });
+		// createTag never touches deleted_at, so presence alone is a genuine
+		// assertion here — there is no prior stamp it could be confused with.
+		await repo.deleteTag(tag.id);
+		const stamps = await stampsOf(db, "tags", tag.id);
+		expect(stamps.deleted_at).toBeDefined();
 	});
 });
