@@ -665,6 +665,20 @@ implémenté et revu tâche par tâche. Il a livré des colonnes et une outbox *
 rien ne les lit encore. Cinq points doivent être traités **avant** que le moteur de
 synchronisation ne s'appuie dessus. Ils sont listés par ordre de dépendance.
 
+> **Décomposition (2026-08-23, avant rédaction du plan 4).** Ce qui était appelé
+> « plan 4 » recouvre trois livrables indépendants, et se découpe en trois plans :
+>
+> - **4a** — les six prérequis de cette section, entièrement côté client, sans réseau.
+> - **4b** — côté serveur : la table des enregistrements chiffrés, le compteur de
+>   séquence du §3.2, et les endpoints `POST /v1/sync/push` / `GET /v1/sync/pull`.
+>   Le plan 2 n'a livré que l'authentification, les clés, les appareils et
+>   `server-info` — **rien du §3 ni des deux routes de sync n'existe**.
+> - **4c** — le moteur client : pull → merge → push, LWW par champ, vidange de
+>   l'outbox, déclencheurs du §4.2.
+>
+> Chacun livre du logiciel testable seul, et 4a corrige le modèle de données existant :
+> il mérite d'être revu et mis en production sans être mêlé à de la logique réseau.
+
 ### 9.1 Trancher la sémantique de `sort_key`, puis re-backfiller intégralement
 
 `sort_order` — et donc `sort_key`, qui le mirroir — encode un ordre **par vue filtrée** :
@@ -674,6 +688,28 @@ dans aucune clé unique par ligne**, quelle que soit la stratégie d'ancrage.
 
 Il faut choisir : ordre scopé par projet (une séquence de clés par projet) ou ordre global
 unique. Puis **re-backfiller toutes les lignes depuis zéro**.
+
+> **Tranché (2026-08-23) : ordre global unique.** L'exploration du code a écarté
+> l'option par projet sur un fait, pas sur une préférence — le glisser-déposer est
+> actif dans Inbox, Aujourd'hui, Toutes les tâches et les vues filtrées par tag ou
+> priorité, qui traversent toutes les projets. Un ordre scopé par projet imposerait
+> de désactiver le réordonnancement dans ces vues : une régression fonctionnelle
+> visible, pas un détail d'implémentation.
+>
+> **Ce que le glisser-déposer devient.** Déposer une tâche entre deux voisines
+> visibles lui attribue `generateKeyBetween(clé_de_la_précédente, clé_de_la_suivante)`.
+> **Une seule ligne est écrite**, au lieu des `0..N-1` réécrits aujourd'hui sur tout
+> le sous-ensemble affiché. Les tâches masquées gardent leur clé ; la déposée atterrit
+> parmi elles à la position choisie. C'est ce que l'indexation fractionnaire rend
+> naturel, et c'est aussi ce qui supprime la collision décrite ci-dessous.
+>
+> **La bascule des lectures fait partie du même plan.** Aucun `ORDER BY` de production
+> ne lit `sort_key` aujourd'hui : il est écrit par `reorderTasks` et le backfill, et
+> l'affichage passe encore intégralement par `sort_order`. Écrire une nouvelle
+> sémantique sans basculer les lectures livrerait une propriété que rien n'exerce.
+> C'est aussi le moment le moins coûteux pour basculer : tant que `sort_key` n'est pas
+> lu, un changement correct est invisible et un changement faux est immédiatement
+> visible.
 
 Ne faire confiance à **aucune** valeur de `sort_key` existante. Deux causes distinctes de
 divergence coexistent :
@@ -709,6 +745,41 @@ Décider au passage ce que `bulkImport` doit faire des tombstones : en mode `rep
 `DELETE FROM tasks` les détruit physiquement, et en mode `merge` son `INSERT OR REPLACE`
 remet `field_updated_at`, `purged_at` et `sort_key` à NULL pour **toute** tâche importée.
 
+> **Tranché (2026-08-23) : l'import est une édition locale en masse, qui se propage —
+> derrière une confirmation explicite.**
+>
+> Deux précisions que l'exploration a ajoutées au constat ci-dessus. Le format d'export
+> ne transporte **aucune** colonne de sync : `ExportData.tasks` est typé `Task`, qui n'a
+> ni `field_updated_at`, ni `purged_at`, ni `sort_key`. Et `merge` n'est pas plus doux
+> que `replace` : sur une collision d'identifiant, `INSERT OR REPLACE` est un
+> DELETE-puis-INSERT en SQLite, donc il remet ces trois colonnes à NULL exactement
+> comme `replace`.
+>
+> **Le scénario à empêcher.** L'utilisateur supprime une tâche sur A ; le tombstone se
+> propage à B. Il restaure ensuite sur A une sauvegarde antérieure à la suppression.
+> L'`INSERT OR REPLACE` écrase le tombstone par une ligne vivante estampillée
+> maintenant, qui gagne le LWW et **ressuscite la tâche sur B**. Une restauration
+> locale annule une suppression à distance, sans que rien ne le signale.
+>
+> **Sémantique retenue :**
+> - Chaque ligne écrite par l'import est estampillée `field_updated_at` à maintenant,
+>   avec l'identifiant réel de l'appareil ; l'outbox la pousse comme n'importe quelle
+>   écriture locale.
+> - En mode `replace`, les lignes locales absentes de la sauvegarde sont
+>   **tombstonées**, pas supprimées physiquement — sans quoi la suppression ne se
+>   propage pas et le trigger DELETE remplit l'outbox d'entrées pointant vers des
+>   lignes disparues, exactement le défaut décrit pour `deleteProjectGroup`.
+> - L'écran d'import affiche un **avertissement explicite** et demande une
+>   **confirmation** avant d'agir : sous synchronisation, restaurer une sauvegarde
+>   n'est plus une opération locale, elle réécrit les autres appareils. L'utilisateur
+>   doit le savoir avant de cliquer, pas après.
+>
+> **Le format d'export ne change pas.** Il reste une sauvegarde de contenu métier,
+> lisible et stable, et les sauvegardes déjà produites restent importables. L'import
+> redérive les métadonnées de sync à l'écriture plutôt que de les transporter — leur
+> ajout ferait de l'export un format interne pour un gain qui ne se manifeste que dans
+> le cas étroit d'une restauration voulant recréer un état de sync exact.
+
 ### 9.5 Ajouter la notion de transaction à `DbDriver`
 
 `DbDriver` (`src/db/driver.ts`) n'expose que `execute` et `select`. Le §4.1 exige que le
@@ -725,6 +796,17 @@ grosse lacune d'interface laissée par le plan 1.
 - **`LOCAL_DEVICE_ID = "local"`** est un placeholder déjà persisté sur disque chez les
   utilisateurs. Le moteur devra le remplacer par un identifiant réel stocké dans
   `sync_state`, et réécrire les stamps existants.
+
+  > **Aggravation (2026-08-23).** Ce n'est pas seulement une valeur à remplacer : c'est
+  > la **même chaîne littérale sur toutes les installations**. Or le §5 départage les
+  > égalités LWW par comparaison lexicographique du `device_id`. Avec `"local"`
+  > partout, deux écritures concurrentes au même horodatage sont strictement égales et
+  > **le départage ne tranche jamais** — les appareils peuvent diverger sans converger.
+  > Le mécanisme de départage du §5 est donc inopérant tant que ce point n'est pas
+  > traité, et il l'est dans le plan 4a, pas dans le moteur.
+  >
+  > `sync_state` existe depuis la migration 009 mais **rien ne l'écrit ni ne le lit** à
+  > ce jour.
 - **`isIgnorable`** ne tolère que `/duplicate column name/i`, vérifié sous `better-sqlite3`
   mais **pas** sous `@tauri-apps/plugin-sql`. À confirmer par un rejeu hérité réel avant
   de s'y fier (voir la porte de sortie de release).
