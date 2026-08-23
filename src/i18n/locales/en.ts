@@ -267,7 +267,13 @@ const en = {
 		importSummary: "{{tasks}} tasks, {{projects}} projects, {{tags}} tags",
 		merge: "Merge",
 		replace: "Replace",
-		replaceWarning: "All your current data will be permanently deleted.",
+		mergeExplanation:
+			"Tasks, projects and tags from the backup are added to your current data. Entries that already exist are overwritten with the backup's version.",
+		replaceExplanation:
+			"On top of adding and overwriting like merge does, anything missing from the backup is deleted — including on your other synced devices.",
+		replaceWarning:
+			"This will delete tasks missing from the backup on all your other devices. This cannot be undone.",
+		importConfirm: "Import",
 		exportError: "Export failed",
 		importError: "Invalid or corrupted file",
 		importDescription:

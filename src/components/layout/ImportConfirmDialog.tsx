@@ -10,6 +10,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import type { ExportData } from "@/lib/dataTransfer";
+import { cn } from "@/lib/utils";
 
 interface ImportConfirmDialogProps {
 	readonly data: ExportData;
@@ -23,7 +24,10 @@ export function ImportConfirmDialog({
 	onCancel,
 }: ImportConfirmDialogProps) {
 	const { t } = useTranslation();
-	const [hoverReplace, setHoverReplace] = useState(false);
+	// Mode is picked first and confirmed separately: under sync, replace
+	// rewrites other devices, so the user must see the consequence before
+	// bulkImport is ever called, not merely by hovering a button.
+	const [mode, setMode] = useState<"merge" | "replace">("merge");
 
 	return (
 		<Dialog
@@ -32,7 +36,7 @@ export function ImportConfirmDialog({
 				if (!open) onCancel();
 			}}
 		>
-			<DialogContent className="sm:max-w-sm">
+			<DialogContent role="alertdialog" className="sm:max-w-sm">
 				<DialogHeader>
 					<DialogTitle>{t("data.importConfirmTitle")}</DialogTitle>
 				</DialogHeader>
@@ -46,27 +50,49 @@ export function ImportConfirmDialog({
 				</DialogDescription>
 
 				<div className="flex flex-col gap-2 pt-2">
-					<Button variant="default" onClick={() => onConfirm("merge")}>
-						{t("data.merge")}
-					</Button>
-					<Button
-						variant="destructive"
-						onClick={() => onConfirm("replace")}
-						onMouseEnter={() => setHoverReplace(true)}
-						onMouseLeave={() => setHoverReplace(false)}
-						onFocus={() => setHoverReplace(true)}
-						onBlur={() => setHoverReplace(false)}
-					>
-						{t("data.replace")}
-					</Button>
-					<p
-						aria-hidden={!hoverReplace}
-						className={`flex items-center gap-1.5 text-xs text-destructive transition-opacity ${hoverReplace ? "opacity-100" : "opacity-0"}`}
-					>
-						<AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-						{t("data.replaceWarning")}
+					<div className="flex gap-2">
+						<Button
+							type="button"
+							variant="outline"
+							aria-pressed={mode === "merge"}
+							className={cn(mode === "merge" && "bg-muted text-foreground")}
+							onClick={() => setMode("merge")}
+						>
+							{t("data.merge")}
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							aria-pressed={mode === "replace"}
+							className={cn(
+								mode === "replace" && "bg-destructive/10 text-destructive",
+							)}
+							onClick={() => setMode("replace")}
+						>
+							{t("data.replace")}
+						</Button>
+					</div>
+
+					<p className="text-xs text-muted-foreground">
+						{mode === "merge"
+							? t("data.mergeExplanation")
+							: t("data.replaceExplanation")}
 					</p>
+
+					{mode === "replace" && (
+						<p className="flex items-center gap-1.5 text-xs text-destructive">
+							<AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+							{t("data.replaceWarning")}
+						</p>
+					)}
 				</div>
+
+				<Button
+					variant={mode === "replace" ? "destructive" : "default"}
+					onClick={() => onConfirm(mode)}
+				>
+					{t("data.importConfirm")}
+				</Button>
 
 				<Button
 					variant="ghost"

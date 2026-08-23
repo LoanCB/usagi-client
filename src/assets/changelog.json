@@ -2,6 +2,19 @@
 	"generatedAt": "2026-08-20",
 	"versions": [
 		{
+			"version": "Unreleased",
+			"tag": null,
+			"date": null,
+			"changes": {
+				"features": [
+					{
+						"en": "Importing a backup now shows a confirmation dialog explaining what merge and replace each do, and warns that replace deletes tasks missing from the backup on all your synced devices, not just this one.",
+						"fr": "L'import d'une sauvegarde affiche désormais une confirmation qui explique ce que font fusionner et remplacer, et avertit que remplacer supprime les tâches absentes de la sauvegarde sur tous vos appareils synchronisés, pas seulement celui-ci."
+					}
+				]
+			}
+		},
+		{
 			"version": "2026.3.1",
 			"tag": "v2026.3.1",
 			"date": "2026-08-20",
