@@ -918,13 +918,31 @@ describe("SqliteRepository — project groups", () => {
 		expect(groups[1].sortOrder).toBe(1);
 	});
 
-	it("deleteProjectGroup executes a DELETE", async () => {
-		const db = makeDb();
+	it("deleteProjectGroup tombstones the row instead of deleting it", async () => {
+		const db = makeDb({
+			select: vi
+				.fn()
+				.mockResolvedValueOnce([]) // detached projects lookup
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
+				.mockResolvedValueOnce([{ field_updated_at: null }]), // _stamp's prior lookup
+		});
 		const repo = new SqliteRepository(db);
 		await repo.deleteProjectGroup("grp-1");
-		expect(db.execute).toHaveBeenCalledWith(expect.stringContaining("DELETE"), [
-			"grp-1",
-		]);
+		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls;
+		expect(
+			calls.some((c) => String(c[0]).includes("DELETE FROM project_groups")),
+		).toBe(false);
+		const purge = calls.find((c) => String(c[0]).includes("purged_at"));
+		expect(purge).toBeDefined();
+		expect(purge?.[1]).toContain("grp-1");
+	});
+
+	it("getProjectGroups filters out purged rows", async () => {
+		const db = makeDb();
+		const repo = new SqliteRepository(db);
+		await repo.getProjectGroups();
+		const select = (db.select as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(String(select[0])).toContain("purged_at IS NULL");
 	});
 
 	it("assignProjectToGroup sets group_id on a project", async () => {
@@ -973,6 +991,116 @@ describe("SqliteRepository — project groups", () => {
 		const call = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
 		expect(call[0]).toContain("UPDATE project_groups");
 		expect(call[1]).toContain("grp-1");
+	});
+});
+
+describe("SqliteRepository — deleteProjectGroup tombstone", () => {
+	// Real SQLite: these pin what the rows actually do after the delete, not
+	// just the shape of the statements — the mocked suite above already covers
+	// that. purged_at survival, the detach cascade, and the rollback on a
+	// mid-transaction failure all need genuine row state.
+	async function groupStampsOf(db: BetterSqliteDriver, id: string) {
+		const rows = await db.select<{ field_updated_at: string | null }>(
+			"SELECT field_updated_at FROM project_groups WHERE id = ?",
+			[id],
+		);
+		return JSON.parse(rows[0]?.field_updated_at ?? "{}") as Record<
+			string,
+			{ t: string; d: string }
+		>;
+	}
+
+	async function projectStampsOf(db: BetterSqliteDriver, id: string) {
+		const rows = await db.select<{ field_updated_at: string | null }>(
+			"SELECT field_updated_at FROM projects WHERE id = ?",
+			[id],
+		);
+		return JSON.parse(rows[0]?.field_updated_at ?? "{}") as Record<
+			string,
+			{ t: string; d: string }
+		>;
+	}
+
+	let db: BetterSqliteDriver;
+	let repo: SqliteRepository;
+
+	beforeEach(async () => {
+		db = new BetterSqliteDriver();
+		await runMigrations(db, ALL_MIGRATIONS);
+		repo = new SqliteRepository(db);
+	});
+
+	afterEach(() => db?.close());
+
+	it("tombstones the group instead of deleting the row", async () => {
+		const group = await repo.createProjectGroup({ name: "g", color: "#000" });
+		await repo.deleteProjectGroup(group.id);
+		const rows = await db.select<{ purged_at: string | null }>(
+			"SELECT purged_at FROM project_groups WHERE id = ?",
+			[group.id],
+		);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].purged_at).not.toBeNull();
+	});
+
+	it("detaches the projects that belonged to it", async () => {
+		// Without this the projects keep a group_id pointing at a row no reader
+		// can resolve, and the sidebar renders them under a group that is gone.
+		const group = await repo.createProjectGroup({ name: "g", color: "#000" });
+		const project = await repo.createProject({ name: "p" });
+		await repo.assignProjectToGroup(project.id, group.id);
+		await repo.deleteProjectGroup(group.id);
+		const rows = await db.select<{ group_id: string | null }>(
+			"SELECT group_id FROM projects WHERE id = ?",
+			[project.id],
+		);
+		expect(rows[0].group_id).toBeNull();
+	});
+
+	it("stamps both the tombstone and the detached projects", async () => {
+		// assignProjectToGroup already stamps group_id, so presence alone would
+		// pass even if the delete's own detach never re-stamped it — only a
+		// changed `t` proves this write touched it.
+		const group = await repo.createProjectGroup({ name: "g", color: "#000" });
+		const project = await repo.createProject({ name: "p" });
+		await repo.assignProjectToGroup(project.id, group.id);
+		const before = (await projectStampsOf(db, project.id)).group_id.t;
+		await new Promise((resolve) => setTimeout(resolve, 2));
+		await repo.deleteProjectGroup(group.id);
+		expect((await groupStampsOf(db, group.id)).purged_at).toBeDefined();
+		const after = await projectStampsOf(db, project.id);
+		expect(after.group_id).toBeDefined();
+		expect(after.group_id.t).not.toBe(before);
+	});
+
+	it("hides the tombstoned group from getProjectGroups while the row survives", async () => {
+		// The empty list alone would also hold for a physical DELETE, which is
+		// the exact regression this task fixes — pin survival too, so only the
+		// purged_at filter (not the row's absence) explains the empty list.
+		const group = await repo.createProjectGroup({ name: "g", color: "#000" });
+		await repo.deleteProjectGroup(group.id);
+		expect(await repo.getProjectGroups()).toEqual([]);
+		const rows = await db.select<{ purged_at: string | null }>(
+			"SELECT purged_at FROM project_groups WHERE id = ?",
+			[group.id],
+		);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].purged_at).not.toBeNull();
+	});
+
+	it("applies the tombstone and the detach atomically", async () => {
+		// Half of this pair is worse than neither: a tombstoned group whose
+		// projects still point at it renders an unresolvable reference.
+		const group = await repo.createProjectGroup({ name: "g", color: "#000" });
+		const project = await repo.createProject({ name: "p" });
+		await repo.assignProjectToGroup(project.id, group.id);
+		db.failNextExecuteMatching(/UPDATE projects SET group_id = NULL/);
+		await expect(repo.deleteProjectGroup(group.id)).rejects.toThrow();
+		const rows = await db.select<{ purged_at: string | null }>(
+			"SELECT purged_at FROM project_groups WHERE id = ?",
+			[group.id],
+		);
+		expect(rows[0].purged_at).toBeNull();
 	});
 });
 

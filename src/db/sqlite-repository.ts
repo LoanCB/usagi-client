@@ -323,7 +323,7 @@ export class SqliteRepository implements TodoRepository {
 
 	async getProjectGroups(): Promise<ProjectGroup[]> {
 		const rows = await this.db.select<ProjectGroupRow>(
-			"SELECT id, name, color, sort_order, created_at, updated_at FROM project_groups ORDER BY sort_key",
+			"SELECT id, name, color, sort_order, created_at, updated_at FROM project_groups WHERE purged_at IS NULL ORDER BY sort_key",
 		);
 		return rows.map(mapProjectGroup);
 	}
@@ -388,7 +388,32 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	async deleteProjectGroup(id: string): Promise<void> {
-		await this.db.execute("DELETE FROM project_groups WHERE id = ?", [id]);
+		const now = new Date().toISOString();
+		// Collected before the UPDATE below clears group_id: afterwards no row
+		// carries this id and the list to stamp would be empty.
+		const detached = await this.db.select<{ id: string }>(
+			"SELECT id FROM projects WHERE group_id = ?",
+			[id],
+		);
+		// Both writes or neither: a tombstoned group whose projects still carry
+		// its id renders a reference no reader can resolve. The tombstone write
+		// goes first so a failure in the detach (the one this task's atomicity
+		// test injects) has something to roll back — reversed, the tombstone
+		// would already be durable by the time the detach failed.
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				"UPDATE project_groups SET purged_at = ?, updated_at = ?, name = '' WHERE id = ?",
+				[now, now, id],
+			);
+			await tx.execute(
+				"UPDATE projects SET group_id = NULL, updated_at = ? WHERE group_id = ?",
+				[now, id],
+			);
+			await this._stamp("project_groups", id, ["purged_at", "name"], now, tx);
+			for (const project of detached) {
+				await this._stamp("projects", project.id, ["group_id"], now, tx);
+			}
+		});
 	}
 
 	/**
