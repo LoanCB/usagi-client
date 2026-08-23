@@ -50,6 +50,7 @@ describe("SqliteRepository — projects", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
+				.mockResolvedValueOnce([]) // _headKey — no existing rows
 				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
 				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
 				.mockResolvedValueOnce([
@@ -339,6 +340,7 @@ describe("SqliteRepository — tasks", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
+				.mockResolvedValueOnce([]) // _headKey — no existing rows
 				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId
 				.mockResolvedValueOnce([taskRow]) // getTask after insert
 				.mockResolvedValueOnce([]), // task_tags join
@@ -359,6 +361,7 @@ describe("SqliteRepository — tasks", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
+				.mockResolvedValueOnce([]) // _headKey — no existing rows
 				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId
 				.mockResolvedValueOnce([taskRow])
 				.mockResolvedValueOnce([]),
@@ -860,6 +863,7 @@ describe("SqliteRepository — project groups", () => {
 			select: vi
 				.fn()
 				.mockResolvedValueOnce([{ max_order: null }]) // MAX(sort_order) query
+				.mockResolvedValueOnce([]) // _headKey — no existing rows
 				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
 				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
 				.mockResolvedValueOnce([
@@ -1134,6 +1138,86 @@ describe("field stamping beyond updateTask", () => {
 	});
 });
 
+describe("sort_key at insert", () => {
+	let db: BetterSqliteDriver;
+	let repo: SqliteRepository;
+
+	beforeEach(async () => {
+		db = new BetterSqliteDriver();
+		await runMigrations(db, ALL_MIGRATIONS);
+		repo = new SqliteRepository(db);
+	});
+
+	afterEach(() => db?.close());
+
+	it("gives a new task a key without waiting for a restart", async () => {
+		const task = await repo.createTask({ title: "x" });
+		const rows = await db.select<{ sort_key: string | null }>(
+			"SELECT sort_key FROM tasks WHERE id = ?",
+			[task.id],
+		);
+		expect(rows[0].sort_key).not.toBeNull();
+	});
+
+	it("places a new task at the top, matching where the UI shows it", async () => {
+		// The optimistic store prepends a new task; the persisted order must
+		// agree, or the task jumps on the next reload.
+		const first = await repo.createTask({ title: "first" });
+		const second = await repo.createTask({ title: "second" });
+		const rows = await db.select<{ id: string; sort_key: string }>(
+			"SELECT id, sort_key FROM tasks ORDER BY sort_key",
+		);
+		expect(rows.map((r) => r.id)).toEqual([second.id, first.id]);
+	});
+
+	it("gives each new task a distinct key", async () => {
+		const a = await repo.createTask({ title: "a" });
+		const b = await repo.createTask({ title: "b" });
+		const rows = await db.select<{ sort_key: string }>(
+			"SELECT sort_key FROM tasks WHERE id IN (?, ?)",
+			[a.id, b.id],
+		);
+		expect(new Set(rows.map((r) => r.sort_key)).size).toBe(2);
+	});
+
+	it("stamps sort_key as a field", async () => {
+		const task = await repo.createTask({ title: "x" });
+		const rows = await db.select<{ field_updated_at: string | null }>(
+			"SELECT field_updated_at FROM tasks WHERE id = ?",
+			[task.id],
+		);
+		const stamps = JSON.parse(rows[0]?.field_updated_at ?? "{}") as Record<
+			string,
+			{ t: string; d: string }
+		>;
+		expect(stamps.sort_key).toBeDefined();
+	});
+
+	it("places a new project at the top of its ordering", async () => {
+		const first = await repo.createProject({ name: "first" });
+		const second = await repo.createProject({ name: "second" });
+		const rows = await db.select<{ id: string; sort_key: string }>(
+			"SELECT id, sort_key FROM projects ORDER BY sort_key",
+		);
+		expect(rows.map((r) => r.id)).toEqual([second.id, first.id]);
+	});
+
+	it("places a new project group at the top of its ordering", async () => {
+		const first = await repo.createProjectGroup({
+			name: "first",
+			color: "#000",
+		});
+		const second = await repo.createProjectGroup({
+			name: "second",
+			color: "#000",
+		});
+		const rows = await db.select<{ id: string; sort_key: string }>(
+			"SELECT id, sort_key FROM project_groups ORDER BY sort_key",
+		);
+		expect(rows.map((r) => r.id)).toEqual([second.id, first.id]);
+	});
+});
+
 describe("field stamping — projects, tags, project groups", () => {
 	// Same failure mode as tasks: a write path that skips _stamp leaves
 	// field_updated_at NULL, so a merge engine has nothing to compare and the
@@ -1197,6 +1281,16 @@ describe("field stamping — projects, tags, project groups", () => {
 		await repo.deleteProject(project.id);
 		const stamps = await stampsOf(db, "projects", project.id);
 		expect(stamps.deleted_at).toBeDefined();
+	});
+
+	it("assignProjectToGroup stamps group_id", async () => {
+		const project = await repo.createProject({ name: "p" });
+		const group = await repo.createProjectGroup({ name: "g", color: "#000" });
+		// createProject never touches group_id, so presence alone is a genuine
+		// assertion here — there is no prior stamp it could be confused with.
+		await repo.assignProjectToGroup(project.id, group.id);
+		const stamps = await stampsOf(db, "projects", project.id);
+		expect(stamps.group_id).toBeDefined();
 	});
 
 	it("deleteProject stamps the cascaded tag deletions too", async () => {

@@ -1,4 +1,4 @@
-import { generateNKeysBetween } from "fractional-indexing";
+import { generateKeyBetween, generateNKeysBetween } from "fractional-indexing";
 import type { ExportData } from "@/lib/dataTransfer";
 import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
 import type {
@@ -178,6 +178,20 @@ export class SqliteRepository implements TodoRepository {
 		]);
 	}
 
+	/**
+	 * A key that sorts before every existing row of `table`.
+	 *
+	 * New rows go to the top: that is where the optimistic store already shows
+	 * them, and disagreeing here makes a freshly created row jump on the next
+	 * reload.
+	 */
+	private async _headKey(table: SyncedTable): Promise<string> {
+		const rows = await this.db.select<{ sort_key: string | null }>(
+			`SELECT sort_key FROM ${table} WHERE sort_key IS NOT NULL ORDER BY sort_key LIMIT 1`,
+		);
+		return generateKeyBetween(null, rows[0]?.sort_key ?? null);
+	}
+
 	// ---------- Projects ----------
 
 	async getProjects(): Promise<Project[]> {
@@ -190,12 +204,27 @@ export class SqliteRepository implements TodoRepository {
 	async createProject(input: CreateProjectInput): Promise<Project> {
 		const id = crypto.randomUUID();
 		const now = new Date().toISOString();
+		const sortKey = await this._headKey("projects");
 		await this.db.transaction(async (tx) => {
 			await tx.execute(
-				"INSERT INTO projects (id, name, color, icon, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?)",
-				[id, input.name, input.color ?? null, input.icon ?? null, now, now],
+				"INSERT INTO projects (id, name, color, icon, sort_order, sort_key, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)",
+				[
+					id,
+					input.name,
+					input.color ?? null,
+					input.icon ?? null,
+					sortKey,
+					now,
+					now,
+				],
 			);
-			await this._stamp("projects", id, ["name", "color", "icon"], now, tx);
+			await this._stamp(
+				"projects",
+				id,
+				["name", "color", "icon", "sort_key"],
+				now,
+				tx,
+			);
 		});
 		const project = await this._getProject(id);
 		if (!project) throw new Error(`Project not found after write: ${id}`);
@@ -293,12 +322,19 @@ export class SqliteRepository implements TodoRepository {
 			"SELECT MAX(sort_order) as max_order FROM project_groups",
 		);
 		const nextOrder = (maxRows[0]?.max_order ?? -1) + 1;
+		const sortKey = await this._headKey("project_groups");
 		await this.db.transaction(async (tx) => {
 			await tx.execute(
-				"INSERT INTO project_groups (id, name, color, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-				[id, input.name, input.color, nextOrder, now, now],
+				"INSERT INTO project_groups (id, name, color, sort_order, sort_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+				[id, input.name, input.color, nextOrder, sortKey, now, now],
 			);
-			await this._stamp("project_groups", id, ["name", "color"], now, tx);
+			await this._stamp(
+				"project_groups",
+				id,
+				["name", "color", "sort_key"],
+				now,
+				tx,
+			);
 		});
 		const group = await this._getProjectGroup(id);
 		if (!group) throw new Error(`ProjectGroup not found after write: ${id}`);
@@ -365,10 +401,13 @@ export class SqliteRepository implements TodoRepository {
 		groupId: string | null,
 	): Promise<void> {
 		const now = new Date().toISOString();
-		await this.db.execute(
-			"UPDATE projects SET group_id = ?, updated_at = ? WHERE id = ?",
-			[groupId, now, projectId],
-		);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				"UPDATE projects SET group_id = ?, updated_at = ? WHERE id = ?",
+				[groupId, now, projectId],
+			);
+			await this._stamp("projects", projectId, ["group_id"], now, tx);
+		});
 	}
 
 	private async _getProjectGroup(id: string): Promise<ProjectGroup | null> {
@@ -553,15 +592,24 @@ export class SqliteRepository implements TodoRepository {
 	async createTask(input: CreateTaskInput): Promise<Task> {
 		const id = crypto.randomUUID();
 		const now = new Date().toISOString();
+		const sortKey = await this._headKey("tasks");
 		const deviceId = await getOrCreateDeviceId(this.db);
 		const stamped = stampFields(
 			null,
-			["title", "description", "project_id", "priority", "due_date", "tags"],
+			[
+				"title",
+				"description",
+				"project_id",
+				"priority",
+				"due_date",
+				"tags",
+				"sort_key",
+			],
 			now,
 			deviceId,
 		);
 		await this.db.execute(
-			"INSERT INTO tasks (id, title, description, project_id, priority, due_date, sort_order, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)",
+			"INSERT INTO tasks (id, title, description, project_id, priority, due_date, sort_order, sort_key, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)",
 			[
 				id,
 				input.title,
@@ -569,6 +617,7 @@ export class SqliteRepository implements TodoRepository {
 				input.projectId ?? null,
 				input.priority ?? "none",
 				input.dueDate ?? null,
+				sortKey,
 				now,
 				now,
 				stamped,
