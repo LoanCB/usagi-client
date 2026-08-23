@@ -493,6 +493,20 @@ Entièrement côté client, puisque le serveur ne lit pas le contenu.
    `device_id`. Sans ce départage, deux appareils peuvent trancher différemment le même
    conflit et **ne jamais converger**.
 
+   > **Précision (2026-08-23, lors de l'implémentation du plan 4a) : le `device_id` le
+   > plus grand gagne.** Cette phrase disait « comparaison lexicographique » sans fixer
+   > le sens. Les deux lectures convergent — c'est tout ce que le départage exige — donc
+   > l'ambiguïté était invisible tant qu'aucune valeur particulière n'était en jeu.
+   >
+   > Elle ne l'est plus. La migration 010 blanchit le `device_id` des estampilles
+   > héritées, qui portaient toutes le placeholder `"local"`. Or `""` trie **en dessous**
+   > de tout UUID : sous « le plus grand gagne », ces estampilles sans auteur perdent
+   > les égalités face à une écriture attribuée, ce qui est voulu — on préfère une
+   > écriture récente et identifiable à une écriture dont on ignore l'origine. Sous
+   > « le plus petit gagne », elles les **gagneraient toutes**, exactement l'inverse.
+   >
+   > Le sens est donc contraignant pour le moteur de fusion du plan 4c, pas cosmétique.
+
 2. **La purge est terminale.** Si un appareil purge une tâche pendant qu'un autre la
    modifie, la purge gagne. L'archivage (`deleted_at`) est un champ ordinaire soumis au
    LWW normal.
