@@ -927,23 +927,6 @@ describe("SqliteRepository — project groups", () => {
 		]);
 	});
 
-	it("reorderProjects updates sort_order for each id", async () => {
-		const db = makeDb();
-		const repo = new SqliteRepository(db);
-		await repo.reorderProjects(["p3", "p1", "p2"]);
-		expect(db.execute).toHaveBeenCalledTimes(3);
-		expect(db.execute).toHaveBeenNthCalledWith(
-			1,
-			expect.stringContaining("UPDATE projects"),
-			expect.arrayContaining([0, "p3"]),
-		);
-		expect(db.execute).toHaveBeenNthCalledWith(
-			2,
-			expect.stringContaining("UPDATE projects"),
-			expect.arrayContaining([1, "p1"]),
-		);
-	});
-
 	it("assignProjectToGroup sets group_id on a project", async () => {
 		const db = makeDb();
 		const repo = new SqliteRepository(db);
@@ -993,26 +976,169 @@ describe("SqliteRepository — project groups", () => {
 	});
 });
 
-describe("SqliteRepository — reorder", () => {
-	it("writes both sort_key and sort_order during the transition release", async () => {
-		const db = makeDb();
-		const repo = new SqliteRepository(db);
-		await repo.reorderTasks(["a", "b", "c"]);
-		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls;
-		expect(calls).toHaveLength(3);
-		expect(String(calls[0][0])).toContain("sort_key = ?");
-		expect(String(calls[0][0])).toContain("sort_order = ?");
+describe("moveTask", () => {
+	// Real SQLite, not the mock db: the "one row" and "leaves other rows
+	// untouched" assertions need genuine ORDER BY sort_key behaviour, which a
+	// mocked select/execute pair cannot fake convincingly.
+	let db: BetterSqliteDriver;
+	let repo: SqliteRepository;
+
+	async function seedThree(): Promise<[Task, Task, Task]> {
+		const a = await repo.createTask({ title: "a" });
+		const b = await repo.createTask({ title: "b" });
+		const c = await repo.createTask({ title: "c" });
+		// createTask prepends: undo that so the seed order is a, b, c.
+		await repo.moveTask(b.id, a.id, null);
+		await repo.moveTask(c.id, b.id, null);
+		return [a, b, c];
+	}
+
+	async function seedTwo(): Promise<[Task, Task]> {
+		const a = await repo.createTask({ title: "a" });
+		const b = await repo.createTask({ title: "b" });
+		await repo.moveTask(b.id, a.id, null);
+		return [a, b];
+	}
+
+	async function orderedIds(): Promise<string[]> {
+		const rows = await db.select<{ id: string }>(
+			"SELECT id FROM tasks ORDER BY sort_key",
+		);
+		return rows.map((r) => r.id);
+	}
+
+	async function keyOf(id: string): Promise<string | null> {
+		const rows = await db.select<{ sort_key: string | null }>(
+			"SELECT sort_key FROM tasks WHERE id = ?",
+			[id],
+		);
+		return rows[0]?.sort_key ?? null;
+	}
+
+	async function stampsOf(
+		id: string,
+	): Promise<Record<string, { t: string; d: string }>> {
+		const rows = await db.select<{ field_updated_at: string | null }>(
+			"SELECT field_updated_at FROM tasks WHERE id = ?",
+			[id],
+		);
+		return JSON.parse(rows[0]?.field_updated_at ?? "{}");
+	}
+
+	beforeEach(async () => {
+		db = new BetterSqliteDriver();
+		await runMigrations(db, ALL_MIGRATIONS);
+		repo = new SqliteRepository(db);
 	});
 
-	it("assigns strictly increasing sort_key values", async () => {
-		const db = makeDb();
-		const repo = new SqliteRepository(db);
-		await repo.reorderTasks(["a", "b", "c"]);
-		const keys = (db.execute as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c) => (c[1] as unknown[])[0] as string,
-		);
-		expect(keys).toEqual([...keys].sort());
-		expect(new Set(keys).size).toBe(3);
+	afterEach(() => db?.close());
+
+	it("writes exactly one row", async () => {
+		const [a, b, c] = await seedThree();
+		const writes = db.countWrites();
+		await repo.moveTask(c.id, a.id, b.id);
+		expect(db.countWrites() - writes).toBe(2); // the move, plus its stamp
+	});
+
+	it("places the task between its two neighbours", async () => {
+		const [a, b, c] = await seedThree();
+		await repo.moveTask(c.id, a.id, b.id);
+		const order = await orderedIds();
+		expect(order).toEqual([a.id, c.id, b.id]);
+	});
+
+	it("moves to the very top when there is no previous neighbour", async () => {
+		const [a, b, c] = await seedThree();
+		await repo.moveTask(c.id, null, a.id);
+		expect(await orderedIds()).toEqual([c.id, a.id, b.id]);
+	});
+
+	it("moves to the very bottom when there is no next neighbour", async () => {
+		const [a, b, c] = await seedThree();
+		await repo.moveTask(a.id, c.id, null);
+		expect(await orderedIds()).toEqual([b.id, c.id, a.id]);
+	});
+
+	it("leaves rows outside the move untouched", async () => {
+		// The bug this replaces: reordering a filtered subset renumbered it
+		// 0..N-1 and collided with every row the view did not show.
+		const [a, b, c] = await seedThree();
+		const hidden = await repo.createTask({ title: "hidden" });
+		const before = await keyOf(hidden.id);
+		await repo.moveTask(c.id, a.id, b.id);
+		expect(await keyOf(hidden.id)).toBe(before);
+	});
+
+	it("keeps a hidden row between the two visible neighbours it sat between", async () => {
+		// Dropping between two *visible* tasks places the moved task among any
+		// hidden rows that lie between them. That is the documented meaning of a
+		// global order under a filtered view, not a defect.
+		const [a, b] = await seedTwo();
+		const hidden = await repo.createTask({ title: "hidden" });
+		await repo.moveTask(hidden.id, a.id, b.id);
+		const moved = await repo.createTask({ title: "moved" });
+		await repo.moveTask(moved.id, a.id, b.id);
+		const order = await orderedIds();
+		expect(order.indexOf(moved.id)).toBeGreaterThan(order.indexOf(a.id));
+		expect(order.indexOf(moved.id)).toBeLessThan(order.indexOf(b.id));
+	});
+
+	it("stamps sort_key on the moved row", async () => {
+		// createTask already stamps sort_key at insert, so presence alone would
+		// pass even if moveTask never re-stamped it — only a changed `t` proves
+		// this write touched it.
+		const [a, b, c] = await seedThree();
+		const before = (await stampsOf(c.id)).sort_key.t;
+		await new Promise((resolve) => setTimeout(resolve, 2));
+		await repo.moveTask(c.id, a.id, b.id);
+		expect((await stampsOf(c.id)).sort_key.t).not.toBe(before);
+	});
+
+	it("still reorders projects once getProjects reads sort_key", async () => {
+		// The regression this guards: reorderProjects only ever wrote sort_order.
+		// Switching the read to sort_key without converting the write makes the
+		// sidebar reorder a no-op that leaves no trace.
+		//
+		// createProject already places new rows at the head, so a naive version of
+		// this test (create a, then b, then move b before a) would pass even if
+		// moveProject wrote nothing at all — b already sorts first from creation.
+		// Moving a in front of b instead requires the write to actually land.
+		const a = await repo.createProject({ name: "a" });
+		const b = await repo.createProject({ name: "b" });
+		expect((await repo.getProjects()).map((p) => p.id)).toEqual([b.id, a.id]);
+		await repo.moveProject(a.id, null, b.id);
+		expect((await repo.getProjects()).map((p) => p.id)).toEqual([a.id, b.id]);
+	});
+
+	it("still reorders project groups once getProjectGroups reads sort_key", async () => {
+		// Same trap as the project test above: move the row that creation order
+		// already agrees with, and the assertion would hold even against a
+		// moveProjectGroup that writes nothing.
+		const a = await repo.createProjectGroup({ name: "a", color: "#000" });
+		const b = await repo.createProjectGroup({ name: "b", color: "#000" });
+		expect((await repo.getProjectGroups()).map((g) => g.id)).toEqual([
+			b.id,
+			a.id,
+		]);
+		await repo.moveProjectGroup(a.id, null, b.id);
+		expect((await repo.getProjectGroups()).map((g) => g.id)).toEqual([
+			a.id,
+			b.id,
+		]);
+	});
+
+	it("getTasks reflects moveTask through the same read path the UI uses", async () => {
+		// The other tests in this suite read order back with a raw ORDER BY
+		// sort_key query; this one goes through getTasks itself, so a getTasks
+		// left on ORDER BY sort_order would show up as a failure here even though
+		// the raw-SQL assertions above would not notice.
+		const [a, b, c] = await seedThree();
+		await repo.moveTask(c.id, a.id, b.id);
+		expect((await repo.getTasks()).map((t) => t.id)).toEqual([
+			a.id,
+			c.id,
+			b.id,
+		]);
 	});
 });
 

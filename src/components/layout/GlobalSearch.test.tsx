@@ -54,7 +54,7 @@ beforeEach(() => {
 		archiveTask: vi.fn().mockResolvedValue(undefined),
 		deleteTask: vi.fn(),
 		unarchiveTask: vi.fn(),
-		reorderTasks: vi.fn(),
+		moveTask: vi.fn(),
 	});
 	useProjectStore.setState({
 		projects: [],

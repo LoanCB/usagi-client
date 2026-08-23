@@ -44,7 +44,7 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		deleteTag: vi.fn(),
 		isTagUsedInProjectTasks: vi.fn().mockResolvedValue(false),
 		moveTasksToProject: vi.fn().mockResolvedValue(undefined),
-		reorderTasks: vi.fn().mockResolvedValue(undefined),
+		moveTask: vi.fn().mockResolvedValue(undefined),
 		getSettings: vi.fn().mockResolvedValue({}),
 		setSetting: vi.fn().mockResolvedValue(undefined),
 		bulkImport: vi.fn().mockResolvedValue(undefined),
@@ -52,8 +52,8 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		createProjectGroup: vi.fn(),
 		updateProjectGroup: vi.fn(),
 		deleteProjectGroup: vi.fn(),
-		reorderProjects: vi.fn().mockResolvedValue(undefined),
-		reorderProjectGroups: vi.fn().mockResolvedValue(undefined),
+		moveProject: vi.fn().mockResolvedValue(undefined),
+		moveProjectGroup: vi.fn().mockResolvedValue(undefined),
 		assignProjectToGroup: vi.fn().mockResolvedValue(undefined),
 		...overrides,
 	};
@@ -192,34 +192,35 @@ describe("useTaskStore", () => {
 		expect(result.current.archivedTasks).toHaveLength(0);
 	});
 
-	it("reorderTasks applies optimistic in-memory reorder immediately", async () => {
+	it("moveTask applies optimistic in-memory reorder immediately", async () => {
+		// t3 moves between t1 and t2, not to the top: a store that ignored prevId
+		// and always inserted at index 0 would also pass a top-of-list move, so
+		// this needs a move whose result depends on prevId actually being read.
 		const t1: Task = { ...baseTask, id: "t1", sortOrder: 0 };
 		const t2: Task = { ...baseTask, id: "t2", sortOrder: 1 };
-		useTaskStore.setState({ tasks: [t1, t2], loading: false });
+		const t3: Task = { ...baseTask, id: "t3", sortOrder: 2 };
+		useTaskStore.setState({ tasks: [t1, t2, t3], loading: false });
 		const repo = makeRepo({
-			reorderTasks: vi.fn().mockResolvedValue(undefined),
+			moveTask: vi.fn().mockResolvedValue(undefined),
 		});
 		const { result } = renderHook(() => useTaskStore());
 		await act(async () => {
-			await result.current.reorderTasks(repo, ["t2", "t1"]);
+			await result.current.moveTask(repo, "t3", "t1", "t2");
 		});
-		expect(result.current.tasks[0].id).toBe("t2");
-		expect(result.current.tasks[0].sortOrder).toBe(0);
-		expect(result.current.tasks[1].id).toBe("t1");
-		expect(result.current.tasks[1].sortOrder).toBe(1);
+		expect(result.current.tasks.map((t) => t.id)).toEqual(["t1", "t3", "t2"]);
 	});
 
-	it("reorderTasks rolls back to previous state when repo throws", async () => {
+	it("moveTask rolls back to previous state when repo throws", async () => {
 		const t1: Task = { ...baseTask, id: "t1", sortOrder: 0 };
 		const t2: Task = { ...baseTask, id: "t2", sortOrder: 1 };
 		useTaskStore.setState({ tasks: [t1, t2], loading: false });
 		const repo = makeRepo({
-			reorderTasks: vi.fn().mockRejectedValue(new Error("DB error")),
+			moveTask: vi.fn().mockRejectedValue(new Error("DB error")),
 		});
 		const { result } = renderHook(() => useTaskStore());
 		await act(async () => {
 			await expect(
-				result.current.reorderTasks(repo, ["t2", "t1"]),
+				result.current.moveTask(repo, "t2", null, "t1"),
 			).rejects.toThrow("DB error");
 		});
 		expect(result.current.tasks[0].id).toBe("t1");

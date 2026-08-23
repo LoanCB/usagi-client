@@ -1,4 +1,4 @@
-import { generateKeyBetween, generateNKeysBetween } from "fractional-indexing";
+import { generateKeyBetween } from "fractional-indexing";
 import type { ExportData } from "@/lib/dataTransfer";
 import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
 import type {
@@ -192,11 +192,26 @@ export class SqliteRepository implements TodoRepository {
 		return generateKeyBetween(null, rows[0]?.sort_key ?? null);
 	}
 
+	/**
+	 * `id`'s current sort_key, or null if the row has none.
+	 *
+	 * Feeds generateKeyBetween in moveTask/moveProject/moveProjectGroup: the new
+	 * key is derived from the two neighbours the row was dropped between, not
+	 * from any positional index.
+	 */
+	private async _keyOf(table: SyncedTable, id: string): Promise<string | null> {
+		const rows = await this.db.select<{ sort_key: string | null }>(
+			`SELECT sort_key FROM ${table} WHERE id = ?`,
+			[id],
+		);
+		return rows[0]?.sort_key ?? null;
+	}
+
 	// ---------- Projects ----------
 
 	async getProjects(): Promise<Project[]> {
 		const rows = await this.db.select<ProjectRow>(
-			"SELECT id, name, color, icon, sort_order, group_id, created_at, updated_at FROM projects WHERE deleted_at IS NULL ORDER BY sort_order, created_at",
+			"SELECT id, name, color, icon, sort_order, group_id, created_at, updated_at FROM projects WHERE deleted_at IS NULL ORDER BY sort_key",
 		);
 		return rows.map(mapProject);
 	}
@@ -308,7 +323,7 @@ export class SqliteRepository implements TodoRepository {
 
 	async getProjectGroups(): Promise<ProjectGroup[]> {
 		const rows = await this.db.select<ProjectGroupRow>(
-			"SELECT id, name, color, sort_order, created_at, updated_at FROM project_groups ORDER BY sort_order, created_at",
+			"SELECT id, name, color, sort_order, created_at, updated_at FROM project_groups ORDER BY sort_key",
 		);
 		return rows.map(mapProjectGroup);
 	}
@@ -376,24 +391,49 @@ export class SqliteRepository implements TodoRepository {
 		await this.db.execute("DELETE FROM project_groups WHERE id = ?", [id]);
 	}
 
-	async reorderProjects(orderedIds: string[]): Promise<void> {
+	/**
+	 * Place `id` between two neighbours, identified by the rows the user dropped
+	 * it between. Either may be null at the ends of the list.
+	 *
+	 * One row is written, not N — see moveTask, which this mirrors. The method
+	 * this replaces wrote only sort_order; now that getProjects reads sort_key,
+	 * leaving that unconverted would make the sidebar reorder a silent no-op.
+	 */
+	async moveProject(
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void> {
 		const now = new Date().toISOString();
-		for (let i = 0; i < orderedIds.length; i++) {
-			await this.db.execute(
-				"UPDATE projects SET sort_order = ?, updated_at = ? WHERE id = ?",
-				[i, now, orderedIds[i]],
+		const prevKey = prevId ? await this._keyOf("projects", prevId) : null;
+		const nextKey = nextId ? await this._keyOf("projects", nextId) : null;
+		const key = generateKeyBetween(prevKey, nextKey);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				"UPDATE projects SET sort_key = ?, updated_at = ? WHERE id = ?",
+				[key, now, id],
 			);
-		}
+			await this._stamp("projects", id, ["sort_key"], now, tx);
+		});
 	}
 
-	async reorderProjectGroups(orderedIds: string[]): Promise<void> {
+	/** Mirrors moveProject, for the same reason: see its comment. */
+	async moveProjectGroup(
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void> {
 		const now = new Date().toISOString();
-		for (let i = 0; i < orderedIds.length; i++) {
-			await this.db.execute(
-				"UPDATE project_groups SET sort_order = ?, updated_at = ? WHERE id = ?",
-				[i, now, orderedIds[i]],
+		const prevKey = prevId ? await this._keyOf("project_groups", prevId) : null;
+		const nextKey = nextId ? await this._keyOf("project_groups", nextId) : null;
+		const key = generateKeyBetween(prevKey, nextKey);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				"UPDATE project_groups SET sort_key = ?, updated_at = ? WHERE id = ?",
+				[key, now, id],
 			);
-		}
+			await this._stamp("project_groups", id, ["sort_key"], now, tx);
+		});
 	}
 
 	async assignProjectToGroup(
@@ -566,11 +606,11 @@ export class SqliteRepository implements TodoRepository {
 			params.push(filters.dueBefore);
 		}
 
-		let sql = `SELECT t.id, t.title, t.description, t.project_id, t.priority, t.due_date, t.completed_at, t.deleted_at, t.sort_order, t.created_at, t.updated_at FROM tasks t WHERE ${conditions.join(" AND ")} ORDER BY t.sort_order, t.created_at`;
+		let sql = `SELECT t.id, t.title, t.description, t.project_id, t.priority, t.due_date, t.completed_at, t.deleted_at, t.sort_order, t.created_at, t.updated_at FROM tasks t WHERE ${conditions.join(" AND ")} ORDER BY t.sort_key`;
 
 		if (filters?.tagIds && filters.tagIds.length > 0) {
 			const placeholders = filters.tagIds.map(() => "?").join(", ");
-			sql = `SELECT DISTINCT t.id, t.title, t.description, t.project_id, t.priority, t.due_date, t.completed_at, t.deleted_at, t.sort_order, t.created_at, t.updated_at FROM tasks t INNER JOIN task_tags tt ON tt.task_id = t.id WHERE ${conditions.join(" AND ")} AND tt.tag_id IN (${placeholders}) ORDER BY t.sort_order, t.created_at`;
+			sql = `SELECT DISTINCT t.id, t.title, t.description, t.project_id, t.priority, t.due_date, t.completed_at, t.deleted_at, t.sort_order, t.created_at, t.updated_at FROM tasks t INNER JOIN task_tags tt ON tt.task_id = t.id WHERE ${conditions.join(" AND ")} AND tt.tag_id IN (${placeholders}) ORDER BY t.sort_key`;
 			params.push(...filters.tagIds);
 		}
 
@@ -800,17 +840,30 @@ export class SqliteRepository implements TodoRepository {
 		return this._attachTags(taskRows);
 	}
 
-	async reorderTasks(orderedIds: string[]): Promise<void> {
+	/**
+	 * Place `id` between two neighbours, identified by the rows the user dropped
+	 * it between. Either may be null at the ends of the list.
+	 *
+	 * One row is written, not N. The method this replaces renumbered the whole
+	 * displayed subset to 0..N-1, which collided with every row the current
+	 * filter happened to hide — see spec §9.1.
+	 */
+	async moveTask(
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void> {
 		const now = new Date().toISOString();
-		// sort_order is still written so this release can be rolled back; it is
-		// dropped once sync has shipped and sort_key is the sole ordering source.
-		const keys = generateNKeysBetween(null, null, orderedIds.length);
-		for (let i = 0; i < orderedIds.length; i++) {
-			await this.db.execute(
-				"UPDATE tasks SET sort_key = ?, sort_order = ?, updated_at = ? WHERE id = ?",
-				[keys[i], i, now, orderedIds[i]],
+		const prevKey = prevId ? await this._keyOf("tasks", prevId) : null;
+		const nextKey = nextId ? await this._keyOf("tasks", nextId) : null;
+		const key = generateKeyBetween(prevKey, nextKey);
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				"UPDATE tasks SET sort_key = ?, updated_at = ? WHERE id = ?",
+				[key, now, id],
 			);
-		}
+			await this._stamp("tasks", id, ["sort_key"], now, tx);
+		});
 	}
 
 	// ---------- Settings ----------

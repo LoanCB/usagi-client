@@ -21,6 +21,29 @@ function uuid(): string {
 	return crypto.randomUUID();
 }
 
+/**
+ * Where to splice the moved row into `ordered` (which excludes it).
+ *
+ * Anchors on prevId when present; nextId only matters when prevId is null,
+ * i.e. the move is to the very top — this is what makes nextId a genuine
+ * input here rather than an unused twin of the real driver's signature.
+ */
+function insertionIndex<T extends { id: string }>(
+	ordered: T[],
+	prevId: string | null,
+	nextId: string | null,
+): number {
+	if (prevId) {
+		const prevIndex = ordered.findIndex((r) => r.id === prevId);
+		return prevIndex === -1 ? 0 : prevIndex + 1;
+	}
+	if (nextId) {
+		const nextIndex = ordered.findIndex((r) => r.id === nextId);
+		return nextIndex === -1 ? 0 : nextIndex;
+	}
+	return 0;
+}
+
 export class MemoryRepository implements TodoRepository {
 	private tasks = new Map<string, Task>();
 	private projects = new Map<string, Project>();
@@ -185,10 +208,19 @@ export class MemoryRepository implements TodoRepository {
 			.sort((a, b) => ((b.deletedAt ?? "") > (a.deletedAt ?? "") ? 1 : -1));
 	}
 
-	async reorderTasks(orderedIds: string[]): Promise<void> {
-		orderedIds.forEach((id, index) => {
-			const task = this.tasks.get(id);
-			if (task) this.tasks.set(id, { ...task, sortOrder: index });
+	async moveTask(
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void> {
+		const task = this.tasks.get(id);
+		if (!task) return;
+		const ordered = Array.from(this.tasks.values())
+			.filter((t) => t.id !== id)
+			.sort((a, b) => a.sortOrder - b.sortOrder);
+		ordered.splice(insertionIndex(ordered, prevId, nextId), 0, task);
+		ordered.forEach((t, index) => {
+			this.tasks.set(t.id, { ...t, sortOrder: index, updatedAt: now() });
 		});
 	}
 
@@ -303,17 +335,39 @@ export class MemoryRepository implements TodoRepository {
 		this.projectGroups.delete(id);
 	}
 
-	async reorderProjects(orderedIds: string[]): Promise<void> {
-		orderedIds.forEach((id, index) => {
-			const project = this.projects.get(id);
-			if (project) this.projects.set(id, { ...project, sortOrder: index });
+	async moveProject(
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void> {
+		const project = this.projects.get(id);
+		if (!project) return;
+		const ordered = Array.from(this.projects.values())
+			.filter((p) => p.id !== id)
+			.sort((a, b) => a.sortOrder - b.sortOrder);
+		ordered.splice(insertionIndex(ordered, prevId, nextId), 0, project);
+		ordered.forEach((p, index) => {
+			this.projects.set(p.id, { ...p, sortOrder: index, updatedAt: now() });
 		});
 	}
 
-	async reorderProjectGroups(orderedIds: string[]): Promise<void> {
-		orderedIds.forEach((id, index) => {
-			const group = this.projectGroups.get(id);
-			if (group) this.projectGroups.set(id, { ...group, sortOrder: index });
+	async moveProjectGroup(
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void> {
+		const group = this.projectGroups.get(id);
+		if (!group) return;
+		const ordered = Array.from(this.projectGroups.values())
+			.filter((g) => g.id !== id)
+			.sort((a, b) => a.sortOrder - b.sortOrder);
+		ordered.splice(insertionIndex(ordered, prevId, nextId), 0, group);
+		ordered.forEach((g, index) => {
+			this.projectGroups.set(g.id, {
+				...g,
+				sortOrder: index,
+				updatedAt: now(),
+			});
 		});
 	}
 

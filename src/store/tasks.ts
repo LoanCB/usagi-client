@@ -23,7 +23,12 @@ interface TaskStore {
 	archiveTask(repo: TodoRepository, id: string): Promise<void>;
 	deleteTask(repo: TodoRepository, id: string): Promise<void>;
 	unarchiveTask(repo: TodoRepository, id: string): Promise<void>;
-	reorderTasks(repo: TodoRepository, orderedIds: string[]): Promise<void>;
+	moveTask(
+		repo: TodoRepository,
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void>;
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
@@ -106,19 +111,21 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 		});
 	},
 
-	async reorderTasks(repo, orderedIds) {
+	async moveTask(repo, id, prevId, nextId) {
 		const prev = get().tasks;
 		set((s) => {
-			const byId = new Map(s.tasks.map((t) => [t.id, t]));
-			const reordered = orderedIds.flatMap((id, i) => {
-				const t = byId.get(id);
-				return t ? [{ ...t, sortOrder: i }] : [];
-			});
-			const rest = s.tasks.filter((t) => !orderedIds.includes(t.id));
-			return { tasks: [...reordered, ...rest] };
+			const moved = s.tasks.find((t) => t.id === id);
+			if (!moved) return s;
+			const rest = s.tasks.filter((t) => t.id !== id);
+			// prevId anchors the insertion point; nextId is only ever its neighbour
+			// in the same list, so it needs no separate lookup.
+			const insertAt = prevId ? rest.findIndex((t) => t.id === prevId) + 1 : 0;
+			const reordered = [...rest];
+			reordered.splice(insertAt, 0, moved);
+			return { tasks: reordered };
 		});
 		try {
-			await repo.reorderTasks(orderedIds);
+			await repo.moveTask(id, prevId, nextId);
 		} catch (e) {
 			set({ tasks: prev });
 			throw e;

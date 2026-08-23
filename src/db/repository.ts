@@ -27,7 +27,11 @@ export interface TodoRepository {
 	deleteTask(id: string): Promise<void>;
 	unarchiveTask(id: string): Promise<void>;
 	getArchivedTasks(): Promise<Task[]>;
-	reorderTasks(orderedIds: string[]): Promise<void>;
+	moveTask(
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void>;
 	bulkImport(data: ExportData, strategy: "merge" | "replace"): Promise<void>;
 
 	// Projects
@@ -47,8 +51,16 @@ export interface TodoRepository {
 		patch: Partial<Pick<ProjectGroup, "name" | "color">>,
 	): Promise<ProjectGroup>;
 	deleteProjectGroup(id: string): Promise<void>;
-	reorderProjects(orderedIds: string[]): Promise<void>;
-	reorderProjectGroups(orderedIds: string[]): Promise<void>;
+	moveProject(
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void>;
+	moveProjectGroup(
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void>;
 	assignProjectToGroup(
 		projectId: string,
 		groupId: string | null,

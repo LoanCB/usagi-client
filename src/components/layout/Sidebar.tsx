@@ -35,6 +35,7 @@ import {
 	computeReorderedIds,
 	type DropState,
 	groupEndId,
+	neighborsOf,
 	resolveIntraGroupDrop,
 	type SidebarItem,
 } from "@/components/layout/sidebarDnd";
@@ -550,7 +551,7 @@ function ProjectNavItem({
 function useSidebarDnd() {
 	const collapsedGroupIds = useUIStore((s) => s.collapsedGroupIds);
 	const projects = useProjectStore((s) => s.projects);
-	const { reorderProjects, assignToGroup } = useProjectStore();
+	const { moveProject, assignToGroup } = useProjectStore();
 	const groups = useProjectGroupStore((s) => s.groups);
 
 	const sidebarItems = useMemo((): SidebarItem[] => {
@@ -613,7 +614,6 @@ function useSidebarDnd() {
 		itemRectsRef.current = new Map<string, DOMRect>();
 	}
 	const hasFreshRectsRef = useRef(false);
-	const { reorderGroups } = useProjectGroupStore();
 
 	function makeItemRef(dndId: string) {
 		return (el: HTMLDivElement | null) => {
@@ -843,7 +843,10 @@ function useSidebarDnd() {
 						draggedProjectId,
 						beforeProjectId,
 					);
-					if (newOrder) reorderProjects(repo, newOrder);
+					if (newOrder) {
+						const { prevId, nextId } = neighborsOf(newOrder, draggedProjectId);
+						moveProject(repo, draggedProjectId, prevId, nextId);
+					}
 					return;
 				}
 
@@ -864,31 +867,41 @@ function useSidebarDnd() {
 						draggedProjectId,
 						beforeProjectId,
 					);
-					if (newOrder) reorderProjects(repo, newOrder);
+					if (newOrder) {
+						const { prevId, nextId } = neighborsOf(newOrder, draggedProjectId);
+						moveProject(repo, draggedProjectId, prevId, nextId);
+					}
 				}
 				return;
 			}
 
-			// Top-level reorder
+			// Top-level reorder. Only projects are draggable here (see the guard at
+			// the top of this function), but a group can sit between two projects in
+			// the top-level list, so the dragged project's neighbours in `reordered`
+			// may themselves be groups — moveProject only wants project neighbours,
+			// so a group neighbour collapses to null (drop it to that end of the
+			// project ordering instead of anchoring on a group).
 			const topLevelIds = topLevel.map((i) => i.dndId);
+			const draggedDndId = `project:${draggedProjectId}`;
 			const reordered = computeReorderedIds(
 				topLevelIds,
-				`project:${draggedProjectId}`,
+				draggedDndId,
 				beforeId,
 			);
 			if (!reordered) return;
 
-			const newGroupOrder: string[] = [];
-			const newProjectOrder: string[] = [];
-			for (const id of reordered) {
-				if (id.startsWith("group:")) {
-					newGroupOrder.push(id.slice(6));
-				} else if (id.startsWith("project:")) {
-					newProjectOrder.push(id.slice(8));
-				}
-			}
-			if (newGroupOrder.length > 0) reorderGroups(repo, newGroupOrder);
-			if (newProjectOrder.length > 0) reorderProjects(repo, newProjectOrder);
+			const asProjectId = (dndId: string | null) =>
+				dndId?.startsWith("project:") ? dndId.slice(8) : null;
+			const { prevId: prevDndId, nextId: nextDndId } = neighborsOf(
+				reordered,
+				draggedDndId,
+			);
+			moveProject(
+				repo,
+				draggedProjectId,
+				asProjectId(prevDndId),
+				asProjectId(nextDndId),
+			);
 		}
 	}
 

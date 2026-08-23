@@ -59,3 +59,23 @@ export function computeReorderedIds(
 	if (adjusted === oldIdx) return null; // lands where it already is → no-op
 	return arrayMove(ids, oldIdx, adjusted);
 }
+
+/**
+ * The ids immediately before and after `id` in `orderedIds`, once it has
+ * already been placed at its new position.
+ *
+ * moveProject/moveProjectGroup key off the two dropped-between neighbours,
+ * not a positional index — this reads those neighbours back out of the
+ * reordered list computeReorderedIds already produced.
+ */
+export function neighborsOf(
+	orderedIds: string[],
+	id: string,
+): { prevId: string | null; nextId: string | null } {
+	const at = orderedIds.indexOf(id);
+	if (at === -1) return { prevId: null, nextId: null };
+	return {
+		prevId: orderedIds[at - 1] ?? null,
+		nextId: orderedIds[at + 1] ?? null,
+	};
+}

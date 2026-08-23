@@ -23,7 +23,7 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		completeTask: vi.fn(),
 		uncompleteTask: vi.fn(),
 		deleteTask: vi.fn(),
-		reorderTasks: vi.fn(),
+		moveTask: vi.fn(),
 		getProjects: vi.fn().mockResolvedValue([baseProject]),
 		createProject: vi.fn().mockResolvedValue(baseProject),
 		updateProject: vi.fn().mockResolvedValue(baseProject),
