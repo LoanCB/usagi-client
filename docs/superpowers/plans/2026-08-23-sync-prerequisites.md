@@ -203,7 +203,29 @@ Expected: PASS (4 tests).
 
 Puis `pnpm test:run` en entier — l'ajout d'une méthode à l'interface casse tout objet qui l'implémente à la main dans les tests. Les corriger.
 
-- [ ] **Step 7 : Vérifier `isIgnorable` contre le vrai moteur SQL**
+- [ ] **Step 7 : Ajouter les trois points d'instrumentation au harnais**
+
+`BetterSqliteDriver` n'expose aujourd'hui que `execute`, `select` et `close`. Trois tâches ultérieures ont besoin de plus, et les ajouter ici évite que chacune bricole le sien :
+
+```ts
+	/** A second driver over the same database, with no memoised state. */
+	reopen(): BetterSqliteDriver
+
+	/** Statements executed so far. Task 7 asserts a move writes one row, not N. */
+	countWrites(): number
+
+	/**
+	 * Make the next execute matching `pattern` throw.
+	 *
+	 * Atomicity is otherwise only assertable by claim: Tasks 8 and 9 need a
+	 * failure *between* two writes to prove the rollback actually happens.
+	 */
+	failNextExecuteMatching(pattern: RegExp): void
+```
+
+`reopen` doit partager la base sous-jacente : sur `:memory:` cela veut dire réutiliser la même connexion `better-sqlite3` derrière un objet neuf, pas en ouvrir une seconde qui verrait une base vide.
+
+- [ ] **Step 8 : Vérifier `isIgnorable` contre le vrai moteur SQL**
 
 Le §9.6 laisse ce point ouvert : `isIgnorable` ne tolère que `/duplicate column name/i`, vérifié sous `better-sqlite3` mais **jamais sous `@tauri-apps/plugin-sql`**. Ce plan ajoute deux migrations qui s'exécuteront sur des bases existantes, donc il exerce précisément ce chemin — c'est le moment de lever le doute plutôt que de le reporter une troisième fois.
 
@@ -214,7 +236,7 @@ Lancer `pnpm tauri dev` sur une base ayant déjà des migrations appliquées, et
 
 Reporter le résultat dans le rapport de tâche quoi qu'il arrive : c'est la seule étape de ce plan qu'un test automatisé ne peut pas trancher, puisqu'elle porte sur le comportement d'un moteur que le harnais de test n'utilise pas.
 
-- [ ] **Step 8 : Commit**
+- [ ] **Step 9 : Commit**
 
 ```bash
 git add src/db/driver.ts src/db/index.ts src/db/driver.test.ts src/test-harness/BetterSqliteDriver.ts src/db/migrations/run-migrations.ts
@@ -892,7 +914,19 @@ C'est le cœur du §9.1. `reorderTasks` cesse de renuméroter N lignes et écrit
 - Modify: `src/store/tasks.ts`
 
 **Interfaces:**
-- Produces : `moveTask(id: string, prevId: string | null, nextId: string | null): Promise<void>` remplace `reorderTasks(orderedIds)`.
+- Produces : `moveTask`, `moveProject`, `moveProjectGroup`, tous de signature `(id: string, prevId: string | null, nextId: string | null) => Promise<void>`, remplaçant respectivement `reorderTasks`, `reorderProjects` et `reorderProjectGroups`.
+
+> **Les trois, pas seulement les tâches.** `reorderProjects` et `reorderProjectGroups`
+> n'écrivent aujourd'hui **que** `sort_order`, jamais `sort_key`. Basculer
+> `getProjects` et `getProjectGroups` sur `ORDER BY sort_key` sans les convertir
+> ferait cesser le réordonnancement de la barre latérale **en silence** : l'écriture
+> partirait dans une colonne que plus personne ne lit. Ça compile, ça passe les
+> tests, et ça casse entre les mains de l'utilisateur.
+>
+> Fichiers supplémentaires à toucher pour cette raison : `src/db/repository.ts`
+> (l'interface), `src/test-harness/MemoryRepository.ts` (la seconde implémentation),
+> `src/components/layout/Sidebar.tsx` (trois appels à `reorderProjects`) et
+> `src/store/projects.ts` / `src/store/projectGroups.ts`.
 
 - [ ] **Step 1 : Écrire les tests qui échouent**
 
@@ -952,6 +986,23 @@ describe("moveTask", () => {
 		const [a, b, c] = await seedThree(repo);
 		await repo.moveTask(c.id, a.id, b.id);
 		expect((await stampsOf(db, c.id)).sort_key).toBeDefined();
+	});
+
+	it("still reorders projects once getProjects reads sort_key", async () => {
+		// The regression this guards: reorderProjects only ever wrote sort_order.
+		// Switching the read to sort_key without converting the write makes the
+		// sidebar reorder a no-op that leaves no trace.
+		const a = await repo.createProject({ name: "a" });
+		const b = await repo.createProject({ name: "b" });
+		await repo.moveProject(b.id, null, a.id);
+		expect((await repo.getProjects()).map((p) => p.id)).toEqual([b.id, a.id]);
+	});
+
+	it("still reorders project groups once getProjectGroups reads sort_key", async () => {
+		const a = await repo.createProjectGroup({ name: "a" });
+		const b = await repo.createProjectGroup({ name: "b" });
+		await repo.moveProjectGroup(b.id, null, a.id);
+		expect((await repo.getProjectGroups()).map((g) => g.id)).toEqual([b.id, a.id]);
 	});
 });
 ```
@@ -1054,7 +1105,9 @@ it("detaches the projects that belonged to it", async () => {
 	// Without this the projects keep a group_id pointing at a row no reader
 	// can resolve, and the sidebar renders them under a group that is gone.
 	const group = await repo.createProjectGroup({ name: "g" });
-	const project = await repo.createProject({ name: "p", groupId: group.id });
+	const project = await repo.createProject({ name: "p" });
+	// CreateProjectInput carries no groupId; the attachment is its own method.
+	await repo.assignProjectToGroup(project.id, group.id);
 	await repo.deleteProjectGroup(group.id);
 	const rows = await db.select<{ group_id: string | null }>(
 		"SELECT group_id FROM projects WHERE id = ?",
@@ -1065,7 +1118,8 @@ it("detaches the projects that belonged to it", async () => {
 
 it("stamps both the tombstone and the detached projects", async () => {
 	const group = await repo.createProjectGroup({ name: "g" });
-	const project = await repo.createProject({ name: "p", groupId: group.id });
+	const project = await repo.createProject({ name: "p" });
+	await repo.assignProjectToGroup(project.id, group.id);
 	await repo.deleteProjectGroup(group.id);
 	expect((await groupStampsOf(db, group.id)).purged_at).toBeDefined();
 	expect((await projectStampsOf(db, project.id)).group_id).toBeDefined();
@@ -1081,8 +1135,9 @@ it("applies the tombstone and the detach atomically", async () => {
 	// Half of this pair is worse than neither: a tombstoned group whose
 	// projects still point at it renders an unresolvable reference.
 	const group = await repo.createProjectGroup({ name: "g" });
-	await repo.createProject({ name: "p", groupId: group.id });
-	db.failNextExecuteMatching(/UPDATE projects/);
+	const project = await repo.createProject({ name: "p" });
+	await repo.assignProjectToGroup(project.id, group.id);
+	db.failNextExecuteMatching(/UPDATE projects SET group_id = NULL/);
 	await expect(repo.deleteProjectGroup(group.id)).rejects.toThrow();
 	const rows = await db.select<{ purged_at: string | null }>(
 		"SELECT purged_at FROM project_groups WHERE id = ?",
