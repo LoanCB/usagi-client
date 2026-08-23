@@ -779,7 +779,10 @@ describe("SqliteRepository — bulkImport", () => {
 		).toBe(true);
 	});
 
-	it("replace: runs DELETE statements before inserting", async () => {
+	it("replace: physically deletes task_tags but tombstones tasks/tags/projects", async () => {
+		// task_tags carries no sync identity of its own (spec §1.5) so it stays a
+		// physical delete; tasks/tags/projects must not, or the tombstone never
+		// reaches the other devices — the whole point of a replace import.
 		const db = makeDb();
 		const repo = new SqliteRepository(db);
 		await repo.bulkImport(sampleExportData, "replace");
@@ -791,20 +794,20 @@ describe("SqliteRepository — bulkImport", () => {
 			calls.some((s: string) => s.startsWith("DELETE FROM TASK_TAGS")),
 		).toBe(true);
 		expect(calls.some((s: string) => s.startsWith("DELETE FROM TASKS"))).toBe(
-			true,
+			false,
 		);
 		expect(calls.some((s: string) => s.startsWith("DELETE FROM TAGS"))).toBe(
-			true,
+			false,
 		);
 		expect(
 			calls.some((s: string) => s.startsWith("DELETE FROM PROJECTS")),
-		).toBe(true);
+		).toBe(false);
 		expect(
 			calls.some((s: string) => s.includes("INSERT OR REPLACE INTO PROJECTS")),
 		).toBe(true);
 	});
 
-	it("replace: DELETE statements appear before INSERT statements", async () => {
+	it("replace: task_tags DELETE runs before the inserts", async () => {
 		const db = makeDb();
 		const repo = new SqliteRepository(db);
 		await repo.bulkImport(sampleExportData, "replace");
@@ -812,13 +815,13 @@ describe("SqliteRepository — bulkImport", () => {
 		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls.map(
 			(c: unknown[]) => (c[0] as string).trim().toUpperCase(),
 		);
-		const firstDeleteIdx = calls.findIndex((s: string) =>
-			s.startsWith("DELETE FROM"),
+		const deleteIdx = calls.findIndex((s: string) =>
+			s.startsWith("DELETE FROM TASK_TAGS"),
 		);
 		const firstInsertIdx = calls.findIndex((s: string) =>
 			s.includes("INSERT OR REPLACE"),
 		);
-		expect(firstDeleteIdx).toBeLessThan(firstInsertIdx);
+		expect(deleteIdx).toBeLessThan(firstInsertIdx);
 	});
 });
 
@@ -1606,5 +1609,160 @@ describe("field stamping — projects, tags, project groups", () => {
 		await repo.deleteTag(tag.id);
 		const stamps = await stampsOf(db, "tags", tag.id);
 		expect(stamps.deleted_at).toBeDefined();
+	});
+});
+
+describe("bulkImport under sync", () => {
+	// An import is a bulk local edit that propagates: every row it writes gets
+	// stamped as changed now, by this device, so the outbox pushes it like any
+	// other write. Real SQLite throughout — the tombstone survival, the stamp
+	// contents and the atomicity all need genuine row state.
+	function exportWith(
+		tasks: Array<Partial<Task> & { id: string; title: string }>,
+	): ExportData {
+		return {
+			version: 1,
+			exportedAt: "2020-01-01T00:00:00.000Z",
+			projects: [],
+			tags: [],
+			tasks: tasks.map((t) => ({
+				id: t.id,
+				title: t.title,
+				description: t.description ?? null,
+				projectId: t.projectId ?? null,
+				priority: t.priority ?? "none",
+				dueDate: t.dueDate ?? null,
+				completedAt: t.completedAt ?? null,
+				deletedAt: t.deletedAt ?? null,
+				tags: t.tags ?? [],
+				sortOrder: t.sortOrder ?? 0,
+				createdAt: t.createdAt ?? "2020-01-01T00:00:00.000Z",
+				updatedAt: t.updatedAt ?? "2020-01-01T00:00:00.000Z",
+			})),
+		};
+	}
+
+	async function stampsOf(
+		db: BetterSqliteDriver,
+		id: string,
+	): Promise<Record<string, { t: string; d: string }>> {
+		const rows = await db.select<{ field_updated_at: string | null }>(
+			"SELECT field_updated_at FROM tasks WHERE id = ?",
+			[id],
+		);
+		return JSON.parse(rows[0]?.field_updated_at ?? "{}");
+	}
+
+	let db: BetterSqliteDriver;
+	let repo: SqliteRepository;
+
+	beforeEach(async () => {
+		db = new BetterSqliteDriver();
+		await runMigrations(db, ALL_MIGRATIONS);
+		repo = new SqliteRepository(db);
+	});
+
+	afterEach(() => db?.close());
+
+	it("stamps every imported row", async () => {
+		await repo.bulkImport(exportWith([{ id: "t1", title: "x" }]), "merge");
+		expect((await stampsOf(db, "t1")).title).toBeDefined();
+	});
+
+	it("does not leave field_updated_at null on a colliding row", async () => {
+		// INSERT OR REPLACE is a DELETE-then-INSERT in SQLite, so a colliding row
+		// used to lose its stamps, its tombstone and its key in merge mode too —
+		// merge was never the gentler option it looked like.
+		const task = await repo.createTask({ title: "original" });
+		await repo.bulkImport(
+			exportWith([{ id: task.id, title: "imported" }]),
+			"merge",
+		);
+		const stamps = await stampsOf(db, task.id);
+		expect(Object.keys(stamps).length).toBeGreaterThan(0);
+	});
+
+	it("preserves sort_key on imported rows", async () => {
+		await repo.bulkImport(exportWith([{ id: "t1", title: "x" }]), "merge");
+		const rows = await db.select<{ sort_key: string | null }>(
+			"SELECT sort_key FROM tasks WHERE id = 't1'",
+		);
+		expect(rows[0].sort_key).not.toBeNull();
+	});
+
+	it("tombstones local rows absent from a replace import", async () => {
+		// A row that was merely deleted (not tombstoned) is also "not null" by
+		// Map.get's undefined — so the row's continued existence has to be
+		// asserted explicitly, or this passes against a physical DELETE too.
+		const stays = await repo.createTask({ title: "in the backup" });
+		const goes = await repo.createTask({ title: "not in the backup" });
+		await repo.bulkImport(
+			exportWith([{ id: stays.id, title: "in the backup" }]),
+			"replace",
+		);
+		const rows = await db.select<{ id: string; purged_at: string | null }>(
+			"SELECT id, purged_at FROM tasks ORDER BY id",
+		);
+		const byId = new Map(rows.map((r) => [r.id, r.purged_at]));
+		expect(byId.has(goes.id)).toBe(true);
+		expect(byId.get(goes.id)).not.toBeNull();
+		expect(byId.get(stays.id)).toBeNull();
+	});
+
+	it("does not physically delete rows in replace mode", async () => {
+		// A physical DELETE fires the trigger and fills the outbox with entries
+		// pointing at rows that no longer exist — the engine cannot tell
+		// "purged" from "never existed".
+		const goes = await repo.createTask({ title: "x" });
+		await repo.bulkImport(exportWith([]), "replace");
+		const rows = await db.select<{ n: number }>(
+			"SELECT COUNT(*) AS n FROM tasks WHERE id = ?",
+			[goes.id],
+		);
+		expect(rows[0].n).toBe(1);
+	});
+
+	it("does not re-stamp an already-tombstoned row on replace", async () => {
+		// Guards WHERE purged_at IS NULL: without it, every import re-stamps
+		// every old tombstone and re-pushes it to the server forever.
+		const goes = await repo.createTask({ title: "x" });
+		await repo.deleteTask(goes.id);
+		const before = await stampsOf(db, goes.id);
+		await new Promise((resolve) => setTimeout(resolve, 2));
+		await repo.bulkImport(exportWith([]), "replace");
+		const after = await stampsOf(db, goes.id);
+		expect(after.purged_at.t).toBe(before.purged_at.t);
+	});
+
+	it("resurrects a tombstoned task the backup still contains", async () => {
+		// This is the documented consequence of "import propagates": restoring a
+		// backup older than a deletion undoes that deletion everywhere. The
+		// confirmation dialog in the next task is what makes it consented.
+		const task = await repo.createTask({ title: "x" });
+		await repo.deleteTask(task.id);
+		await repo.bulkImport(exportWith([{ id: task.id, title: "x" }]), "merge");
+		const rows = await db.select<{ purged_at: string | null }>(
+			"SELECT purged_at FROM tasks WHERE id = ?",
+			[task.id],
+		);
+		expect(rows[0].purged_at).toBeNull();
+	});
+
+	it("applies the whole import atomically", async () => {
+		// A pre-existing task gives the replace's tombstoning UPDATE something
+		// real to roll back — an empty table would leave this test passing even
+		// unwrapped, since "nothing before, nothing after" holds either way.
+		const existing = await repo.createTask({ title: "pre-existing" });
+		const before = await repo.getTasks({});
+		db.failNextExecuteMatching(/INSERT OR REPLACE INTO tasks/);
+		await expect(
+			repo.bulkImport(exportWith([{ id: "t1", title: "x" }]), "replace"),
+		).rejects.toThrow();
+		expect(await repo.getTasks({})).toEqual(before);
+		const rows = await db.select<{ purged_at: string | null }>(
+			"SELECT purged_at FROM tasks WHERE id = ?",
+			[existing.id],
+		);
+		expect(rows[0]?.purged_at).toBeNull();
 	});
 });

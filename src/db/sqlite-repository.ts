@@ -907,72 +907,173 @@ export class SqliteRepository implements TodoRepository {
 		);
 	}
 
+	/**
+	 * An import is a bulk local edit that propagates, not a silent restore: every
+	 * row it writes is stamped as changed now by this device, so the outbox
+	 * pushes it like any other write (spec §9.4).
+	 *
+	 * In `replace` mode, local rows absent from the backup are tombstoned, not
+	 * physically deleted — a DELETE fires the outbox trigger on a row that no
+	 * longer exists, leaving the merge engine unable to tell "purged" from
+	 * "never existed", so the deletion never reaches the other devices. That
+	 * defeats the entire point of a replace import.
+	 *
+	 * One consequence is intended, not a bug: restoring a backup older than a
+	 * deletion resurrects that row everywhere, in both strategies. The
+	 * confirmation dialog that makes this consented is a later task.
+	 *
+	 * The whole import is one transaction: a partial import would leave some
+	 * rows stamped-and-pushable and others not, a state the merge engine has no
+	 * way to reconcile.
+	 */
 	async bulkImport(
 		data: ExportData,
 		strategy: "merge" | "replace",
 	): Promise<void> {
-		if (strategy === "replace") {
-			await this.db.execute("DELETE FROM task_tags", []);
-			await this.db.execute("DELETE FROM tasks", []);
-			await this.db.execute("DELETE FROM tags", []);
-			await this.db.execute("DELETE FROM projects", []);
-		}
+		const now = new Date().toISOString();
+		await this.db.transaction(async (tx) => {
+			const deviceId = await getOrCreateDeviceId(tx);
 
-		for (const p of data.projects) {
-			await this.db.execute(
-				"INSERT OR REPLACE INTO projects (id, name, color, icon, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-				[p.id, p.name, p.color, p.icon, p.sortOrder, p.createdAt, p.updatedAt],
-			);
-		}
+			if (strategy === "replace") {
+				await this._tombstoneAbsent("tasks", data.tasks, now, tx);
+				await this._tombstoneAbsent("tags", data.tags, now, tx);
+				await this._tombstoneAbsent("projects", data.projects, now, tx);
+				// task_tags carries no sync identity of its own (spec §1.5): rows
+				// pointing at a tag/task not in the backup are just dropped.
+				await tx.execute("DELETE FROM task_tags", []);
+			}
 
-		// In merge mode use OR IGNORE to avoid overwriting existing tags that share
-		// the same UNIQUE(name) — which would delete the existing row and orphan its task_tags.
-		const tagSql =
-			strategy === "merge"
-				? "INSERT OR IGNORE INTO tags (id, name, color, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
-				: "INSERT OR REPLACE INTO tags (id, name, color, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)";
-		for (const tag of data.tags) {
-			await this.db.execute(tagSql, [
-				tag.id,
-				tag.name,
-				tag.color,
-				tag.projectId,
-				data.exportedAt,
-				data.exportedAt,
-			]);
-		}
-
-		// Only link task→tag associations for tags present in the export. In replace
-		// mode this prevents dangling references when the "tags" checkbox was unchecked.
-		const exportedTagIds = new Set(data.tags.map((t) => t.id));
-
-		for (const task of data.tasks) {
-			await this.db.execute(
-				"INSERT OR REPLACE INTO tasks (id, title, description, project_id, priority, due_date, completed_at, deleted_at, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-				[
-					task.id,
-					task.title,
-					task.description,
-					task.projectId,
-					task.priority,
-					task.dueDate,
-					task.completedAt,
-					task.deletedAt,
-					task.sortOrder,
-					task.createdAt,
-					task.updatedAt,
-				],
-			);
-			await this.db.execute("DELETE FROM task_tags WHERE task_id = ?", [
-				task.id,
-			]);
-			for (const tag of task.tags) {
-				if (strategy === "replace" && !exportedTagIds.has(tag.id)) continue;
-				await this.db.execute(
-					"INSERT OR REPLACE INTO task_tags (task_id, tag_id) VALUES (?, ?)",
-					[task.id, tag.id],
+			for (const p of data.projects) {
+				const sortKey = await this._headKey("projects");
+				await tx.execute(
+					"INSERT OR REPLACE INTO projects (id, name, color, icon, sort_order, sort_key, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+					[
+						p.id,
+						p.name,
+						p.color,
+						p.icon,
+						p.sortOrder,
+						sortKey,
+						p.createdAt,
+						p.updatedAt,
+						stampFields(
+							null,
+							["name", "color", "icon", "sort_key"],
+							now,
+							deviceId,
+						),
+					],
 				);
 			}
+
+			// In merge mode use OR IGNORE to avoid overwriting existing tags that share
+			// the same UNIQUE(name) — which would delete the existing row and orphan its task_tags.
+			const tagSql =
+				strategy === "merge"
+					? "INSERT OR IGNORE INTO tags (id, name, color, project_id, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+					: "INSERT OR REPLACE INTO tags (id, name, color, project_id, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)";
+			for (const tag of data.tags) {
+				await tx.execute(tagSql, [
+					tag.id,
+					tag.name,
+					tag.color,
+					tag.projectId,
+					data.exportedAt,
+					data.exportedAt,
+					stampFields(null, ["name", "color", "project_id"], now, deviceId),
+				]);
+			}
+
+			// Only link task→tag associations for tags present in the export. In replace
+			// mode this prevents dangling references when the "tags" checkbox was unchecked.
+			const exportedTagIds = new Set(data.tags.map((t) => t.id));
+
+			for (const task of data.tasks) {
+				const sortKey = await this._headKey("tasks");
+				await tx.execute(
+					"INSERT OR REPLACE INTO tasks (id, title, description, project_id, priority, due_date, completed_at, deleted_at, sort_order, sort_key, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+					[
+						task.id,
+						task.title,
+						task.description,
+						task.projectId,
+						task.priority,
+						task.dueDate,
+						task.completedAt,
+						task.deletedAt,
+						task.sortOrder,
+						sortKey,
+						task.createdAt,
+						task.updatedAt,
+						stampFields(
+							null,
+							[
+								"title",
+								"description",
+								"project_id",
+								"priority",
+								"due_date",
+								"tags",
+								"sort_key",
+							],
+							now,
+							deviceId,
+						),
+					],
+				);
+				await tx.execute("DELETE FROM task_tags WHERE task_id = ?", [task.id]);
+				for (const tag of task.tags) {
+					if (strategy === "replace" && !exportedTagIds.has(tag.id)) continue;
+					await tx.execute(
+						"INSERT OR REPLACE INTO task_tags (task_id, tag_id) VALUES (?, ?)",
+						[task.id, tag.id],
+					);
+				}
+			}
+		});
+	}
+
+	/**
+	 * Tombstone every row of `table` absent from the imported set, instead of
+	 * deleting it — see bulkImport's doc comment for why.
+	 *
+	 * `deleted_at` is stamped alongside `purged_at`, mirroring deleteTask: a
+	 * client rolled back to a release that predates purged_at still filters
+	 * this row out via `deleted_at IS NULL` instead of resurrecting it blank.
+	 *
+	 * `WHERE purged_at IS NULL` guards against re-stamping rows already
+	 * tombstoned: without it, every import would re-push every old tombstone.
+	 * Tombstoning is by id, so an already-absent row (deleted, not tombstoned,
+	 * before sync existed) simply matches nothing — nothing to generate.
+	 */
+	private async _tombstoneAbsent(
+		table: "tasks" | "tags" | "projects",
+		kept: Array<{ id: string }>,
+		now: string,
+		tx: DbDriver,
+	): Promise<void> {
+		const keptIds = kept.map((r) => r.id);
+		const blank =
+			table === "tasks" ? ", title = '', description = NULL" : ", name = ''";
+		const rows = await tx.select<{ id: string }>(
+			keptIds.length > 0
+				? `SELECT id FROM ${table} WHERE purged_at IS NULL AND id NOT IN (${keptIds.map(() => "?").join(", ")})`
+				: `SELECT id FROM ${table} WHERE purged_at IS NULL`,
+			keptIds,
+		);
+		if (rows.length === 0) return;
+		await tx.execute(
+			keptIds.length > 0
+				? `UPDATE ${table} SET purged_at = ?, deleted_at = ?, updated_at = ?${blank} WHERE purged_at IS NULL AND id NOT IN (${keptIds.map(() => "?").join(", ")})`
+				: `UPDATE ${table} SET purged_at = ?, deleted_at = ?, updated_at = ?${blank} WHERE purged_at IS NULL`,
+			[now, now, now, ...keptIds],
+		);
+		for (const row of rows) {
+			const fields =
+				table === "tasks"
+					? ["purged_at", "deleted_at", "title", "description"]
+					: ["purged_at", "deleted_at", "name"];
+			await this._stamp(table, row.id, fields, now, tx);
 		}
 	}
 
