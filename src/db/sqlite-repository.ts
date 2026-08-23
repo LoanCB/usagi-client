@@ -12,13 +12,14 @@ import type {
 	Task,
 	TaskFilters,
 } from "@/types";
+import { getOrCreateDeviceId } from "./device-id";
 import type { DbDriver } from "./driver";
 import { stampFields } from "./field-timestamps";
 import type { TodoRepository } from "./repository";
 
-// Placeholder until the sync engine persists a real device id in sync_state.
-// Only used to break write-time ties; unread until sync ships.
-const LOCAL_DEVICE_ID = "local";
+// Tables that carry a field_updated_at stamp map. Closed so a table name can
+// never arrive from an arbitrary string into SQL.
+type SyncedTable = "tasks" | "projects" | "tags" | "project_groups";
 
 function buildProjectIdsCondition(
 	projectIds: string[] | undefined,
@@ -146,6 +147,49 @@ function mapTask(row: TaskRow, tags: Tag[]): Task {
 
 export class SqliteRepository implements TodoRepository {
 	constructor(private readonly db: DbDriver) {}
+
+	/**
+	 * Merge `fields` into a task's stamp map, preserving the stamps of fields
+	 * this write did not touch.
+	 *
+	 * Every method that writes an LWW-governed column has to call this, not just
+	 * updateTask — see the §1.2 correction in the spec for the list and for what
+	 * a merge engine does when a write path skips it.
+	 */
+	private async _stamp(
+		table: SyncedTable,
+		id: string,
+		fields: string[],
+		now: string,
+	): Promise<void> {
+		const deviceId = await getOrCreateDeviceId(this.db);
+		const prior = await this.db.select<{ field_updated_at: string | null }>(
+			`SELECT field_updated_at FROM ${table} WHERE id = ?`,
+			[id],
+		);
+		await this.db.execute(
+			`UPDATE ${table} SET field_updated_at = ? WHERE id = ?`,
+			[
+				stampFields(prior[0]?.field_updated_at ?? null, fields, now, deviceId),
+				id,
+			],
+		);
+	}
+
+	/**
+	 * The fractional key a row currently holds, or null if it has none yet.
+	 *
+	 * Unused until Task 7 rewrites reorderTasks to call it — noUnusedLocals
+	 * would otherwise fail the build for a private method with no call site yet.
+	 */
+	// @ts-expect-error — see doc comment above; drop this line once Task 7 lands.
+	private async _keyOf(table: SyncedTable, id: string): Promise<string | null> {
+		const rows = await this.db.select<{ sort_key: string | null }>(
+			`SELECT sort_key FROM ${table} WHERE id = ?`,
+			[id],
+		);
+		return rows[0]?.sort_key ?? null;
+	}
 
 	// ---------- Projects ----------
 
@@ -470,11 +514,12 @@ export class SqliteRepository implements TodoRepository {
 	async createTask(input: CreateTaskInput): Promise<Task> {
 		const id = crypto.randomUUID();
 		const now = new Date().toISOString();
+		const deviceId = await getOrCreateDeviceId(this.db);
 		const stamped = stampFields(
 			null,
 			["title", "description", "project_id", "priority", "due_date", "tags"],
 			now,
-			LOCAL_DEVICE_ID,
+			deviceId,
 		);
 		await this.db.execute(
 			"INSERT INTO tasks (id, title, description, project_id, priority, due_date, sort_order, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)",
@@ -540,14 +585,10 @@ export class SqliteRepository implements TodoRepository {
 			"SELECT field_updated_at FROM tasks WHERE id = ?",
 			[id],
 		);
+		const deviceId = await getOrCreateDeviceId(this.db);
 		sets.push("field_updated_at = ?");
 		params.push(
-			stampFields(
-				prior[0]?.field_updated_at ?? null,
-				touched,
-				now,
-				LOCAL_DEVICE_ID,
-			),
+			stampFields(prior[0]?.field_updated_at ?? null, touched, now, deviceId),
 		);
 
 		params.push(id);
@@ -580,6 +621,7 @@ export class SqliteRepository implements TodoRepository {
 				"UPDATE tasks SET project_id = ?, updated_at = ? WHERE id = ?",
 				[projectId, now, id],
 			);
+			await this._stamp("tasks", id, ["project_id"], now);
 		}
 	}
 
@@ -589,6 +631,7 @@ export class SqliteRepository implements TodoRepository {
 			"UPDATE tasks SET completed_at = ?, updated_at = ? WHERE id = ?",
 			[now, now, id],
 		);
+		await this._stamp("tasks", id, ["completed_at"], now);
 		const completed = await this.getTask(id);
 		if (!completed) throw new Error(`Task not found after write: ${id}`);
 		return completed;
@@ -600,6 +643,7 @@ export class SqliteRepository implements TodoRepository {
 			"UPDATE tasks SET completed_at = NULL, updated_at = ? WHERE id = ?",
 			[now, id],
 		);
+		await this._stamp("tasks", id, ["completed_at"], now);
 		const uncompleted = await this.getTask(id);
 		if (!uncompleted) throw new Error(`Task not found after write: ${id}`);
 		return uncompleted;
@@ -611,6 +655,7 @@ export class SqliteRepository implements TodoRepository {
 			"UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?",
 			[now, now, id],
 		);
+		await this._stamp("tasks", id, ["deleted_at"], now);
 	}
 
 	async deleteTask(id: string): Promise<void> {
@@ -626,6 +671,12 @@ export class SqliteRepository implements TodoRepository {
 			"UPDATE tasks SET purged_at = ?, deleted_at = ?, updated_at = ?, title = '', description = NULL WHERE id = ?",
 			[now, now, now, id],
 		);
+		await this._stamp(
+			"tasks",
+			id,
+			["purged_at", "deleted_at", "title", "description"],
+			now,
+		);
 	}
 
 	async unarchiveTask(id: string): Promise<void> {
@@ -634,6 +685,7 @@ export class SqliteRepository implements TodoRepository {
 			"UPDATE tasks SET deleted_at = NULL, updated_at = ? WHERE id = ?",
 			[now, id],
 		);
+		await this._stamp("tasks", id, ["deleted_at"], now);
 	}
 
 	async getArchivedTasks(): Promise<Task[]> {

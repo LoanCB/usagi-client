@@ -1,8 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExportData } from "@/lib/dataTransfer";
 import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
+import { BetterSqliteDriver } from "@/test-harness/BetterSqliteDriver";
 import type { Task } from "@/types";
 import type { DbDriver } from "./driver";
+import { ALL_MIGRATIONS } from "./migrations/index";
+import { runMigrations } from "./migrations/run-migrations";
 import { SqliteRepository } from "./sqlite-repository";
 
 // Internal row shape — mirrors what SQLite returns
@@ -20,10 +23,21 @@ interface TaskRow {
 	updated_at: string;
 }
 
+// Fixed so tests asserting on stamp contents don't have to special-case it.
+const MOCK_DEVICE_ID = "11111111-1111-1111-1111-111111111111";
+
 function makeDb(overrides: Partial<DbDriver> = {}): DbDriver {
+	const baseSelect = vi.fn((query: string) => {
+		// Answered here, not via mockResolvedValueOnce, so getOrCreateDeviceId's
+		// lookup never consumes a slot a test queued for its own getTask/join call.
+		if (query.includes("sync_state")) {
+			return Promise.resolve([{ value: MOCK_DEVICE_ID }]);
+		}
+		return Promise.resolve([]);
+	}) as unknown as DbDriver["select"];
 	const db: DbDriver = {
 		execute: vi.fn().mockResolvedValue({ rowsAffected: 1, lastInsertId: 0 }),
-		select: vi.fn().mockResolvedValue([]),
+		select: baseSelect,
 		// Runs work against this same mock — none of these tests exercise rollback.
 		transaction: vi.fn().mockImplementation((work) => work(db)),
 		...overrides,
@@ -299,6 +313,7 @@ describe("SqliteRepository — tasks", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId
 				.mockResolvedValueOnce([taskRow]) // getTask after insert
 				.mockResolvedValueOnce([]), // task_tags join
 		});
@@ -318,6 +333,7 @@ describe("SqliteRepository — tasks", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId
 				.mockResolvedValueOnce([taskRow])
 				.mockResolvedValueOnce([]),
 		});
@@ -397,8 +413,10 @@ describe("SqliteRepository — tasks", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
-				.mockResolvedValueOnce([completedRow])
-				.mockResolvedValueOnce([]),
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
+				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
+				.mockResolvedValueOnce([completedRow]) // getTask after update
+				.mockResolvedValueOnce([]), // task_tags join
 		});
 		const repo = new SqliteRepository(db);
 		const task = await repo.completeTask("task-1");
@@ -412,7 +430,8 @@ describe("SqliteRepository — tasks", () => {
 		const repo = new SqliteRepository(db);
 		await repo.deleteTask("task-1");
 		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls;
-		expect(calls).toHaveLength(2);
+		// 3rd call is _stamp's own UPDATE ... SET field_updated_at
+		expect(calls).toHaveLength(3);
 		expect(calls[0][0]).toContain("DELETE FROM task_tags");
 		expect(calls[0][1]).toContain("task-1");
 		expect(calls[1][0]).toContain("UPDATE tasks SET purged_at");
@@ -448,8 +467,10 @@ describe("SqliteRepository — tasks", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
-				.mockResolvedValueOnce([{ ...taskRow, completed_at: null }])
-				.mockResolvedValueOnce([]),
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
+				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
+				.mockResolvedValueOnce([{ ...taskRow, completed_at: null }]) // getTask
+				.mockResolvedValueOnce([]), // task_tags join
 		});
 		const repo = new SqliteRepository(db);
 		const task = await repo.uncompleteTask("task-1");
@@ -463,6 +484,7 @@ describe("SqliteRepository — tasks", () => {
 			select: vi
 				.fn()
 				.mockResolvedValueOnce([{ field_updated_at: null }]) // updateTask's own field_updated_at lookup
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId
 				.mockResolvedValueOnce([taskRow]) // getTask after update
 				.mockResolvedValueOnce([]), // task_tags join
 		});
@@ -515,14 +537,14 @@ describe("SqliteRepository — tasks", () => {
 
 describe("SqliteRepository — field timestamps", () => {
 	it("createTask stamps every column it writes", async () => {
-		const db = makeDb({
-			select: vi.fn().mockResolvedValue([]),
-		});
+		const db = makeDb();
 		const repo = new SqliteRepository(db);
 		await repo.createTask({ title: "T" }).catch(() => undefined);
-		const insert = (db.execute as ReturnType<typeof vi.fn>).mock.calls[0];
-		expect(insert[0]).toContain("field_updated_at");
-		const json = (insert[1] as unknown[]).find(
+		const insert = (db.execute as ReturnType<typeof vi.fn>).mock.calls.find(
+			(c) => String(c[0]).startsWith("INSERT INTO tasks"),
+		);
+		expect(insert?.[0]).toContain("field_updated_at");
+		const json = (insert?.[1] as unknown[]).find(
 			(p) => typeof p === "string" && p.startsWith("{"),
 		) as string;
 		expect(Object.keys(JSON.parse(json))).toContain("title");
@@ -953,5 +975,94 @@ describe("SqliteRepository — reorder", () => {
 		);
 		expect(keys).toEqual([...keys].sort());
 		expect(new Set(keys).size).toBe(3);
+	});
+});
+
+describe("field stamping beyond updateTask", () => {
+	// A merge engine built on the original claim that updateTask was the only
+	// write path would never see an archive, a completion or a move as a field
+	// change — the remote value would win forever.
+	async function stampsOf(
+		_repo: SqliteRepository,
+		db: BetterSqliteDriver,
+		id: string,
+	) {
+		const rows = await db.select<{ field_updated_at: string | null }>(
+			"SELECT field_updated_at FROM tasks WHERE id = ?",
+			[id],
+		);
+		return JSON.parse(rows[0]?.field_updated_at ?? "{}") as Record<
+			string,
+			{ t: string; d: string }
+		>;
+	}
+
+	let db: BetterSqliteDriver;
+	let repo: SqliteRepository;
+
+	beforeEach(async () => {
+		db = new BetterSqliteDriver();
+		await runMigrations(db, ALL_MIGRATIONS);
+		repo = new SqliteRepository(db);
+	});
+
+	afterEach(() => db?.close());
+
+	it("archiveTask stamps deleted_at", async () => {
+		const task = await repo.createTask({ title: "x" });
+		await repo.archiveTask(task.id);
+		expect((await stampsOf(repo, db, task.id)).deleted_at).toBeDefined();
+	});
+
+	it("unarchiveTask stamps deleted_at", async () => {
+		const task = await repo.createTask({ title: "x" });
+		await repo.archiveTask(task.id);
+		const before = (await stampsOf(repo, db, task.id)).deleted_at.t;
+		// Real-clock stamps: without a tick, two calls this close together can
+		// land in the same millisecond and produce an identical `t`.
+		await new Promise((resolve) => setTimeout(resolve, 2));
+		await repo.unarchiveTask(task.id);
+		expect((await stampsOf(repo, db, task.id)).deleted_at.t).not.toBe(before);
+	});
+
+	it("completeTask stamps completed_at", async () => {
+		const task = await repo.createTask({ title: "x" });
+		await repo.completeTask(task.id);
+		expect((await stampsOf(repo, db, task.id)).completed_at).toBeDefined();
+	});
+
+	it("uncompleteTask stamps completed_at", async () => {
+		const task = await repo.createTask({ title: "x" });
+		await repo.completeTask(task.id);
+		await repo.uncompleteTask(task.id);
+		expect((await stampsOf(repo, db, task.id)).completed_at).toBeDefined();
+	});
+
+	it("moveTasksToProject stamps project_id on every task moved", async () => {
+		const a = await repo.createTask({ title: "a" });
+		const b = await repo.createTask({ title: "b" });
+		const project = await repo.createProject({ name: "p" });
+		await repo.moveTasksToProject([a.id, b.id], project.id);
+		expect((await stampsOf(repo, db, a.id)).project_id).toBeDefined();
+		expect((await stampsOf(repo, db, b.id)).project_id).toBeDefined();
+	});
+
+	it("deleteTask stamps the columns its tombstone writes", async () => {
+		const task = await repo.createTask({ title: "x" });
+		await repo.deleteTask(task.id);
+		const stamps = await stampsOf(repo, db, task.id);
+		// purged_at is what tells another device this row is gone; without a
+		// stamp the tombstone loses every tie against a stale live copy.
+		expect(stamps.purged_at).toBeDefined();
+		expect(stamps.deleted_at).toBeDefined();
+		expect(stamps.title).toBeDefined();
+	});
+
+	it("stamps carry the real device id, not the placeholder", async () => {
+		const task = await repo.createTask({ title: "x" });
+		await repo.archiveTask(task.id);
+		const stamps = await stampsOf(repo, db, task.id);
+		expect(stamps.deleted_at.d).not.toBe("local");
+		expect(stamps.deleted_at.d).toMatch(/^[0-9a-f-]{36}$/);
 	});
 });
