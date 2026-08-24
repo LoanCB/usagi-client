@@ -1084,6 +1084,20 @@ export class SqliteRepository implements TodoRepository {
 
 			// group_id used to be absent from the column list, so OR REPLACE
 			// silently ungrouped every colliding project.
+			//
+			// ExportData carries no project_groups array, so on a fresh install or a
+			// second machine the group a project names simply is not there, and
+			// projects.group_id REFERENCES project_groups(id). OR REPLACE does not
+			// resolve a foreign key violation, and the import is one transaction, so
+			// one such project aborted the entire restore and the dialog reported a
+			// valid backup as corrupt. Ungroup those projects instead; group_id is in
+			// IMPORT_STAMPED_FIELDS.projects, so the NULL propagates as a real change
+			// rather than losing to any remote value on the first sync.
+			const localGroupIds = new Set(
+				(await tx.select<{ id: string }>("SELECT id FROM project_groups")).map(
+					(r) => r.id,
+				),
+			);
 			const priorProjectStamps = await this._priorStamps("projects", tx);
 			for (const [index, p] of data.projects.entries()) {
 				await tx.execute(
@@ -1093,7 +1107,9 @@ export class SqliteRepository implements TodoRepository {
 						p.name,
 						p.color,
 						p.icon,
-						p.groupId,
+						p.groupId !== null && localGroupIds.has(p.groupId)
+							? p.groupId
+							: null,
 						p.sortOrder,
 						projectKeys[index],
 						p.createdAt,

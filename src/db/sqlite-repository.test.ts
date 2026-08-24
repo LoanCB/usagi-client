@@ -1928,3 +1928,76 @@ describe("bulkImport under sync", () => {
 		expect(rows[0]?.purged_at).toBeNull();
 	});
 });
+
+describe("bulkImport — a project whose group is absent locally", () => {
+	// Real SQLite, deliberately: ExportData carries no project_groups array, so
+	// restoring onto a fresh install hands projects.group_id a foreign key that
+	// does not resolve. MemoryRepository.bulkImport enforces no referential
+	// integrity, so the same case passes there whatever the code does.
+	let db: BetterSqliteDriver;
+	let repo: SqliteRepository;
+
+	beforeEach(async () => {
+		db = new BetterSqliteDriver();
+		await runMigrations(db, ALL_MIGRATIONS);
+		repo = new SqliteRepository(db);
+	});
+
+	afterEach(() => db?.close());
+
+	function exportWithGroupedProject(): ExportData {
+		return {
+			version: 1,
+			exportedAt: "2026-05-18T10:00:00.000Z",
+			projects: [
+				{
+					id: "p1",
+					name: "Work",
+					color: "#f00",
+					icon: null,
+					sortOrder: 0,
+					sortKey: "a0",
+					groupId: "g-missing",
+					createdAt: "2026-01-01T00:00:00.000Z",
+					updatedAt: "2026-01-01T00:00:00.000Z",
+				},
+			],
+			tags: [],
+			tasks: [],
+		};
+	}
+
+	it("imports it ungrouped instead of failing the whole transaction", async () => {
+		await expect(
+			repo.bulkImport(exportWithGroupedProject(), "merge"),
+		).resolves.toBeUndefined();
+
+		const rows = await db.select<{ group_id: string | null }>(
+			"SELECT group_id FROM projects WHERE id = 'p1'",
+		);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].group_id).toBeNull();
+	});
+
+	it("stamps the group_id it nulled, so the ungrouping propagates", async () => {
+		// An unstamped NULL loses to any remote group_id on the first sync, and
+		// the project silently returns to a group this device cannot resolve.
+		await repo.bulkImport(exportWithGroupedProject(), "merge");
+		const rows = await db.select<{ field_updated_at: string | null }>(
+			"SELECT field_updated_at FROM projects WHERE id = 'p1'",
+		);
+		expect(JSON.parse(rows[0].field_updated_at ?? "{}").group_id).toBeDefined();
+	});
+
+	it("keeps group_id when the group does exist locally", async () => {
+		await db.execute(
+			"INSERT INTO project_groups (id, name, color, sort_order, sort_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			["g-missing", "Group", "#fff", 0, "a0", "2026-01-01", "2026-01-01"],
+		);
+		await repo.bulkImport(exportWithGroupedProject(), "merge");
+		const rows = await db.select<{ group_id: string | null }>(
+			"SELECT group_id FROM projects WHERE id = 'p1'",
+		);
+		expect(rows[0].group_id).toBe("g-missing");
+	});
+});
