@@ -274,6 +274,17 @@ const en = {
 		replaceWarning:
 			"This will delete tasks missing from the backup on all your other devices. This cannot be undone.",
 		importConfirm: "Import",
+		importGapsTitle: "This device is missing some of what the backup refers to",
+		importGapsInboxedTasks_one:
+			"{{count}} task goes to the Inbox — its project is not on this device.",
+		importGapsInboxedTasks_other:
+			"{{count}} tasks go to the Inbox — their projects are not on this device.",
+		importGapsUnscopedTags_one: "{{count}} tag loses its project scope.",
+		importGapsUnscopedTags_other: "{{count}} tags lose their project scope.",
+		importGapsDroppedTagLinks_one:
+			"{{count}} tag assignment is dropped — that tag is not on this device.",
+		importGapsDroppedTagLinks_other:
+			"{{count}} tag assignments are dropped — those tags are not on this device.",
 		exportError: "Export failed",
 		importError: "Invalid or corrupted file",
 		importDescription:

@@ -9,17 +9,28 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import type { ImportGaps } from "@/db/import-resolution";
+import { hasImportGaps } from "@/db/import-resolution";
 import type { ExportData } from "@/lib/dataTransfer";
 import { cn } from "@/lib/utils";
 
 interface ImportConfirmDialogProps {
 	readonly data: ExportData;
+	/**
+	 * What the import would have to change to fit this device, per mode.
+	 *
+	 * Both modes are precomputed because the mode is chosen in here, and a
+	 * replace tombstones the projects the backup leaves out — so it can send
+	 * tasks to the Inbox that a merge of the same file would leave alone.
+	 */
+	readonly gaps: Record<"merge" | "replace", ImportGaps>;
 	readonly onConfirm: (strategy: "merge" | "replace") => void;
 	readonly onCancel: () => void;
 }
 
 export function ImportConfirmDialog({
 	data,
+	gaps,
 	onConfirm,
 	onCancel,
 }: ImportConfirmDialogProps) {
@@ -84,6 +95,36 @@ export function ImportConfirmDialog({
 							<AlertTriangle className="h-3.5 w-3.5 shrink-0" />
 							{t("data.replaceWarning")}
 						</p>
+					)}
+
+					{hasImportGaps(gaps[mode]) && (
+						<div className="flex gap-1.5 rounded-md bg-muted p-2 text-xs">
+							<AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+							<div className="flex flex-col gap-1">
+								<p className="font-medium">{t("data.importGapsTitle")}</p>
+								{gaps[mode].inboxedTasks > 0 && (
+									<p className="text-muted-foreground">
+										{t("data.importGapsInboxedTasks", {
+											count: gaps[mode].inboxedTasks,
+										})}
+									</p>
+								)}
+								{gaps[mode].unscopedTags > 0 && (
+									<p className="text-muted-foreground">
+										{t("data.importGapsUnscopedTags", {
+											count: gaps[mode].unscopedTags,
+										})}
+									</p>
+								)}
+								{gaps[mode].droppedTagLinks > 0 && (
+									<p className="text-muted-foreground">
+										{t("data.importGapsDroppedTagLinks", {
+											count: gaps[mode].droppedTagLinks,
+										})}
+									</p>
+								)}
+							</div>
+						</div>
 					)}
 				</div>
 

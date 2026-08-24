@@ -10,6 +10,7 @@ import type {
 	Task,
 	TaskFilters,
 } from "@/types";
+import type { ImportGaps } from "./import-resolution";
 
 export interface TodoRepository {
 	// Tasks
@@ -33,6 +34,11 @@ export interface TodoRepository {
 		nextId: string | null,
 	): Promise<void>;
 	bulkImport(data: ExportData, strategy: "merge" | "replace"): Promise<void>;
+	/** What bulkImport would have to change to fit this device. Writes nothing. */
+	previewImport(
+		data: ExportData,
+		strategy: "merge" | "replace",
+	): Promise<ImportGaps>;
 
 	// Projects
 	getProjects(): Promise<Project[]>;

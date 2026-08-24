@@ -34,6 +34,7 @@ import {
 	DialogTrigger,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import type { ImportGaps } from "@/db/import-resolution";
 import { useUpdaterContext } from "@/hooks/useUpdater";
 import { getDisplayVersions } from "@/lib/changelog";
 import {
@@ -848,9 +849,22 @@ const EXPORT_GROUPS: {
 	},
 ];
 
+/**
+ * A parsed backup together with what importing it would cost this device.
+ *
+ * The two travel as one value because they are only ever meaningful together:
+ * the gaps describe this payload against the rows present right now, so a
+ * pendingImport without them would let the dialog ask for consent it cannot
+ * describe. Both modes are precomputed because the dialog owns the mode toggle.
+ */
+type PendingImport = {
+	data: ExportData;
+	gaps: Record<"merge" | "replace", ImportGaps>;
+};
+
 type DataPanelState = {
 	exportOptions: ExportOptions;
-	pendingImport: ExportData | null;
+	pendingImport: PendingImport | null;
 	error: string | null;
 };
 
@@ -859,7 +873,7 @@ type DataPanelAction =
 	| { type: "setProjectIds"; value: ExportOptions["projectIds"] }
 	| { type: "clearError" }
 	| { type: "setError"; message: string }
-	| { type: "setPendingImport"; value: ExportData | null }
+	| { type: "setPendingImport"; value: PendingImport | null }
 	| { type: "importFailed"; message: string };
 
 const initialDataPanel: DataPanelState = {
@@ -976,7 +990,19 @@ function DataPanel() {
 				dataDispatch({ type: "setError", message: t("data.importError") });
 				return;
 			}
-			dataDispatch({ type: "setPendingImport", value: parsed });
+			// Both previews run inside this try, so a payload that parses but cannot
+			// be resolved still reports as a bad file rather than throwing on open.
+			const repo = getRepository();
+			dataDispatch({
+				type: "setPendingImport",
+				value: {
+					data: parsed,
+					gaps: {
+						merge: await repo.previewImport(parsed, "merge"),
+						replace: await repo.previewImport(parsed, "replace"),
+					},
+				},
+			});
 		} catch {
 			dataDispatch({ type: "setError", message: t("data.importError") });
 		}
@@ -985,7 +1011,7 @@ function DataPanel() {
 	async function handleImportConfirm(strategy: "merge" | "replace") {
 		if (!pendingImport) return;
 		try {
-			await getRepository().bulkImport(pendingImport, strategy);
+			await getRepository().bulkImport(pendingImport.data, strategy);
 			dataDispatch({ type: "setPendingImport", value: null });
 			window.location.reload();
 		} catch {
@@ -1138,7 +1164,8 @@ function DataPanel() {
 			</div>
 			{pendingImport && (
 				<ImportConfirmDialog
-					data={pendingImport}
+					data={pendingImport.data}
+					gaps={pendingImport.gaps}
 					onConfirm={handleImportConfirm}
 					onCancel={() =>
 						dataDispatch({ type: "setPendingImport", value: null })

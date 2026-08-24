@@ -276,6 +276,19 @@ const fr: typeof en = {
 		replaceWarning:
 			"Cette action supprimera vos tâches manquantes de la sauvegarde sur tous vos autres appareils. Cela ne peut pas être annulé.",
 		importConfirm: "Importer",
+		importGapsTitle:
+			"Cet appareil ne possède pas tout ce que la sauvegarde référence",
+		importGapsInboxedTasks_one:
+			"{{count}} tâche ira dans l'Inbox — son projet n'est pas sur cet appareil.",
+		importGapsInboxedTasks_other:
+			"{{count}} tâches iront dans l'Inbox — leurs projets ne sont pas sur cet appareil.",
+		importGapsUnscopedTags_one: "{{count}} tag perdra sa portée de projet.",
+		importGapsUnscopedTags_other:
+			"{{count}} tags perdront leur portée de projet.",
+		importGapsDroppedTagLinks_one:
+			"{{count}} association de tag sera abandonnée — ce tag n'est pas sur cet appareil.",
+		importGapsDroppedTagLinks_other:
+			"{{count}} associations de tags seront abandonnées — ces tags ne sont pas sur cet appareil.",
 		exportError: "Échec de l'export",
 		importError: "Fichier invalide ou corrompu",
 		importDescription:

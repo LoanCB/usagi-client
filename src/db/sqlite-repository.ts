@@ -15,6 +15,13 @@ import type {
 import { getOrCreateDeviceId } from "./device-id";
 import type { DbDriver } from "./driver";
 import { stampFields } from "./field-timestamps";
+import {
+	countImportGaps,
+	type ImportGaps,
+	predictReferents,
+	resolveProjectRef,
+	resolveTagLink,
+} from "./import-resolution";
 import type { TodoRepository } from "./repository";
 
 // Tables that carry a field_updated_at stamp map. Closed so a table name can
@@ -1034,6 +1041,34 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	/**
+	 * What `bulkImport` would have to change about this payload to fit the rows
+	 * this device holds — without writing anything.
+	 *
+	 * The import dialog needs this *before* the transaction: landing tasks in the
+	 * Inbox is a defensible answer to a project that is not here, but only if the
+	 * user is told, and afterwards is too late. See `import-resolution.ts`.
+	 */
+	async previewImport(
+		data: ExportData,
+		strategy: "merge" | "replace",
+	): Promise<ImportGaps> {
+		const projects = await this.db.select<{ id: string }>(
+			"SELECT id FROM projects WHERE purged_at IS NULL",
+		);
+		const tags = await this.db.select<{ id: string; name: string }>(
+			"SELECT id, name FROM tags WHERE purged_at IS NULL",
+		);
+		return countImportGaps(
+			data,
+			predictReferents(
+				data,
+				{ projectIds: projects.map((r) => r.id), tags },
+				strategy,
+			),
+		);
+	}
+
+	/**
 	 * An import is a bulk local edit that propagates, not a silent restore: every
 	 * row it writes is stamped as changed now by this device, so the outbox
 	 * pushes it like any other write (spec §9.4).
@@ -1124,6 +1159,31 @@ export class SqliteRepository implements TodoRepository {
 				);
 			}
 
+			// A task or a tag may name a project this device does not have:
+			// dataTransfer.ts exports tasks carrying projectId while sending
+			// `projects: []` whenever the "projects" checkbox is unchecked. Both
+			// tasks.project_id (001_initial.sql) and tags.project_id
+			// (004_tags_project_scope.sql) REFERENCE projects(id), so one such row
+			// aborted the entire restore exactly as a missing group did.
+			//
+			// Resolving here rather than at export time is what lets the same
+			// tasks-only backup restore intact onto the device it came from and
+			// degrade only where the project is genuinely gone.
+			//
+			// Read after the loop above, so a project the payload carries itself
+			// counts, and excluding purged rows: a tombstone still satisfies the
+			// foreign key, so a replace that tombstones a project would otherwise
+			// leave its tasks hanging off a row no sidebar ever lists.
+			const liveProjectIds = new Set(
+				(
+					await tx.select<{ id: string }>(
+						"SELECT id FROM projects WHERE purged_at IS NULL",
+					)
+				).map((r) => r.id),
+			);
+			const inProject = (id: string | null): string | null =>
+				resolveProjectRef(id, liveProjectIds);
+
 			// In merge mode use OR IGNORE to avoid overwriting existing tags that share
 			// the same UNIQUE(name) — which would delete the existing row and orphan its task_tags.
 			const tagSql =
@@ -1136,7 +1196,7 @@ export class SqliteRepository implements TodoRepository {
 					tag.id,
 					tag.name,
 					tag.color,
-					tag.projectId,
+					inProject(tag.projectId),
 					data.exportedAt,
 					data.exportedAt,
 					stampFields(
@@ -1148,9 +1208,29 @@ export class SqliteRepository implements TodoRepository {
 				]);
 			}
 
-			// Only link task→tag associations for tags present in the export. In replace
-			// mode this prevents dangling references when the "tags" checkbox was unchecked.
-			const exportedTagIds = new Set(data.tags.map((t) => t.id));
+			// task_tags.tag_id is NOT NULL REFERENCES tags(id) (001_initial.sql) and
+			// the tag a task names may not be in the table at all: "tags" unchecked
+			// sends `tags: []`, and — far more often — tags.name is globally UNIQUE,
+			// so the OR IGNORE above keeps the local row and never inserts the
+			// payload's id. Either way the link aborted the whole import.
+			//
+			// That OR IGNORE already decided the local tag wins a name collision;
+			// pointing the link at it finishes that decision rather than crashing on
+			// it, and UNIQUE(name) guarantees at most one candidate. Only a tag with
+			// no local counterpart at all loses its link — which also covers the
+			// replace case the removed `exportedTagIds` set used to special-case,
+			// since a tag left out of a replace import is tombstoned, and a
+			// tombstone satisfies the foreign key without being a tag any more.
+			const liveTags = await tx.select<{ id: string; name: string }>(
+				"SELECT id, name FROM tags WHERE purged_at IS NULL",
+			);
+			const liveTagIds = new Set(liveTags.map((r) => r.id));
+			const liveTagIdByName = new Map(liveTags.map((r) => [r.name, r.id]));
+			const linkTo = (t: Tag): string | null =>
+				resolveTagLink(t, {
+					tagIds: liveTagIds,
+					tagIdByName: liveTagIdByName,
+				});
 
 			// Same block-of-keys reasoning as the projects loop above.
 			const taskKeys = generateNKeysBetween(
@@ -1167,7 +1247,7 @@ export class SqliteRepository implements TodoRepository {
 						task.id,
 						task.title,
 						task.description,
-						task.projectId,
+						inProject(task.projectId),
 						task.priority,
 						task.dueDate,
 						task.completedAt,
@@ -1186,10 +1266,11 @@ export class SqliteRepository implements TodoRepository {
 				);
 				await tx.execute("DELETE FROM task_tags WHERE task_id = ?", [task.id]);
 				for (const tag of task.tags) {
-					if (strategy === "replace" && !exportedTagIds.has(tag.id)) continue;
+					const tagId = linkTo(tag);
+					if (tagId === null) continue;
 					await tx.execute(
 						"INSERT OR REPLACE INTO task_tags (task_id, tag_id) VALUES (?, ?)",
-						[task.id, tag.id],
+						[task.id, tagId],
 					);
 				}
 			}
@@ -1220,8 +1301,16 @@ export class SqliteRepository implements TodoRepository {
 		// SQLITE_MAX_VARIABLE_NUMBER on how large a backup could be imported, and
 		// a restore is exactly when the payload is at its largest.
 		const keptIds = new Set(kept.map((r) => r.id));
+		// tags.name is NOT NULL UNIQUE (001_initial.sql), so blanking a second
+		// tombstone to the same '' collided and aborted the whole import — any
+		// replace import leaving two tags out of the backup. The id is unique by
+		// construction and carries no user content, which is all blanking is for.
 		const blank =
-			table === "tasks" ? ", title = '', description = NULL" : ", name = ''";
+			table === "tasks"
+				? ", title = '', description = NULL"
+				: table === "tags"
+					? ", name = id"
+					: ", name = ''";
 		const live = await tx.select<{ id: string }>(
 			`SELECT id FROM ${table} WHERE purged_at IS NULL`,
 		);

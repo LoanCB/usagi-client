@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExportData } from "@/lib/dataTransfer";
 import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
 import { BetterSqliteDriver } from "@/test-harness/BetterSqliteDriver";
-import type { Project, Task } from "@/types";
+import type { Project, Tag, Task } from "@/types";
 import type { DbDriver } from "./driver";
 import { ALL_MIGRATIONS } from "./migrations/index";
 import { runMigrations } from "./migrations/run-migrations";
@@ -713,9 +713,9 @@ describe("SqliteRepository — bulkImport", () => {
 		expect(
 			calls.some((s: string) => s.includes("INSERT OR REPLACE INTO TASKS")),
 		).toBe(true);
-		expect(
-			calls.some((s: string) => s.includes("INSERT OR REPLACE INTO TASK_TAGS")),
-		).toBe(true);
+		// Which task_tags rows get written depends on which tags the table
+		// actually holds, so it is asserted against real SQLite instead — see
+		// "bulkImport — references the payload names but this device lacks".
 	});
 
 	it("replace: uses OR REPLACE for tags (no name conflict possible after full DELETE)", async () => {
@@ -729,44 +729,6 @@ describe("SqliteRepository — bulkImport", () => {
 		expect(
 			calls.some((s: string) => s.includes("INSERT OR REPLACE INTO TAGS")),
 		).toBe(true);
-	});
-
-	it("replace: skips task_tags for tags not in export data", async () => {
-		const taskWithExtraTag: Task = {
-			...sampleExportData.tasks[0],
-			tags: [
-				{ id: "tag-1", name: "urgent", color: "#ef4444", projectId: null },
-				{
-					id: "tag-outside-export",
-					name: "other",
-					color: "#000",
-					projectId: null,
-				},
-			],
-		};
-		const dataWithExtraTag: ExportData = {
-			...sampleExportData,
-			tags: [
-				{ id: "tag-1", name: "urgent", color: "#ef4444", projectId: null },
-			],
-			tasks: [taskWithExtraTag],
-		};
-		const db = makeDb();
-		const repo = new SqliteRepository(db);
-		await repo.bulkImport(dataWithExtraTag, "replace");
-
-		const taskTagInserts = (
-			db.execute as ReturnType<typeof vi.fn>
-		).mock.calls.filter((c: unknown[]) =>
-			(c[0] as string)
-				.toUpperCase()
-				.includes("INSERT OR REPLACE INTO TASK_TAGS"),
-		);
-		const insertedTagIds = taskTagInserts.map(
-			(c: unknown[]) => (c[1] as unknown[])[1],
-		);
-		expect(insertedTagIds).toContain("tag-1");
-		expect(insertedTagIds).not.toContain("tag-outside-export");
 	});
 
 	it("merge: deletes existing task_tags for each task before reinserting", async () => {
@@ -1999,5 +1961,421 @@ describe("bulkImport — a project whose group is absent locally", () => {
 			"SELECT group_id FROM projects WHERE id = 'p1'",
 		);
 		expect(rows[0].group_id).toBe("g-missing");
+	});
+});
+
+describe("bulkImport — references the payload names but this device lacks", () => {
+	// Real SQLite throughout, deliberately: every case here is a constraint the
+	// schema enforces and MemoryRepository does not, so the same tests pass
+	// there whatever the code does. See the group-absent block above.
+	let db: BetterSqliteDriver;
+	let repo: SqliteRepository;
+
+	beforeEach(async () => {
+		db = new BetterSqliteDriver();
+		await runMigrations(db, ALL_MIGRATIONS);
+		repo = new SqliteRepository(db);
+	});
+
+	afterEach(() => db?.close());
+
+	function exportOf(over: Partial<ExportData> = {}): ExportData {
+		return {
+			version: 1,
+			exportedAt: "2026-05-18T10:00:00.000Z",
+			projects: [],
+			tags: [],
+			tasks: [],
+			...over,
+		};
+	}
+
+	function task(over: Partial<Task> = {}): Task {
+		return {
+			id: "t1",
+			title: "Task",
+			description: null,
+			projectId: null,
+			priority: "none",
+			dueDate: null,
+			completedAt: null,
+			deletedAt: null,
+			tags: [],
+			sortOrder: 0,
+			createdAt: "2026-01-01T00:00:00.000Z",
+			updatedAt: "2026-01-01T00:00:00.000Z",
+			...over,
+		};
+	}
+
+	function tag(over: Partial<Tag> = {}): Tag {
+		return {
+			id: "g1",
+			name: "urgent",
+			color: "#fff",
+			projectId: null,
+			...over,
+		};
+	}
+
+	async function seedTag(id: string, name: string): Promise<void> {
+		await db.execute(
+			"INSERT INTO tags (id, name, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+			[id, name, "#fff", "2026-01-01", "2026-01-01"],
+		);
+	}
+
+	async function seedProject(id: string): Promise<void> {
+		await db.execute(
+			"INSERT INTO projects (id, name, color, sort_order, sort_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			[id, `Project ${id}`, "#f00", 0, `a${id}`, "2026-01-01", "2026-01-01"],
+		);
+	}
+
+	// ---- F: tombstoning blanks tags.name, which is NOT NULL UNIQUE ----
+
+	it("tombstones two absent tags at once without colliding on the blanked name", async () => {
+		await seedTag("a", "alpha");
+		await seedTag("b", "beta");
+		await expect(
+			repo.bulkImport(exportOf(), "replace"),
+		).resolves.toBeUndefined();
+	});
+
+	it("leaves no user-visible content in a tombstoned tag's name", async () => {
+		await seedTag("a", "alpha");
+		await seedTag("b", "beta");
+		await repo.bulkImport(exportOf(), "replace");
+		const rows = await db.select<{ id: string; name: string }>(
+			"SELECT id, name FROM tags ORDER BY id",
+		);
+		expect(rows.map((r) => r.name)).not.toContain("alpha");
+		expect(rows.map((r) => r.name)).not.toContain("beta");
+	});
+
+	// ---- A: tasks.project_id names a project this device does not have ----
+
+	it("imports a task whose project is absent into the Inbox", async () => {
+		const data = exportOf({ tasks: [task({ projectId: "p-missing" })] });
+		await expect(repo.bulkImport(data, "merge")).resolves.toBeUndefined();
+		const rows = await db.select<{ project_id: string | null }>(
+			"SELECT project_id FROM tasks WHERE id = 't1'",
+		);
+		expect(rows[0].project_id).toBeNull();
+	});
+
+	it("stamps the project_id it cleared, so the move to the Inbox propagates", async () => {
+		// An unstamped NULL loses to any remote project_id on the first sync, and
+		// the task silently returns to a project this device cannot resolve.
+		await repo.bulkImport(
+			exportOf({ tasks: [task({ projectId: "p-missing" })] }),
+			"merge",
+		);
+		const rows = await db.select<{ field_updated_at: string | null }>(
+			"SELECT field_updated_at FROM tasks WHERE id = 't1'",
+		);
+		expect(
+			JSON.parse(rows[0].field_updated_at ?? "{}").project_id,
+		).toBeDefined();
+	});
+
+	it("keeps a task's project when the payload carries that project itself", async () => {
+		const data = exportOf({
+			projects: [
+				{
+					id: "p1",
+					name: "Work",
+					color: "#f00",
+					icon: null,
+					sortOrder: 0,
+					sortKey: "a0",
+					groupId: null,
+					createdAt: "2026-01-01T00:00:00.000Z",
+					updatedAt: "2026-01-01T00:00:00.000Z",
+				},
+			],
+			tasks: [task({ projectId: "p1" })],
+		});
+		await repo.bulkImport(data, "merge");
+		const rows = await db.select<{ project_id: string | null }>(
+			"SELECT project_id FROM tasks WHERE id = 't1'",
+		);
+		expect(rows[0].project_id).toBe("p1");
+	});
+
+	it("keeps a task's project when only this device has it", async () => {
+		// The point of resolving late: the same tasks-only backup restores intact
+		// onto the device it came from, and degrades only where the project is gone.
+		await seedProject("p1");
+		await repo.bulkImport(
+			exportOf({ tasks: [task({ projectId: "p1" })] }),
+			"merge",
+		);
+		const rows = await db.select<{ project_id: string | null }>(
+			"SELECT project_id FROM tasks WHERE id = 't1'",
+		);
+		expect(rows[0].project_id).toBe("p1");
+	});
+
+	// ---- B: tags.project_id names a project this device does not have ----
+
+	it("imports a tag scoped to an absent project as unscoped", async () => {
+		const data = exportOf({ tags: [tag({ projectId: "p-missing" })] });
+		await expect(repo.bulkImport(data, "merge")).resolves.toBeUndefined();
+		const rows = await db.select<{ project_id: string | null }>(
+			"SELECT project_id FROM tags WHERE id = 'g1'",
+		);
+		expect(rows[0].project_id).toBeNull();
+	});
+
+	it("keeps a tag's project scope when this device has that project", async () => {
+		await seedProject("p1");
+		await repo.bulkImport(
+			exportOf({ tags: [tag({ projectId: "p1" })] }),
+			"merge",
+		);
+		const rows = await db.select<{ project_id: string | null }>(
+			"SELECT project_id FROM tags WHERE id = 'g1'",
+		);
+		expect(rows[0].project_id).toBe("p1");
+	});
+
+	it("links only the tags a replace import carries", async () => {
+		// Was a mock-driver test asserting the bind values of the task_tags
+		// INSERT. It could not see whether the tag row existed, which is the
+		// only thing that decides the outcome.
+		const carried = tag({ id: "g1", name: "urgent" });
+		const outside = tag({ id: "g-outside", name: "other" });
+		const data = exportOf({
+			tags: [carried],
+			tasks: [task({ tags: [carried, outside] })],
+		});
+		await repo.bulkImport(data, "replace");
+		const rows = await db.select<{ tag_id: string }>(
+			"SELECT tag_id FROM task_tags WHERE task_id = 't1'",
+		);
+		expect(rows.map((r) => r.tag_id)).toEqual(["g1"]);
+	});
+
+	// ---- previewImport: the same rules, counted before anything is written ----
+
+	it("reports the tasks an import would move to the Inbox", async () => {
+		const gaps = await repo.previewImport(
+			exportOf({ tasks: [task({ projectId: "p-missing" })] }),
+			"merge",
+		);
+		expect(gaps.inboxedTasks).toBe(1);
+	});
+
+	it("reports the tags an import would import unscoped", async () => {
+		const gaps = await repo.previewImport(
+			exportOf({ tags: [tag({ projectId: "p-missing" })] }),
+			"merge",
+		);
+		expect(gaps.unscopedTags).toBe(1);
+	});
+
+	it("reports the tag links an import would drop", async () => {
+		const gaps = await repo.previewImport(
+			exportOf({ tasks: [task({ tags: [tag()] })] }),
+			"merge",
+		);
+		expect(gaps.droppedTagLinks).toBe(1);
+	});
+
+	it("reports nothing when this device can resolve the whole payload", async () => {
+		await seedProject("p1");
+		await seedTag("g1", "urgent");
+		const gaps = await repo.previewImport(
+			exportOf({ tasks: [task({ projectId: "p1", tags: [tag()] })] }),
+			"merge",
+		);
+		expect(gaps).toEqual({
+			inboxedTasks: 0,
+			unscopedTags: 0,
+			droppedTagLinks: 0,
+		});
+	});
+
+	it("counts a project the payload carries itself as present", async () => {
+		const gaps = await repo.previewImport(
+			exportOf({
+				projects: [
+					{
+						id: "p1",
+						name: "Work",
+						color: "#f00",
+						icon: null,
+						sortOrder: 0,
+						sortKey: "a0",
+						groupId: null,
+						createdAt: "2026-01-01T00:00:00.000Z",
+						updatedAt: "2026-01-01T00:00:00.000Z",
+					},
+				],
+				tasks: [task({ projectId: "p1" })],
+			}),
+			"merge",
+		);
+		expect(gaps.inboxedTasks).toBe(0);
+	});
+
+	it("counts a project a replace import would tombstone as absent", async () => {
+		await seedProject("p1");
+		const data = exportOf({ tasks: [task({ projectId: "p1" })] });
+		expect((await repo.previewImport(data, "merge")).inboxedTasks).toBe(0);
+		expect((await repo.previewImport(data, "replace")).inboxedTasks).toBe(1);
+	});
+
+	it("does not report a link that a same-name local tag will absorb", async () => {
+		await seedTag("g-local", "urgent");
+		const gaps = await repo.previewImport(
+			exportOf({
+				tags: [tag({ id: "g-remote" })],
+				tasks: [task({ tags: [tag({ id: "g-remote" })] })],
+			}),
+			"merge",
+		);
+		expect(gaps.droppedTagLinks).toBe(0);
+	});
+
+	it("writes nothing", async () => {
+		await repo.previewImport(
+			exportOf({ tasks: [task({ projectId: "p-missing" })] }),
+			"merge",
+		);
+		const rows = await db.select<{ n: number }>(
+			"SELECT COUNT(*) AS n FROM tasks",
+		);
+		expect(rows[0].n).toBe(0);
+	});
+
+	it("predicts exactly what the import then does", async () => {
+		// The preview models bulkImport's resolution instead of executing it, so
+		// the two can drift. This is the test that catches that.
+		await seedTag("g-local", "shared");
+		const data = exportOf({
+			projects: [
+				{
+					id: "p-keep",
+					name: "Keep",
+					color: "#f00",
+					icon: null,
+					sortOrder: 0,
+					sortKey: "a0",
+					groupId: null,
+					createdAt: "2026-01-01T00:00:00.000Z",
+					updatedAt: "2026-01-01T00:00:00.000Z",
+				},
+			],
+			tags: [
+				tag({ id: "gA", name: "alpha", projectId: "p-missing" }),
+				tag({ id: "gB", name: "beta", projectId: "p-keep" }),
+				tag({ id: "g-remote", name: "shared" }),
+			],
+			tasks: [
+				task({
+					id: "t1",
+					projectId: "p-missing",
+					tags: [
+						tag({ id: "g-gone", name: "gone" }),
+						tag({ id: "g-remote", name: "shared" }),
+					],
+				}),
+				task({ id: "t2", projectId: "p-keep" }),
+			],
+		});
+
+		const gaps = await repo.previewImport(data, "merge");
+		await repo.bulkImport(data, "merge");
+
+		const inboxed = await db.select<{ n: number }>(
+			"SELECT COUNT(*) AS n FROM tasks WHERE project_id IS NULL",
+		);
+		const unscoped = await db.select<{ n: number }>(
+			"SELECT COUNT(*) AS n FROM tags WHERE id IN ('gA', 'gB') AND project_id IS NULL",
+		);
+		const links = await db.select<{ tag_id: string }>(
+			"SELECT tag_id FROM task_tags WHERE task_id = 't1'",
+		);
+		expect({
+			inboxedTasks: inboxed[0].n,
+			unscopedTags: unscoped[0].n,
+			droppedTagLinks: 2 - links.length,
+		}).toEqual(gaps);
+		expect(links.map((r) => r.tag_id)).toEqual(["g-local"]);
+	});
+
+	// ---- D: replace tombstones the very project the payload's tasks name ----
+
+	// ---- C and E: task_tags.tag_id names a tag that is not in the table ----
+
+	it("drops a tag link when the tag is absent and no local tag owns its name", async () => {
+		// Reachable by unchecking "tags": dataTransfer.ts sends `tags: []` while
+		// tasks still carry their tags, and task_tags.tag_id is NOT NULL
+		// REFERENCES tags(id).
+		const data = exportOf({ tasks: [task({ tags: [tag()] })] });
+		await expect(repo.bulkImport(data, "merge")).resolves.toBeUndefined();
+		const rows = await db.select<{ tag_id: string }>(
+			"SELECT tag_id FROM task_tags WHERE task_id = 't1'",
+		);
+		expect(rows).toEqual([]);
+	});
+
+	it("remaps a tag link to the local tag that already owns the name", async () => {
+		// The ordinary two-device merge: tags.name is globally UNIQUE, so OR
+		// IGNORE keeps the local row and the payload's id is never inserted.
+		// Dropping the link here would lose tag assignments on every such import.
+		await seedTag("g-local", "urgent");
+		const data = exportOf({
+			tags: [tag({ id: "g-remote" })],
+			tasks: [task({ tags: [tag({ id: "g-remote" })] })],
+		});
+		await expect(repo.bulkImport(data, "merge")).resolves.toBeUndefined();
+		const rows = await db.select<{ tag_id: string }>(
+			"SELECT tag_id FROM task_tags WHERE task_id = 't1'",
+		);
+		expect(rows.map((r) => r.tag_id)).toEqual(["g-local"]);
+	});
+
+	it("keeps a tag link when the tag id itself is present locally", async () => {
+		await seedTag("g1", "urgent");
+		await repo.bulkImport(
+			exportOf({ tasks: [task({ tags: [tag()] })] }),
+			"merge",
+		);
+		const rows = await db.select<{ tag_id: string }>(
+			"SELECT tag_id FROM task_tags WHERE task_id = 't1'",
+		);
+		expect(rows.map((r) => r.tag_id)).toEqual(["g1"]);
+	});
+
+	it("drops a tag link to a tag this replace import tombstones", async () => {
+		// Same reasoning as the project case below: the tombstone still satisfies
+		// the foreign key, so only a live-tag check keeps the link honest.
+		await seedTag("g1", "urgent");
+		await repo.bulkImport(
+			exportOf({ tasks: [task({ tags: [tag()] })] }),
+			"replace",
+		);
+		const rows = await db.select<{ tag_id: string }>(
+			"SELECT tag_id FROM task_tags WHERE task_id = 't1'",
+		);
+		expect(rows).toEqual([]);
+	});
+
+	it("inboxes a task whose project this same import tombstones", async () => {
+		// The row survives the foreign key because a tombstone is not a delete,
+		// so nothing fails — the task just hangs off a purged project, invisible
+		// in a sidebar that lists only live ones.
+		await seedProject("p1");
+		await repo.bulkImport(
+			exportOf({ tasks: [task({ projectId: "p1" })] }),
+			"replace",
+		);
+		const rows = await db.select<{ project_id: string | null }>(
+			"SELECT project_id FROM tasks WHERE id = 't1'",
+		);
+		expect(rows[0].project_id).toBeNull();
 	});
 });

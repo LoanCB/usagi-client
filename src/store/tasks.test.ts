@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NO_IMPORT_GAPS } from "@/db/import-resolution";
 import type { TodoRepository } from "@/db/repository";
 import type { Task } from "@/types";
 import { useTaskStore } from "./tasks";
@@ -48,6 +49,7 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		getSettings: vi.fn().mockResolvedValue({}),
 		setSetting: vi.fn().mockResolvedValue(undefined),
 		bulkImport: vi.fn().mockResolvedValue(undefined),
+		previewImport: vi.fn().mockResolvedValue(NO_IMPORT_GAPS),
 		getProjectGroups: vi.fn().mockResolvedValue([]),
 		createProjectGroup: vi.fn(),
 		updateProjectGroup: vi.fn(),

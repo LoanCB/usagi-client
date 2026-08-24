@@ -1,4 +1,11 @@
 import { generateKeyBetween } from "fractional-indexing";
+import type { ImportGaps, ImportReferents } from "@/db/import-resolution";
+import {
+	countImportGaps,
+	predictReferents,
+	resolveProjectRef,
+	resolveTagLink,
+} from "@/db/import-resolution";
 import type { TodoRepository } from "@/db/repository";
 import type { ExportData } from "@/lib/dataTransfer";
 import type {
@@ -269,6 +276,15 @@ export class MemoryRepository implements TodoRepository {
 		MemoryRepository.reseat(this.tasks, ordered);
 	}
 
+	/**
+	 * Resolves references the same way SqliteRepository does, through the same
+	 * module.
+	 *
+	 * This map enforces no referential integrity, so it used to keep a projectId
+	 * pointing at nothing and hand a store test a state the real app cannot
+	 * reach. That divergence is how a whole class of import bug survived review;
+	 * MemoryRepository.test.ts pins the two together.
+	 */
 	async bulkImport(
 		data: ExportData,
 		strategy: "merge" | "replace",
@@ -283,18 +299,49 @@ export class MemoryRepository implements TodoRepository {
 			this.projects.set(project.id, project);
 		}
 
+		const referents = this.referents(data, strategy);
+
 		for (const tag of data.tags) {
-			this.tags.set(tag.id, tag);
+			if (strategy === "merge" && !referents.tagIds.has(tag.id)) continue;
+			this.tags.set(tag.id, {
+				...tag,
+				projectId: resolveProjectRef(tag.projectId, referents.projectIds),
+			});
 		}
 
 		for (const task of data.tasks) {
-			// Resolve tag references from imported tags map
 			const resolvedTags = task.tags.flatMap((t) => {
-				const resolved = this.tags.get(t.id) ?? t;
+				const id = resolveTagLink(t, referents);
+				const resolved = id === null ? undefined : this.tags.get(id);
 				return resolved ? [resolved] : [];
 			});
-			this.tasks.set(task.id, { ...task, tags: resolvedTags });
+			this.tasks.set(task.id, {
+				...task,
+				projectId: resolveProjectRef(task.projectId, referents.projectIds),
+				tags: resolvedTags,
+			});
 		}
+	}
+
+	async previewImport(
+		data: ExportData,
+		strategy: "merge" | "replace",
+	): Promise<ImportGaps> {
+		return countImportGaps(data, this.referents(data, strategy));
+	}
+
+	private referents(
+		data: ExportData,
+		strategy: "merge" | "replace",
+	): ImportReferents {
+		return predictReferents(
+			data,
+			{
+				projectIds: Array.from(this.projects.keys()),
+				tags: Array.from(this.tags.values()),
+			},
+			strategy,
+		);
 	}
 
 	async getProjects(): Promise<Project[]> {
