@@ -22,7 +22,7 @@ beforeEach(() => {
 		completeTask: vi.fn(),
 		uncompleteTask: vi.fn(),
 		deleteTask: vi.fn(),
-		reorderTasks: vi.fn(),
+		moveTask: vi.fn(),
 	});
 });
 

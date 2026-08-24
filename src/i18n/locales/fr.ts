@@ -269,8 +269,26 @@ const fr: typeof en = {
 		importSummary: "{{tasks}} tâches, {{projects}} projets, {{tags}} tags",
 		merge: "Fusionner",
 		replace: "Remplacer",
+		mergeExplanation:
+			"Les tâches, projets et tags de la sauvegarde sont ajoutés à vos données actuelles, ici et sur vos autres appareils synchronisés. Les entrées déjà présentes sont écrasées par la version de la sauvegarde.",
+		replaceExplanation:
+			"En plus d'ajouter et d'écraser comme la fusion, tout ce qui ne figure pas dans la sauvegarde est supprimé — y compris sur vos autres appareils synchronisés.",
 		replaceWarning:
-			"Toutes vos données actuelles seront supprimées définitivement.",
+			"Cette action supprimera vos tâches manquantes de la sauvegarde sur tous vos autres appareils. Cela ne peut pas être annulé.",
+		importConfirm: "Importer",
+		importGapsTitle:
+			"Cet appareil ne possède pas tout ce que la sauvegarde référence",
+		importGapsInboxedTasks_one:
+			"{{count}} tâche ira dans l'Inbox — son projet n'est pas sur cet appareil.",
+		importGapsInboxedTasks_other:
+			"{{count}} tâches iront dans l'Inbox — leurs projets ne sont pas sur cet appareil.",
+		importGapsUnscopedTags_one: "{{count}} tag perdra sa portée de projet.",
+		importGapsUnscopedTags_other:
+			"{{count}} tags perdront leur portée de projet.",
+		importGapsDroppedTagLinks_one:
+			"{{count}} association de tag sera abandonnée — ce tag n'est pas sur cet appareil.",
+		importGapsDroppedTagLinks_other:
+			"{{count}} associations de tags seront abandonnées — ces tags ne sont pas sur cet appareil.",
 		exportError: "Échec de l'export",
 		importError: "Fichier invalide ou corrompu",
 		importDescription:

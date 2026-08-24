@@ -15,7 +15,12 @@ interface ProjectGroupStore {
 		patch: Partial<Pick<ProjectGroup, "name" | "color">>,
 	): Promise<void>;
 	deleteGroup(repo: TodoRepository, id: string): Promise<void>;
-	reorderGroups(repo: TodoRepository, orderedIds: string[]): Promise<void>;
+	moveGroup(
+		repo: TodoRepository,
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void>;
 }
 
 export const useProjectGroupStore = create<ProjectGroupStore>((set) => ({
@@ -28,7 +33,9 @@ export const useProjectGroupStore = create<ProjectGroupStore>((set) => ({
 
 	async createGroup(repo, input) {
 		const group = await repo.createProjectGroup(input);
-		set((s) => ({ groups: [...s.groups, group] }));
+		// Prepended, to match the head key the repository gives a new group — see
+		// the same note in store/projects.ts.
+		set((s) => ({ groups: [group, ...s.groups] }));
 		return group;
 	},
 
@@ -44,8 +51,8 @@ export const useProjectGroupStore = create<ProjectGroupStore>((set) => ({
 		set((s) => ({ groups: s.groups.filter((g) => g.id !== id) }));
 	},
 
-	async reorderGroups(repo, orderedIds) {
-		await repo.reorderProjectGroups(orderedIds);
+	async moveGroup(repo, id, prevId, nextId) {
+		await repo.moveProjectGroup(id, prevId, nextId);
 		const groups = await repo.getProjectGroups();
 		set({ groups });
 	},

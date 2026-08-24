@@ -14,6 +14,7 @@ import { useSettingsStore } from "@/store/settings";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
+import { MemoryRepository } from "@/test-harness/MemoryRepository";
 import type { Project } from "@/types";
 
 vi.mock("@/store/repository", () => ({
@@ -139,6 +140,47 @@ describe("Sidebar — redirect on active view hidden", () => {
 	});
 });
 
+describe("Sidebar — rendered order", () => {
+	// Every other ordering test in this repository asserts what the repository
+	// returns. None asserted what the sidebar draws, which is how a memo that
+	// re-sorted the repository's answer on the dead sortOrder column survived:
+	// the drag wrote sort_key, the repository returned the new order, and the
+	// component threw it away.
+	function renderedProjectNames(container: HTMLElement): (string | null)[] {
+		return Array.from(
+			container.querySelectorAll<HTMLElement>("[data-dnd-item]"),
+		).map(
+			(el) => el.querySelector("button")?.getAttribute("aria-label") ?? null,
+		);
+	}
+
+	it("draws projects in repository order after a move", async () => {
+		const repo = new MemoryRepository();
+		// Creation stamps sortOrder 1, 2, 3 and nothing ever updates it again, so
+		// the move below makes the two orderings disagree on purpose.
+		const alpha = await repo.createProject({ name: "Alpha" });
+		await repo.createProject({ name: "Beta" });
+		const gamma = await repo.createProject({ name: "Gamma" });
+
+		await useProjectStore.getState().loadProjects(repo);
+		await act(async () => {
+			await useProjectStore
+				.getState()
+				.moveProject(repo, alpha.id, null, gamma.id);
+		});
+
+		// Repository order is Alpha, Gamma, Beta; sortOrder still says
+		// Alpha, Beta, Gamma.
+		expect((await repo.getProjects()).map((p) => p.name)).toEqual([
+			"Alpha",
+			"Gamma",
+			"Beta",
+		]);
+		const { container } = render(<Sidebar />);
+		expect(renderedProjectNames(container)).toEqual(["Alpha", "Gamma", "Beta"]);
+	});
+});
+
 describe("ProjectNavItem — quick tag creation", () => {
 	const mockProject: Project = {
 		id: "proj-1",
@@ -146,6 +188,7 @@ describe("ProjectNavItem — quick tag creation", () => {
 		color: "#3b82f6",
 		icon: null,
 		sortOrder: 0,
+		sortKey: "a0",
 		groupId: null,
 		createdAt: new Date().toISOString(),
 		updatedAt: new Date().toISOString(),

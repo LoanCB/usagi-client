@@ -34,7 +34,13 @@ export interface Project {
 	name: string;
 	color: string | null;
 	icon: string | null;
+	/** @deprecated Legacy column, no longer written. Order by `sortKey`. */
 	sortOrder: number;
+	/**
+	 * Fractional index. Projects and project groups share one key space, so a
+	 * group and a standalone project compare directly in the top-level list.
+	 */
+	sortKey: string;
 	groupId: string | null;
 	createdAt: string;
 	updatedAt: string;
@@ -44,7 +50,10 @@ export interface ProjectGroup {
 	id: string;
 	name: string;
 	color: string;
+	/** @deprecated Legacy column, no longer written. Order by `sortKey`. */
 	sortOrder: number;
+	/** Same key space as `Project.sortKey` — see there. */
+	sortKey: string;
 	createdAt: string;
 	updatedAt: string;
 }

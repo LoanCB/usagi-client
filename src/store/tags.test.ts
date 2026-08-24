@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NO_IMPORT_GAPS } from "@/db/import-resolution";
 import type { TodoRepository } from "@/db/repository";
 import type { Tag } from "@/types";
 import { useTagStore } from "./tags";
@@ -19,7 +20,7 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		completeTask: vi.fn(),
 		uncompleteTask: vi.fn(),
 		deleteTask: vi.fn(),
-		reorderTasks: vi.fn(),
+		moveTask: vi.fn(),
 		getProjects: vi.fn(),
 		createProject: vi.fn(),
 		updateProject: vi.fn(),
@@ -31,6 +32,7 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		getSettings: vi.fn().mockResolvedValue({}),
 		setSetting: vi.fn().mockResolvedValue(undefined),
 		bulkImport: vi.fn().mockResolvedValue(undefined),
+		previewImport: vi.fn().mockResolvedValue(NO_IMPORT_GAPS),
 		...overrides,
 	} as TodoRepository;
 }

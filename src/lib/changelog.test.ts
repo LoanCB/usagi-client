@@ -9,7 +9,7 @@ import {
 describe("getDisplayVersions", () => {
 	it("lists the newest version first", () => {
 		const display = getDisplayVersions();
-		expect(display[0].version).toBe("2026.3.1");
+		expect(display[0].version).toBe("Unreleased");
 	});
 
 	it("excludes versions with no user-facing changes", () => {

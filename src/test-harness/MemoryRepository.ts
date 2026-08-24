@@ -1,3 +1,11 @@
+import { generateKeyBetween } from "fractional-indexing";
+import type { ImportGaps, ImportReferents } from "@/db/import-resolution";
+import {
+	countImportGaps,
+	predictReferents,
+	resolveProjectRef,
+	resolveTagLink,
+} from "@/db/import-resolution";
 import type { TodoRepository } from "@/db/repository";
 import type { ExportData } from "@/lib/dataTransfer";
 import type {
@@ -21,7 +29,44 @@ function uuid(): string {
 	return crypto.randomUUID();
 }
 
+/**
+ * Where to splice the moved row into `ordered` (which excludes it).
+ *
+ * Anchors on prevId when present; nextId only matters when prevId is null,
+ * i.e. the move is to the very top — this is what makes nextId a genuine
+ * input here rather than an unused twin of the real driver's signature.
+ */
+function insertionIndex<T extends { id: string }>(
+	ordered: T[],
+	prevId: string | null,
+	nextId: string | null,
+): number {
+	if (prevId) {
+		const prevIndex = ordered.findIndex((r) => r.id === prevId);
+		return prevIndex === -1 ? 0 : prevIndex + 1;
+	}
+	if (nextId) {
+		const nextIndex = ordered.findIndex((r) => r.id === nextId);
+		return nextIndex === -1 ? 0 : nextIndex;
+	}
+	return 0;
+}
+
+function byKey<T extends { sortKey: string }>(a: T, b: T): number {
+	return a.sortKey < b.sortKey ? -1 : 1;
+}
+
+/**
+ * An in-memory stand-in for SqliteRepository.
+ *
+ * Ordering models what the real repository does — insertion order maintained by
+ * fractional keys, new rows at the top — rather than the sort_order renumbering
+ * it used to do. That renumbering made every reorder driven through this double
+ * look correct even against a UI that had stopped consuming repository order,
+ * which is exactly how the sidebar reorder shipped broken.
+ */
 export class MemoryRepository implements TodoRepository {
+	// Insertion-ordered: getTasks returns map order, moveTask rebuilds it.
 	private tasks = new Map<string, Task>();
 	private projects = new Map<string, Project>();
 	private projectGroups = new Map<string, ProjectGroup>();
@@ -30,6 +75,36 @@ export class MemoryRepository implements TodoRepository {
 		["notification_enabled", "false"],
 	]);
 	private sortCounter = 0;
+
+	/**
+	 * A key above every project and group, which share one key space here for
+	 * the same reason they do in SQL: the sidebar's top level interleaves them.
+	 */
+	private projectSpaceHeadKey(): string {
+		const keys = [
+			...Array.from(this.projects.values()).map((p) => p.sortKey),
+			...Array.from(this.projectGroups.values()).map((g) => g.sortKey),
+		];
+		return generateKeyBetween(null, keys.length === 0 ? null : keys.sort()[0]);
+	}
+
+	private projectSpaceKeyOf(id: string | null): string | null {
+		if (id === null) return null;
+		return (
+			this.projects.get(id)?.sortKey ??
+			this.projectGroups.get(id)?.sortKey ??
+			null
+		);
+	}
+
+	/** Rebuild `map` so its iteration order matches `ordered`. */
+	private static reseat<T extends { id: string }>(
+		map: Map<string, T>,
+		ordered: T[],
+	): void {
+		map.clear();
+		for (const row of ordered) map.set(row.id, row);
+	}
 
 	async getTasks(filters: TaskFilters = {}): Promise<Task[]> {
 		let results = Array.from(this.tasks.values()).filter(
@@ -72,7 +147,8 @@ export class MemoryRepository implements TodoRepository {
 			);
 		}
 
-		return results.sort((a, b) => a.sortOrder - b.sortOrder);
+		// Map iteration order is the order of the list; moveTask rebuilds it.
+		return results;
 	}
 
 	async getTask(id: string): Promise<Task | null> {
@@ -185,13 +261,30 @@ export class MemoryRepository implements TodoRepository {
 			.sort((a, b) => ((b.deletedAt ?? "") > (a.deletedAt ?? "") ? 1 : -1));
 	}
 
-	async reorderTasks(orderedIds: string[]): Promise<void> {
-		orderedIds.forEach((id, index) => {
-			const task = this.tasks.get(id);
-			if (task) this.tasks.set(id, { ...task, sortOrder: index });
+	async moveTask(
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void> {
+		const task = this.tasks.get(id);
+		if (!task) return;
+		const ordered = Array.from(this.tasks.values()).filter((t) => t.id !== id);
+		ordered.splice(insertionIndex(ordered, prevId, nextId), 0, {
+			...task,
+			updatedAt: now(),
 		});
+		MemoryRepository.reseat(this.tasks, ordered);
 	}
 
+	/**
+	 * Resolves references the same way SqliteRepository does, through the same
+	 * module.
+	 *
+	 * This map enforces no referential integrity, so it used to keep a projectId
+	 * pointing at nothing and hand a store test a state the real app cannot
+	 * reach. That divergence is how a whole class of import bug survived review;
+	 * MemoryRepository.test.ts pins the two together.
+	 */
 	async bulkImport(
 		data: ExportData,
 		strategy: "merge" | "replace",
@@ -206,24 +299,53 @@ export class MemoryRepository implements TodoRepository {
 			this.projects.set(project.id, project);
 		}
 
+		const referents = this.referents(data, strategy);
+
 		for (const tag of data.tags) {
-			this.tags.set(tag.id, tag);
+			if (strategy === "merge" && !referents.tagIds.has(tag.id)) continue;
+			this.tags.set(tag.id, {
+				...tag,
+				projectId: resolveProjectRef(tag.projectId, referents.projectIds),
+			});
 		}
 
 		for (const task of data.tasks) {
-			// Resolve tag references from imported tags map
 			const resolvedTags = task.tags.flatMap((t) => {
-				const resolved = this.tags.get(t.id) ?? t;
+				const id = resolveTagLink(t, referents);
+				const resolved = id === null ? undefined : this.tags.get(id);
 				return resolved ? [resolved] : [];
 			});
-			this.tasks.set(task.id, { ...task, tags: resolvedTags });
+			this.tasks.set(task.id, {
+				...task,
+				projectId: resolveProjectRef(task.projectId, referents.projectIds),
+				tags: resolvedTags,
+			});
 		}
 	}
 
-	async getProjects(): Promise<Project[]> {
-		return Array.from(this.projects.values()).sort(
-			(a, b) => a.sortOrder - b.sortOrder,
+	async previewImport(
+		data: ExportData,
+		strategy: "merge" | "replace",
+	): Promise<ImportGaps> {
+		return countImportGaps(data, this.referents(data, strategy));
+	}
+
+	private referents(
+		data: ExportData,
+		strategy: "merge" | "replace",
+	): ImportReferents {
+		return predictReferents(
+			data,
+			{
+				projectIds: Array.from(this.projects.keys()),
+				tags: Array.from(this.tags.values()),
+			},
+			strategy,
 		);
+	}
+
+	async getProjects(): Promise<Project[]> {
+		return Array.from(this.projects.values()).sort(byKey);
 	}
 
 	async createProject(input: CreateProjectInput): Promise<Project> {
@@ -232,7 +354,11 @@ export class MemoryRepository implements TodoRepository {
 			name: input.name,
 			color: input.color ?? null,
 			icon: input.icon ?? null,
+			// A creation counter, kept only so the legacy field has a value. It
+			// deliberately disagrees with sortKey once anything is moved, so a
+			// consumer that still orders on it is caught rather than masked.
 			sortOrder: ++this.sortCounter,
+			sortKey: this.projectSpaceHeadKey(),
 			groupId: null,
 			createdAt: now(),
 			updatedAt: now(),
@@ -268,9 +394,7 @@ export class MemoryRepository implements TodoRepository {
 	}
 
 	async getProjectGroups(): Promise<ProjectGroup[]> {
-		return Array.from(this.projectGroups.values()).sort(
-			(a, b) => a.sortOrder - b.sortOrder,
-		);
+		return Array.from(this.projectGroups.values()).sort(byKey);
 	}
 
 	async createProjectGroup(
@@ -281,6 +405,7 @@ export class MemoryRepository implements TodoRepository {
 			name: input.name,
 			color: input.color,
 			sortOrder: ++this.sortCounter,
+			sortKey: this.projectSpaceHeadKey(),
 			createdAt: now(),
 			updatedAt: now(),
 		};
@@ -303,17 +428,43 @@ export class MemoryRepository implements TodoRepository {
 		this.projectGroups.delete(id);
 	}
 
-	async reorderProjects(orderedIds: string[]): Promise<void> {
-		orderedIds.forEach((id, index) => {
-			const project = this.projects.get(id);
-			if (project) this.projects.set(id, { ...project, sortOrder: index });
+	/**
+	 * Rekeys only the moved row, like the real repository — sortOrder is left
+	 * alone, so a consumer still ordering on it observes the stale order it
+	 * deserves instead of a renumbering that quietly agrees with the new one.
+	 */
+	async moveProject(
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void> {
+		const project = this.projects.get(id);
+		if (!project) return;
+		this.projects.set(id, {
+			...project,
+			sortKey: generateKeyBetween(
+				this.projectSpaceKeyOf(prevId),
+				this.projectSpaceKeyOf(nextId),
+			),
+			updatedAt: now(),
 		});
 	}
 
-	async reorderProjectGroups(orderedIds: string[]): Promise<void> {
-		orderedIds.forEach((id, index) => {
-			const group = this.projectGroups.get(id);
-			if (group) this.projectGroups.set(id, { ...group, sortOrder: index });
+	/** Mirrors moveProject — same shared key space, same single-row rekey. */
+	async moveProjectGroup(
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void> {
+		const group = this.projectGroups.get(id);
+		if (!group) return;
+		this.projectGroups.set(id, {
+			...group,
+			sortKey: generateKeyBetween(
+				this.projectSpaceKeyOf(prevId),
+				this.projectSpaceKeyOf(nextId),
+			),
+			updatedAt: now(),
 		});
 	}
 

@@ -17,7 +17,12 @@ interface ProjectStore {
 		patch: Partial<CreateProjectInput>,
 	): Promise<void>;
 	deleteProject(repo: TodoRepository, id: string): Promise<void>;
-	reorderProjects(repo: TodoRepository, orderedIds: string[]): Promise<void>;
+	moveProject(
+		repo: TodoRepository,
+		id: string,
+		prevId: string | null,
+		nextId: string | null,
+	): Promise<void>;
 	assignToGroup(
 		repo: TodoRepository,
 		projectId: string,
@@ -35,7 +40,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
 	async createProject(repo, input) {
 		const project = await repo.createProject(input);
-		set((s) => ({ projects: [...s.projects, project] }));
+		// Prepended, because the repository keys a new project above every other
+		// one. Appending showed it in one place until the next reload moved it.
+		set((s) => ({ projects: [project, ...s.projects] }));
 		return project;
 	},
 
@@ -54,8 +61,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 		}));
 	},
 
-	async reorderProjects(repo, orderedIds) {
-		await repo.reorderProjects(orderedIds);
+	async moveProject(repo, id, prevId, nextId) {
+		await repo.moveProject(id, prevId, nextId);
 		const projects = await repo.getProjects();
 		set({ projects });
 	},

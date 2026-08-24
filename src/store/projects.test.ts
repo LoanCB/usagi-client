@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NO_IMPORT_GAPS } from "@/db/import-resolution";
 import type { TodoRepository } from "@/db/repository";
 import type { Project } from "@/types";
 import { useProjectStore } from "./projects";
@@ -9,6 +10,7 @@ const baseProject: Project = {
 	color: "#3b82f6",
 	icon: null,
 	sortOrder: 0,
+	sortKey: "a0",
 	groupId: null,
 	createdAt: "2026-04-01T00:00:00.000Z",
 	updatedAt: "2026-04-01T00:00:00.000Z",
@@ -23,7 +25,7 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		completeTask: vi.fn(),
 		uncompleteTask: vi.fn(),
 		deleteTask: vi.fn(),
-		reorderTasks: vi.fn(),
+		moveTask: vi.fn(),
 		getProjects: vi.fn().mockResolvedValue([baseProject]),
 		createProject: vi.fn().mockResolvedValue(baseProject),
 		updateProject: vi.fn().mockResolvedValue(baseProject),
@@ -35,6 +37,7 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		getSettings: vi.fn().mockResolvedValue({}),
 		setSetting: vi.fn().mockResolvedValue(undefined),
 		bulkImport: vi.fn().mockResolvedValue(undefined),
+		previewImport: vi.fn().mockResolvedValue(NO_IMPORT_GAPS),
 		...overrides,
 	} as TodoRepository;
 }

@@ -401,7 +401,7 @@ function TaskListBody({
 
 export function TaskList() {
 	const { t } = useTranslation();
-	const { tasks, loadTasks, reorderTasks, deleteTask } = useTaskStore();
+	const { tasks, loadTasks, moveTask, deleteTask } = useTaskStore();
 	const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 	const projects = useProjectStore((s) => s.projects);
 	const { selectedProjectId, activeFilters, selectedTaskId, setSelectedTask } =
@@ -537,10 +537,13 @@ export function TaskList() {
 		const newIndex = displayedTasks.findIndex((t) => t.id === over.id);
 		if (oldIndex === -1 || newIndex === -1) return;
 		const reordered = arrayMove(displayedTasks, oldIndex, newIndex);
+		const at = reordered.findIndex((t) => t.id === active.id);
 		resetSort();
-		reorderTasks(
+		moveTask(
 			getRepository(),
-			reordered.map((t) => t.id),
+			String(active.id),
+			reordered[at - 1]?.id ?? null,
+			reordered[at + 1]?.id ?? null,
 		);
 	}
 

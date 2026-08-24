@@ -197,4 +197,65 @@ describe("migrations", () => {
 		}
 		expect(await columns(driver, "tasks")).toContain("sort_key");
 	});
+
+	it("discards every pre-existing sort_key across all three ordered tables", async () => {
+		// Simulates the two corruption modes on disk: a value is present but
+		// wrong (collided or mis-anchored). Migration 011 must not try to tell a
+		// good key from a bad one — it wipes every value unconditionally so the
+		// next backfillSortKeys() run rebuilds from the order the user sees.
+		driver = new BetterSqliteDriver();
+		await runMigrations(driver, ALL_MIGRATIONS.slice(0, 10));
+		await driver.execute(
+			"INSERT INTO project_groups (id, name, color, sort_order, created_at, updated_at, sort_key) VALUES ('g1','Group','#fff',0,'x','x','a0')",
+		);
+		await driver.execute(
+			"INSERT INTO projects (id, name, sort_order, created_at, updated_at, sort_key) VALUES ('p1','Work',0,'x','x','a0')",
+		);
+		await driver.execute(
+			"INSERT INTO tasks (id, title, sort_order, created_at, updated_at, sort_key) VALUES ('t1','Task',0,'x','x','a0')",
+		);
+
+		await runMigrations(driver, ALL_MIGRATIONS);
+
+		for (const table of ["tasks", "projects", "project_groups"]) {
+			const rows = await driver.select<{ sort_key: string | null }>(
+				`SELECT sort_key FROM ${table}`,
+			);
+			expect(
+				rows.every((r) => r.sort_key === null),
+				table,
+			).toBe(true);
+		}
+	});
+
+	it("blanks the placeholder device id in existing stamps", async () => {
+		const db = new BetterSqliteDriver();
+		await runMigrations(db, ALL_MIGRATIONS);
+		await db.execute(
+			`INSERT INTO tasks (id, title, created_at, updated_at, field_updated_at)
+			 VALUES ('t1', 'x', '2026-01-01', '2026-01-01',
+			         '{"title":{"t":"2026-01-01","d":"local"}}')`,
+			[],
+		);
+		// runMigrations only replays migrations above the tracked user_version
+		// (see "skips migrations already applied" in run-migrations.test.ts), so
+		// simply calling it again would not touch a row inserted after the chain
+		// already reached its end. Rolling user_version back reproduces the real
+		// upgrade path this migration targets: a legacy row written before the
+		// database ever crosses version 10. Re-running the whole chain is safe
+		// — every earlier migration is idempotent-tolerant (see run-migrations'
+		// duplicate-column handling and the other "re-runs cleanly" tests above.
+		await db.execute("PRAGMA user_version = 9");
+		await runMigrations(db, ALL_MIGRATIONS);
+
+		const rows = await db.select<{ field_updated_at: string }>(
+			"SELECT field_updated_at FROM tasks WHERE id = 't1'",
+		);
+		const stamps = JSON.parse(rows[0].field_updated_at) as Record<
+			string,
+			{ t: string; d: string }
+		>;
+		expect(stamps.title.d).toBe("");
+		expect(stamps.title.t).toBe("2026-01-01");
+	});
 });
