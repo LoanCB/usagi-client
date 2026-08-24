@@ -1,10 +1,8 @@
 name: PR Checks
 
 on:
+  # No `branches:` filter — every pull request is checked, whatever it targets.
   pull_request:
-    branches:
-      - main
-      - develop
 
 jobs:
   lint:
