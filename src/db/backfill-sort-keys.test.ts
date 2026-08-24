@@ -126,6 +126,56 @@ describe("backfillSortKeys", () => {
 		expect(projectRows.map((r) => r.id)).toEqual(["p_a", "p_b"]);
 	});
 
+	it("keys projects and project_groups into one shared space, interleaved", async () => {
+		// The test above only checks each table against itself, so per-table keying
+		// passes it. This one pins the property that actually matters: the sidebar's
+		// top level interleaves groups and projects, and before fractional keys they
+		// shared a single sort_order number line. Keying each table on its own
+		// restarts both at "a0", collapsing that line into a wall of ties — and the
+		// migration is version-gated, so it destroys the user's order for good.
+		driver = new BetterSqliteDriver();
+		await runMigrations(driver, ALL_MIGRATIONS);
+		// sort_order values interleave deliberately: groups at 0 and 2, projects at
+		// 1 and 3, so the legacy order alternates between the two tables.
+		for (const [id, order] of [
+			["g_first", 0],
+			["g_third", 2],
+		] as const) {
+			await driver.execute(
+				"INSERT INTO project_groups (id, name, color, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+				[id, id, "#fff", order, "2026-01-01", "2026-01-01"],
+			);
+		}
+		for (const [id, order] of [
+			["p_second", 1],
+			["p_fourth", 3],
+		] as const) {
+			await driver.execute(
+				"INSERT INTO projects (id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+				[id, id, order, "2026-01-01", "2026-01-01"],
+			);
+		}
+
+		await backfillSortKeys(driver);
+
+		const rows = await driver.select<{ id: string; sort_key: string }>(
+			`SELECT id, sort_key FROM project_groups
+			 UNION ALL SELECT id, sort_key FROM projects
+			 ORDER BY sort_key`,
+		);
+		// Distinctness first: per-table keying hands both tables "a0", and a tie
+		// would let the order assertion below pass on whichever row SQLite happened
+		// to return first.
+		const keys = rows.map((r) => r.sort_key);
+		expect(new Set(keys).size).toBe(keys.length);
+		expect(rows.map((r) => r.id)).toEqual([
+			"g_first",
+			"p_second",
+			"g_third",
+			"p_fourth",
+		]);
+	});
+
 	it("keeps new rows after a re-run past the previous maximum, not colliding with it", async () => {
 		// This is the corruption the migration exists to erase: a row created
 		// after the first backfill has no key yet, and re-running the backfill
