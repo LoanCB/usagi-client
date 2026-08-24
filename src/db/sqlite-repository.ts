@@ -790,8 +790,11 @@ export class SqliteRepository implements TodoRepository {
 	async createTask(input: CreateTaskInput): Promise<Task> {
 		const id = crypto.randomUUID();
 		const now = new Date().toISOString();
-		const sortKey = await this._headKey("tasks");
-		const deviceId = await getOrCreateDeviceId(this.db);
+		// Independent reads outside any transaction, so they can race.
+		const [sortKey, deviceId] = await Promise.all([
+			this._headKey("tasks"),
+			getOrCreateDeviceId(this.db),
+		]);
 		const stamped = stampFields(
 			null,
 			[
@@ -867,11 +870,14 @@ export class SqliteRepository implements TodoRepository {
 		if ("dueDate" in patch) touched.push("due_date");
 		if ("tagIds" in patch) touched.push("tags");
 
-		const prior = await this.db.select<{ field_updated_at: string | null }>(
-			"SELECT field_updated_at FROM tasks WHERE id = ?",
-			[id],
-		);
-		const deviceId = await getOrCreateDeviceId(this.db);
+		// Independent reads outside any transaction, so they can race.
+		const [prior, deviceId] = await Promise.all([
+			this.db.select<{ field_updated_at: string | null }>(
+				"SELECT field_updated_at FROM tasks WHERE id = ?",
+				[id],
+			),
+			getOrCreateDeviceId(this.db),
+		]);
 		sets.push("field_updated_at = ?");
 		params.push(
 			stampFields(prior[0]?.field_updated_at ?? null, touched, now, deviceId),
@@ -1052,12 +1058,15 @@ export class SqliteRepository implements TodoRepository {
 		data: ExportData,
 		strategy: "merge" | "replace",
 	): Promise<ImportGaps> {
-		const projects = await this.db.select<{ id: string }>(
-			"SELECT id FROM projects WHERE purged_at IS NULL",
-		);
-		const tags = await this.db.select<{ id: string; name: string }>(
-			"SELECT id, name FROM tags WHERE purged_at IS NULL",
-		);
+		// Independent reads outside any transaction, so they can race.
+		const [projects, tags] = await Promise.all([
+			this.db.select<{ id: string }>(
+				"SELECT id FROM projects WHERE purged_at IS NULL",
+			),
+			this.db.select<{ id: string; name: string }>(
+				"SELECT id, name FROM tags WHERE purged_at IS NULL",
+			),
+		]);
 		return countImportGaps(
 			data,
 			predictReferents(

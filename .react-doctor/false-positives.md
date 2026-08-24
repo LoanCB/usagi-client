@@ -28,6 +28,20 @@ entry so the rule can fire again.
   store state and conditionally deletes the now-empty source group. Running the
   iterations with `Promise.all` would race the empty-group cleanup.
 
+- `server-sequential-independent-await` — `src/db/sqlite-repository.ts`
+  (`_stamp`) — Both awaits run on the `tx` handed in by an enclosing
+  `db.transaction`. The driver implements transactions as manual BEGIN/COMMIT
+  over a shared connection (src/db/index.ts), so statements inside a
+  transaction must stay sequential; racing them with `Promise.all` would put
+  two in-flight statements inside an open transaction with no ordering
+  guarantee.
+
+- `async-await-in-loop` — `src/db/sqlite-repository.ts` (`_stamp` loops in
+  `deleteProject`, `deleteProjectGroup`, `_tombstoneAbsent`) — Every iteration
+  is a read-modify-write through the same open transaction (`tx`). Same
+  manual-BEGIN/COMMIT constraint as above: the rule's own validation prompt
+  says to keep sequential execution for transactions.
+
 - `async-parallel` — `src/components/projects/CreateGroupDialog.tsx`
   (`handleConfirm`) — Same cause as above: the two `assignToGroup` calls share
   cumulative store state with a conditional "delete now-empty old group" side

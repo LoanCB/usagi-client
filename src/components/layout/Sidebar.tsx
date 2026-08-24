@@ -847,9 +847,10 @@ function useSidebarDnd() {
 					// Intra-group reorder (null beforeProjectId → append at group end)
 					// projects is already in repository order; sorting it again on the
 					// dead sortOrder column anchored the move between stale neighbours.
-					const ids = projects
-						.filter((p) => p.groupId === draggedProject.groupId)
-						.map((p) => p.id);
+					const ids: string[] = [];
+					for (const p of projects) {
+						if (p.groupId === draggedProject.groupId) ids.push(p.id);
+					}
 					const newOrder = computeReorderedIds(
 						ids,
 						draggedProjectId,
@@ -869,9 +870,10 @@ function useSidebarDnd() {
 				// (the store reload will place it at the end of standalone projects)
 				if (!isTargetGroupHeader && !isAppendToEnd && beforeId) {
 					// beforeId points to a standalone project → reorder among standalone
-					const ids = projects
-						.filter((p) => !p.groupId && p.id !== draggedProjectId)
-						.map((p) => p.id);
+					const ids: string[] = [];
+					for (const p of projects) {
+						if (!p.groupId && p.id !== draggedProjectId) ids.push(p.id);
+					}
 					ids.push(draggedProjectId); // append ungrouped project at end temporarily
 					const newOrder = computeReorderedIds(
 						ids,
