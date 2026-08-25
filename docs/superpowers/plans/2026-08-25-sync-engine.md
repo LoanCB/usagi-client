@@ -3087,6 +3087,9 @@ describe("pull → merge → apply", () => {
 	});
 
 	it("converges two same-named tags created offline to one, preserving assignments", async () => {
+		// First contact while B is still empty: the §6.4 gate stays down, and
+		// resolveFirstSync (a stub until the first-sync task) is never needed.
+		await syncMerging(b);
 		const taskA = await a.repo.createTask({ title: "on A" });
 		const taskB = await b.repo.createTask({ title: "on B" });
 		const tagA = await a.repo.createTag({ name: "urgent" });
