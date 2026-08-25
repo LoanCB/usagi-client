@@ -1,6 +1,7 @@
 import { generateKeyBetween, generateNKeysBetween } from "fractional-indexing";
 import type { ExportData } from "@/lib/dataTransfer";
 import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
+import { nowIso } from "@/lib/sync-clock";
 import type {
 	CreateProjectGroupInput,
 	CreateProjectInput,
@@ -342,7 +343,7 @@ export class SqliteRepository implements TodoRepository {
 
 	async createProject(input: CreateProjectInput): Promise<Project> {
 		const id = crypto.randomUUID();
-		const now = new Date().toISOString();
+		const now = nowIso();
 		await this.db.transaction(async (tx) => {
 			// Derived inside the transaction: a key read from the outer connection
 			// could be taken from a state another write has since moved on from.
@@ -376,7 +377,7 @@ export class SqliteRepository implements TodoRepository {
 		id: string,
 		patch: Partial<CreateProjectInput>,
 	): Promise<Project> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		const sets: string[] = ["updated_at = ?"];
 		const params: unknown[] = [now];
 		const touched: string[] = [];
@@ -409,7 +410,7 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	async deleteProject(id: string): Promise<void> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		await this.db.transaction(async (tx) => {
 			const tags = await tx.select<{ id: string }>(
 				"SELECT id FROM tags WHERE project_id = ?",
@@ -458,7 +459,7 @@ export class SqliteRepository implements TodoRepository {
 		input: CreateProjectGroupInput,
 	): Promise<ProjectGroup> {
 		const id = crypto.randomUUID();
-		const now = new Date().toISOString();
+		const now = nowIso();
 		// sort_order is a dead column: writing MAX(sort_order) + 1 here put the new
 		// group last on that number line while its sort_key put it first, so the
 		// group appeared in two different places depending on which one a reader
@@ -487,7 +488,7 @@ export class SqliteRepository implements TodoRepository {
 		id: string,
 		patch: Partial<Pick<ProjectGroup, "name" | "color">>,
 	): Promise<ProjectGroup> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		const sets: string[] = ["updated_at = ?"];
 		const params: unknown[] = [now];
 		const touched: string[] = [];
@@ -515,7 +516,7 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	async deleteProjectGroup(id: string): Promise<void> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		// Collected before the UPDATE below clears group_id: afterwards no row
 		// carries this id and the list to stamp would be empty.
 		const detached = await this.db.select<{ id: string }>(
@@ -556,7 +557,7 @@ export class SqliteRepository implements TodoRepository {
 		prevId: string | null,
 		nextId: string | null,
 	): Promise<void> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		await this.db.transaction(async (tx) => {
 			// The neighbours are read inside the transaction that writes between
 			// them, so the key cannot be derived from an order already superseded.
@@ -577,7 +578,7 @@ export class SqliteRepository implements TodoRepository {
 		prevId: string | null,
 		nextId: string | null,
 	): Promise<void> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		await this.db.transaction(async (tx) => {
 			const prevKey = prevId
 				? await this._keyOf("project_groups", prevId, tx)
@@ -598,7 +599,7 @@ export class SqliteRepository implements TodoRepository {
 		projectId: string,
 		groupId: string | null,
 	): Promise<void> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		await this.db.transaction(async (tx) => {
 			await tx.execute(
 				"UPDATE projects SET group_id = ?, updated_at = ? WHERE id = ?",
@@ -640,7 +641,7 @@ export class SqliteRepository implements TodoRepository {
 
 	async createTag(input: CreateTagInput): Promise<Tag> {
 		const id = crypto.randomUUID();
-		const now = new Date().toISOString();
+		const now = nowIso();
 		await this.db.transaction(async (tx) => {
 			await tx.execute(
 				"INSERT INTO tags (id, name, color, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -661,7 +662,7 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	async updateTag(id: string, patch: Partial<CreateTagInput>): Promise<Tag> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		const sets: string[] = ["updated_at = ?"];
 		const params: unknown[] = [now];
 		const touched: string[] = [];
@@ -694,7 +695,7 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	async deleteTag(id: string): Promise<void> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		await this.db.transaction(async (tx) => {
 			await tx.execute(
 				"UPDATE tags SET deleted_at = ?, updated_at = ? WHERE id = ?",
@@ -789,7 +790,7 @@ export class SqliteRepository implements TodoRepository {
 
 	async createTask(input: CreateTaskInput): Promise<Task> {
 		const id = crypto.randomUUID();
-		const now = new Date().toISOString();
+		const now = nowIso();
 		// Independent reads outside any transaction, so they can race.
 		const [sortKey, deviceId] = await Promise.all([
 			this._headKey("tasks"),
@@ -838,7 +839,7 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	async updateTask(id: string, patch: Partial<CreateTaskInput>): Promise<Task> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		const sets: string[] = ["updated_at = ?"];
 		const params: unknown[] = [now];
 		if ("title" in patch) {
@@ -907,7 +908,7 @@ export class SqliteRepository implements TodoRepository {
 		projectId: string | null,
 	): Promise<void> {
 		if (taskIds.length === 0) return;
-		const now = new Date().toISOString();
+		const now = nowIso();
 		// One transaction for the whole batch, not one per task: transactions do
 		// not nest here, and a half-applied move is not a state the merge engine
 		// should ever have to reconcile.
@@ -923,7 +924,7 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	async completeTask(id: string): Promise<Task> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		await this.db.transaction(async (tx) => {
 			await tx.execute(
 				"UPDATE tasks SET completed_at = ?, updated_at = ? WHERE id = ?",
@@ -937,7 +938,7 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	async uncompleteTask(id: string): Promise<Task> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		await this.db.transaction(async (tx) => {
 			await tx.execute(
 				"UPDATE tasks SET completed_at = NULL, updated_at = ? WHERE id = ?",
@@ -951,7 +952,7 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	async archiveTask(id: string): Promise<void> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		await this.db.transaction(async (tx) => {
 			await tx.execute(
 				"UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?",
@@ -962,7 +963,7 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	async deleteTask(id: string): Promise<void> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		// Keep the row as a tombstone so the deletion can propagate; blank the
 		// content so a purged task leaks nothing once synced. Also stamp
 		// deleted_at: it is not because the row is "archived", but so a client
@@ -986,7 +987,7 @@ export class SqliteRepository implements TodoRepository {
 	}
 
 	async unarchiveTask(id: string): Promise<void> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		await this.db.transaction(async (tx) => {
 			await tx.execute(
 				"UPDATE tasks SET deleted_at = NULL, updated_at = ? WHERE id = ?",
@@ -1017,7 +1018,7 @@ export class SqliteRepository implements TodoRepository {
 		prevId: string | null,
 		nextId: string | null,
 	): Promise<void> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		await this.db.transaction(async (tx) => {
 			const prevKey = prevId ? await this._keyOf("tasks", prevId, tx) : null;
 			const nextKey = nextId ? await this._keyOf("tasks", nextId, tx) : null;
@@ -1103,7 +1104,7 @@ export class SqliteRepository implements TodoRepository {
 		data: ExportData,
 		strategy: "merge" | "replace",
 	): Promise<void> {
-		const now = new Date().toISOString();
+		const now = nowIso();
 		await this.db.transaction(async (tx) => {
 			const deviceId = await getOrCreateDeviceId(tx);
 
