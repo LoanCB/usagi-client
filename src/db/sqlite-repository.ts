@@ -871,33 +871,38 @@ export class SqliteRepository implements TodoRepository {
 		if ("dueDate" in patch) touched.push("due_date");
 		if ("tagIds" in patch) touched.push("tags");
 
-		// Independent reads outside any transaction, so they can race.
-		const [prior, deviceId] = await Promise.all([
-			this.db.select<{ field_updated_at: string | null }>(
-				"SELECT field_updated_at FROM tasks WHERE id = ?",
-				[id],
-			),
-			getOrCreateDeviceId(this.db),
-		]);
-		sets.push("field_updated_at = ?");
-		params.push(
-			stampFields(prior[0]?.field_updated_at ?? null, touched, now, deviceId),
-		);
-
 		params.push(id);
-		await this.db.execute(
-			`UPDATE tasks SET ${sets.join(", ")} WHERE id = ?`,
-			params,
-		);
-		if ("tagIds" in patch && patch.tagIds !== undefined) {
-			await this.db.execute("DELETE FROM task_tags WHERE task_id = ?", [id]);
-			for (const tagId of patch.tagIds) {
-				await this.db.execute(
-					"INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)",
-					[id, tagId],
-				);
+		// One transaction for the whole write: the existence/purge guard, the
+		// tasks row, its field stamps and its task_tags rebuild commit together
+		// or not at all. A lone UPDATE tasks (the shape this replaced) could
+		// commit before a later statement throws — e.g. the row was purged
+		// concurrently — leaving a tombstone with resurrected columns and a
+		// task_tags row pointing at it. Purge is terminal (§5.2): once purged,
+		// the row must not accept new writes even locally, or the tombstone
+		// stops being a tombstone.
+		await this.db.transaction(async (tx) => {
+			const existing = await tx.select<{ purged_at: string | null }>(
+				"SELECT purged_at FROM tasks WHERE id = ?",
+				[id],
+			);
+			if (!existing[0] || existing[0].purged_at !== null) {
+				throw new Error(`Task not found: ${id}`);
 			}
-		}
+			await tx.execute(
+				`UPDATE tasks SET ${sets.join(", ")} WHERE id = ?`,
+				params,
+			);
+			await this._stamp("tasks", id, touched, now, tx);
+			if ("tagIds" in patch && patch.tagIds !== undefined) {
+				await tx.execute("DELETE FROM task_tags WHERE task_id = ?", [id]);
+				for (const tagId of patch.tagIds) {
+					await tx.execute(
+						"INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)",
+						[id, tagId],
+					);
+				}
+			}
+		});
 		const updated = await this.getTask(id);
 		if (!updated) throw new Error(`Task not found after write: ${id}`);
 		return updated;
