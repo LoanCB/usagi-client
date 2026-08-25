@@ -1,12 +1,15 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+	FAKE_SERVER_INFO,
 	makeDevice,
 	syncMerging,
 	type TestDevice,
 } from "@/test-harness/engine";
 import { FakeSyncServer } from "@/test-harness/FakeSyncServer";
+import { SyncEngine } from "./engine";
 import { getSyncState, setSyncState } from "./state";
+import type { SyncTransport } from "./types";
 
 let server: FakeSyncServer;
 let a: TestDevice;
@@ -211,6 +214,69 @@ describe("pull → merge → apply", () => {
 		expect(await b.driver.select("SELECT id FROM tasks")).toHaveLength(1);
 	});
 
+	it("does not fast-forward the cursor over a foreign push racing ours (§3.2)", async () => {
+		const task = await a.repo.createTask({ title: "mine" });
+		await syncMerging(a);
+		await a.repo.updateTask(task.id, { title: "mine v2" });
+
+		// The §3.2 interleave: another device's push lands between our pull
+		// phase and our push, so its seq sits in the gap between our cursor and
+		// our own applied seqs. Fast-forwarding over that gap would skip the
+		// foreign record forever (until it happens to change again).
+		const base = server.transport();
+		let raced = false;
+		const racing: SyncTransport = {
+			pull: (cursor, limit) => base.pull(cursor, limit),
+			push: async (changes) => {
+				if (!raced) {
+					raced = true;
+					const foreign = {
+						_v: 1,
+						created_at: "2026-08-25T08:00:00.000Z",
+						_fields: {
+							title: { t: "2026-08-25T09:00:00.000Z", d: "other-device" },
+						},
+						title: "foreign task",
+						description: null,
+						project_id: null,
+						priority: "none",
+						due_date: null,
+						sort_key: "a1",
+						completed_at: null,
+						deleted_at: null,
+						tags: [],
+					};
+					const enc = await a.cipher.encrypt(
+						"task",
+						"foreign-1",
+						JSON.stringify(foreign),
+					);
+					server.push([
+						{ entityType: "task", id: "foreign-1", purged: false, ...enc },
+					]);
+				}
+				return base.push(changes);
+			},
+		};
+		const rigged = new SyncEngine({
+			db: a.driver,
+			transport: racing,
+			cipher: a.cipher,
+			getServerInfo: async () => FAKE_SERVER_INFO,
+		});
+		await rigged.syncNow();
+
+		// The next ordinary sync must still serve the foreign record.
+		await syncMerging(a);
+		const rows = await a.driver.select<{ title: string }>(
+			"SELECT title FROM tasks WHERE id = 'foreign-1'",
+		);
+		expect(rows).toHaveLength(1);
+		expect(await getSyncState(a.driver, "cursor")).toBe(
+			String(server.seqCounter),
+		);
+	});
+
 	it("repairs an orphaned task into the Inbox at end of cycle (§5.3), and it propagates", async () => {
 		const project = await a.repo.createProject({ name: "Doomed" });
 		const task = await a.repo.createTask({
@@ -219,7 +285,9 @@ describe("pull → merge → apply", () => {
 		});
 		await syncMerging(a);
 		await syncMerging(b);
-		await a.repo.deleteProject(project.id);
+		// A genuine purge only exists as a tombstone: deleteProject merely
+		// archives (deleted_at, restorable §1.3), which must NOT orphan anything.
+		server.push([{ entityType: "project", id: project.id, purged: true }]);
 		await syncMerging(a);
 		await syncMerging(b);
 		await syncMerging(a);
@@ -230,6 +298,23 @@ describe("pull → merge → apply", () => {
 			);
 			expect(rows[0].project_id).toBeNull();
 		}
+	});
+
+	it("keeps a task's project when the project is merely archived (§1.3: restorable)", async () => {
+		const project = await a.repo.createProject({ name: "Paused" });
+		const task = await a.repo.createTask({
+			title: "kept",
+			projectId: project.id,
+		});
+		await syncMerging(a);
+		await a.repo.deleteProject(project.id); // archive, not purge
+		await syncMerging(a);
+		await syncMerging(a); // a second full cycle: the repair had every chance to fire
+		const rows = await a.driver.select<{ project_id: string | null }>(
+			"SELECT project_id FROM tasks WHERE id = ?",
+			[task.id],
+		);
+		expect(rows[0].project_id).toBe(project.id);
 	});
 
 	it("converges two same-named tags created offline to one, preserving assignments", async () => {

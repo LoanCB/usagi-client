@@ -407,12 +407,16 @@ export class SyncEngine {
 				settled.push(entry);
 			}
 
+			let minAppliedSeq = 0;
 			let maxAppliedSeq = 0;
 			if (changes.length > 0) {
 				const res = await this.deps.transport.push(changes);
 				await this.absorbServerTime(res.serverTime);
 				for (const applied of res.applied) {
 					if (applied.seq > maxAppliedSeq) maxAppliedSeq = applied.seq;
+					if (minAppliedSeq === 0 || applied.seq < minAppliedSeq) {
+						minAppliedSeq = applied.seq;
+					}
 				}
 			}
 			await db.transaction(async (tx) => {
@@ -429,11 +433,16 @@ export class SyncEngine {
 				if (maxAppliedSeq > 0) {
 					// The server just assigned these seqs to OUR OWN writes: a
 					// pull would return them right back for a no-op merge. Fast
-					// forward the cursor past them so the next sync does not
-					// spend a round trip re-fetching what this device already
-					// knows, without waiting for that idempotent round trip.
+					// forward the cursor past them — but ONLY when our batch is
+					// contiguous with the cursor. If another device pushed
+					// between our pull and our push, its seqs sit in the gap
+					// between the cursor and our first applied seq; skipping
+					// over them would silently lose those records until they
+					// happen to change again (§3.2). Non-contiguous: leave the
+					// cursor alone and let the next pull fetch the foreign
+					// records plus our own echoes (idempotent no-op merges).
 					const cursor = Number((await getSyncState(db, "cursor")) ?? "0");
-					if (maxAppliedSeq > cursor) {
+					if (minAppliedSeq === cursor + 1) {
 						await setSyncState(tx, "cursor", String(maxAppliedSeq));
 					}
 				}

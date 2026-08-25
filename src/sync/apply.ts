@@ -314,38 +314,22 @@ export async function repairOrphans(
 	deviceId: string,
 ): Promise<void> {
 	const now = nowIso();
-	// A referent is gone once purged — and, for projects, once archived too:
-	// deleteProject only sets deleted_at (there is no purge path and no
-	// unarchive for projects), getProjects hides the row forever, so a task
-	// still pointing at it dangles exactly as §5.3 describes. project_groups
-	// have no deleted_at column; their only deletion is the purge.
-	const fixes: Array<{ table: string; column: string; refLive: string }> = [
-		{
-			table: "tasks",
-			column: "project_id",
-			refLive:
-				"SELECT id FROM projects WHERE purged_at IS NULL AND deleted_at IS NULL",
-		},
-		{
-			table: "tags",
-			column: "project_id",
-			refLive:
-				"SELECT id FROM projects WHERE purged_at IS NULL AND deleted_at IS NULL",
-		},
-		{
-			table: "projects",
-			column: "group_id",
-			refLive: "SELECT id FROM project_groups WHERE purged_at IS NULL",
-		},
+	// A referent is gone only once PURGED. An archived referent (deleted_at,
+	// §1.3) is an ordinary, restorable LWW state: detaching its tasks here
+	// would propagate a stamped edit that destroys the archive semantics.
+	const fixes: Array<{ table: string; column: string; refTable: string }> = [
+		{ table: "tasks", column: "project_id", refTable: "projects" },
+		{ table: "tags", column: "project_id", refTable: "projects" },
+		{ table: "projects", column: "group_id", refTable: "project_groups" },
 	];
-	for (const { table, column, refLive } of fixes) {
+	for (const { table, column, refTable } of fixes) {
 		const orphans = await tx.select<{
 			id: string;
 			field_updated_at: string | null;
 		}>(
 			`SELECT id, field_updated_at FROM ${table}
 			 WHERE purged_at IS NULL AND ${column} IS NOT NULL
-			   AND ${column} NOT IN (${refLive})`,
+			   AND ${column} NOT IN (SELECT id FROM ${refTable} WHERE purged_at IS NULL)`,
 		);
 		for (const orphan of orphans) {
 			await tx.execute(
