@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { PushChange, PushResponse } from "@/sync/types";
 import {
 	makeDevice,
 	syncMerging,
@@ -57,18 +58,25 @@ describe("push phase", () => {
 
 	it("re-pushes the fresh state when a local write lands during the push", async () => {
 		const task = await a.repo.createTask({ title: "v1" });
+		// The outbox trigger stamps dirtied_at at millisecond resolution: a
+		// mid-push write landing in the SAME millisecond as createTask would
+		// collide with the captured value and slip past the settlement guard.
+		// Backdate the pending entry so the mid-push stamp is provably fresher.
+		await a.driver.execute(
+			"UPDATE sync_outbox SET dirtied_at = '2020-01-01T00:00:00.000Z' WHERE entity_id = ?",
+			[task.id],
+		);
 		// A write arrives while the push request is in flight: the outbox entry
 		// is replaced under the engine's feet with a fresher dirtied_at.
 		const originalPush = server.push.bind(server);
 		let interfered = false;
-		(server as any).push = (changes: any) => {
+		server.push = (changes: PushChange[]): PushResponse => {
 			const out = originalPush(changes);
 			if (
 				!interfered &&
-				Array.isArray(changes) &&
 				changes.length > 0 &&
-				(changes[0] as any)?.id === task.id &&
-				!(changes[0] as any)?.purged
+				changes[0].id === task.id &&
+				!changes[0].purged
 			) {
 				interfered = true;
 				// Direct driver write: better-sqlite3 executes synchronously
