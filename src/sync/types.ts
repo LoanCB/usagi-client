@@ -1,12 +1,6 @@
 import type { FieldStamps } from "@/db/field-timestamps";
 
 export type SyncEntityType = "task" | "project" | "tag" | "project_group";
-export const SYNC_ENTITY_TYPES = [
-	"task",
-	"project",
-	"tag",
-	"project_group",
-] as const;
 export const ENTITY_TABLE = {
 	task: "tasks",
 	project: "projects",
