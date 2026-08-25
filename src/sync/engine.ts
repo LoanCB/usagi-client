@@ -129,9 +129,33 @@ export class SyncEngine {
 		}
 	}
 
-	/** Implemented in the first-sync task; declared here so callers compile. */
-	async resolveFirstSync(_choice: "merge" | "replace"): Promise<void> {
-		throw new Error("not implemented yet");
+	/**
+	 * §6.4 — the answer to the first-sync question, called by the 4d dialog.
+	 * merge: flag and run a normal cycle, the per-field LWW reconciles.
+	 * replace: wipe the five local tables PHYSICALLY (nothing was ever pushed,
+	 * so there is nothing to tombstone), and empty the outbox LAST inside the
+	 * same transaction — the deletes re-fill it through the triggers, and an
+	 * outbox emptied first would push the abandoned data right back up: the
+	 * exact silent union §6.4 exists to prevent. The automatic JSON backup
+	 * before "replace" belongs to the 4d dialog, upstream of this call.
+	 */
+	async resolveFirstSync(choice: "merge" | "replace"): Promise<void> {
+		const db = this.deps.db;
+		if (choice === "replace") {
+			await db.transaction(async (tx) => {
+				await tx.execute("DELETE FROM task_tags");
+				await tx.execute("DELETE FROM tasks");
+				await tx.execute("DELETE FROM tags");
+				await tx.execute("DELETE FROM projects");
+				await tx.execute("DELETE FROM project_groups");
+				await tx.execute("DELETE FROM sync_outbox");
+				await setSyncState(tx, "first_sync_resolved", "1");
+			});
+		} else {
+			await setSyncState(db, "first_sync_resolved", "1");
+		}
+		this.setStatus("idle");
+		await this.syncNow();
 	}
 
 	async retryQuarantine(): Promise<void> {
