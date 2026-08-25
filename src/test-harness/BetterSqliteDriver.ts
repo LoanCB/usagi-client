@@ -43,11 +43,15 @@ export class BetterSqliteDriver implements DbDriver {
 			);
 		}
 		this.writes++;
-		const info = this.db.prepare(query).run(...(bindValues as never[]));
-		return Promise.resolve({
-			rowsAffected: info.changes,
-			lastInsertId: Number(info.lastInsertRowid),
-		});
+		try {
+			const info = this.db.prepare(query).run(...(bindValues as never[]));
+			return Promise.resolve({
+				rowsAffected: info.changes,
+				lastInsertId: Number(info.lastInsertRowid),
+			});
+		} catch (error) {
+			return Promise.reject(error);
+		}
 	}
 
 	select<T>(query: string, bindValues: unknown[] = []): Promise<T[]> {
