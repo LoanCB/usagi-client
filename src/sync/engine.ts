@@ -13,7 +13,7 @@ import {
 	upsertMerged,
 	writeLocalTombstone,
 } from "./apply";
-import { SyncHttpError } from "./http";
+import { SyncHttpError, SyncNetworkError } from "./http";
 import { mergePayloads } from "./merge";
 import {
 	loadSnapshot,
@@ -128,7 +128,15 @@ export class SyncEngine {
 			// §7: offline and transient server failures are normal states — the
 			// outbox accumulates and the next trigger retries. Anything else
 			// (a DB failure, a bug) must surface, not vanish.
-			if (err instanceof SyncHttpError || err instanceof TypeError) return;
+			// SyncNetworkError is the production offline path (Tauri's fetch
+			// rejects with a serialized Rust error); TypeError is kept for
+			// browser fetch in dev/tests.
+			if (
+				err instanceof SyncHttpError ||
+				err instanceof SyncNetworkError ||
+				err instanceof TypeError
+			)
+				return;
 			throw err;
 		} finally {
 			this.running = false;

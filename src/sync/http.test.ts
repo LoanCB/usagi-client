@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { requestJson, SyncHttpError } from "./http";
+import { requestJson, SyncHttpError, SyncNetworkError } from "./http";
 
 function jsonResponse(
 	status: number,
@@ -88,5 +88,18 @@ describe("requestJson", () => {
 		)) as SyncHttpError;
 		expect(err.status).toBe(502);
 		expect(err.code).toBeNull();
+	});
+
+	it("wraps a transport-level rejection (e.g. Tauri's non-TypeError) into SyncNetworkError", async () => {
+		// @tauri-apps/plugin-http's fetch rejects with whatever invoke()
+		// propagates — often a plain string, not a TypeError.
+		const fetchSpy = vi.fn(async () => {
+			throw "Network error: could not connect";
+		});
+		const err = await requestJson(fetchSpy, "GET", "https://s/x").catch(
+			(e: unknown) => e,
+		);
+		expect(err).toBeInstanceOf(SyncNetworkError);
+		expect((err as SyncNetworkError).message).toContain("could not connect");
 	});
 });

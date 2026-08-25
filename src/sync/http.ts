@@ -13,6 +13,22 @@ export class SyncHttpError extends Error {
 }
 
 /**
+ * Thrown when the transport call itself fails (never reached the server), as
+ * opposed to SyncHttpError which carries a real HTTP status. @tauri-apps/
+ * plugin-http's fetch rejects with whatever invoke() propagates — typically a
+ * serialized Rust error string, not a browser TypeError — so "offline" cannot
+ * be recognised by `instanceof TypeError` in production. Wrapping every
+ * transport failure into this one type lets the engine treat offline as the
+ * normal state §7 requires, regardless of which fetch implementation is used.
+ */
+export class SyncNetworkError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "SyncNetworkError";
+	}
+}
+
+/**
  * The one door every engine request goes through. fetch is injected: the real
  * caller passes @tauri-apps/plugin-http's fetch (IPC to Rust, not governed by
  * the webview CSP), tests pass a stub. The server speaks camelCase JSON and
@@ -29,11 +45,20 @@ export async function requestJson<T>(
 	if (opts.body !== undefined) headers["content-type"] = "application/json";
 	if (opts.accessToken) headers.authorization = `Bearer ${opts.accessToken}`;
 
-	const res = await fetchImpl(url, {
-		method,
-		headers,
-		body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-	});
+	let res: Response;
+	try {
+		res = await fetchImpl(url, {
+			method,
+			headers,
+			body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+		});
+	} catch (err) {
+		// tauri-plugin-http rejects with a serialized Rust error, not a
+		// TypeError: fold every transport failure into one typed error so the
+		// engine can treat "offline" as the normal state §7 requires, whatever
+		// fetch implementation threw it.
+		throw new SyncNetworkError(String(err));
+	}
 
 	if (!res.ok) {
 		let code: string | null = null;

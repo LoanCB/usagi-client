@@ -8,6 +8,7 @@ import {
 } from "@/test-harness/engine";
 import { FakeSyncServer } from "@/test-harness/FakeSyncServer";
 import { SyncEngine } from "./engine";
+import { SyncNetworkError } from "./http";
 import { getSyncState, setSyncState } from "./state";
 import type { SyncTransport } from "./types";
 
@@ -508,5 +509,21 @@ describe("pull → merge → apply", () => {
 		const stored = await getSyncState(a.driver, "clock_offset_ms");
 		expect(stored).not.toBeNull();
 		expect(Math.abs(Number(stored))).toBeLessThan(5_000); // fake server = same machine clock
+	});
+
+	it("treats SyncNetworkError as offline (§7): syncNow resolves quietly and status returns to idle", async () => {
+		// Simulates Tauri's plugin-http, which rejects with a non-TypeError.
+		const offlineTransport: SyncTransport = {
+			pull: () => Promise.reject(new SyncNetworkError("could not connect")),
+			push: () => Promise.reject(new SyncNetworkError("could not connect")),
+		};
+		const offline = new SyncEngine({
+			db: a.driver,
+			transport: offlineTransport,
+			cipher: a.cipher,
+			getServerInfo: async () => FAKE_SERVER_INFO,
+		});
+		await expect(offline.syncNow()).resolves.toBeUndefined();
+		expect(offline.getStatus()).toBe("idle");
 	});
 });
