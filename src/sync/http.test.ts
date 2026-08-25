@@ -22,7 +22,10 @@ describe("requestJson", () => {
 			{ body: { changes: [] }, accessToken: "tok" },
 		);
 		expect(out).toEqual({ ok: 1 });
-		const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+		const [url, init] = fetchSpy.mock.calls[0] as unknown as [
+			string,
+			RequestInit,
+		];
 		expect(url).toBe("https://sync.example/v1/sync/push");
 		expect(init.method).toBe("POST");
 		expect(new Headers(init.headers).get("authorization")).toBe("Bearer tok");
