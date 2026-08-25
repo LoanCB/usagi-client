@@ -64,6 +64,16 @@ interface OutboxEntry {
 // the caller — leftovers are picked up by the §4.2 debounce trigger.
 const MAX_PUSH_ROUNDS = 50;
 
+// FK dependency order for applying one pull page: project_group has no FK,
+// project references project_group, tag references project, task references
+// both project and tag (the latter tolerated out of order via _unlinkedTags).
+const APPLY_ORDER_RANK: Record<SyncEntityType, number> = {
+	project_group: 0,
+	project: 1,
+	tag: 2,
+	task: 3,
+};
+
 export class SyncEngine {
 	private status: SyncStatus = "idle";
 	private readonly listeners = new Set<(status: SyncStatus) => void>();
@@ -245,10 +255,22 @@ export class SyncEngine {
 				decrypted.push(await this.decryptOne(record));
 			}
 			const deviceId = await getOrCreateDeviceId(db);
+			// Apply in FK-dependency order (project_group, project, tag, task), not
+			// push-arrival order: the outbox re-dirties an entity's row on every
+			// touch, so a parent touched again after its child was pushed can sort
+			// AFTER that child in server seq. Same-type/id relative order (there is
+			// at most one live record per id per page) is preserved by the sort's
+			// stability. This does not cover a parent landing in a LATER page — that
+			// gap is what repairOrphans (§5.3) exists to close.
+			const ordered = [...decrypted].sort(
+				(x, y) =>
+					APPLY_ORDER_RANK[x.record.entityType] -
+					APPLY_ORDER_RANK[y.record.entityType],
+			);
 			// §9.5: applied records, quarantine rows, outbox cleanup and the
 			// cursor advance commit or roll back as one unit.
 			await db.transaction(async (tx) => {
-				for (const item of decrypted) {
+				for (const item of ordered) {
 					await this.applyOne(tx, item, serverTimeMs, deviceId);
 				}
 				await setSyncState(tx, "cursor", String(page.nextCursor));
