@@ -52,12 +52,18 @@ function pick<T>(rng: () => number, list: T[]): T | undefined {
  * One random offline operation through the PRODUCTION repository API. Invalid
  * random targets (e.g. completing an already-purged task) just no-op: the
  * scenario stays deterministic because the guard outcome is deterministic too.
+ *
+ * `protectedTaskId` (the prologue's shared task) is never purged by the
+ * random sequence: purge is terminal (§5.2), so once it is gone the §5
+ * tie-break the prologue set up on it can never reach mergePayloads, and the
+ * scenario would stop proving what it exists to prove on every execution.
  */
 async function randomOp(
 	rng: () => number,
 	device: TestDevice,
 	pools: Pools,
 	label: string,
+	protectedTaskId: string,
 ): Promise<void> {
 	const roll = Math.floor(rng() * 12);
 	try {
@@ -73,7 +79,12 @@ async function randomOp(
 			}
 			case 2: {
 				const id = pick(rng, pools.tasks);
-				if (id) await device.repo.updateTask(id, { title: `renamed ${label}` });
+				// The protected task's title carries the prologue's same-millisecond
+				// tie (§5 tie-break fixture): a later local rename would overwrite it
+				// with a non-tied stamp before either device ever syncs, and the
+				// scenario would stop exercising the tie-break it exists to prove.
+				if (id && id !== protectedTaskId)
+					await device.repo.updateTask(id, { title: `renamed ${label}` });
 				return;
 			}
 			case 3: {
@@ -98,7 +109,7 @@ async function randomOp(
 			}
 			case 6: {
 				const id = pick(rng, pools.tasks);
-				if (id) await device.repo.deleteTask(id);
+				if (id && id !== protectedTaskId) await device.repo.deleteTask(id);
 				return;
 			}
 			case 7: {
@@ -246,7 +257,13 @@ async function runUniverse(
 		for (let i = 0; i < OPS_PER_SEED; i++) {
 			const onA = rng() < 0.5;
 			vi.setSystemTime(Date.now() + Math.floor(rng() * 3)); // 0 keeps ties possible
-			await randomOp(rng, onA ? a : b, onA ? poolsA : poolsB, `${seed}.${i}`);
+			await randomOp(
+				rng,
+				onA ? a : b,
+				onA ? poolsA : poolsB,
+				`${seed}.${i}`,
+				shared.id,
+			);
 		}
 
 		// Reconnection, in this universe's order.
