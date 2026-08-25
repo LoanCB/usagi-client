@@ -258,10 +258,12 @@ export class SyncEngine {
 			await this.absorbServerTime(page.serverTime);
 			if (await this.firstSyncGate(cursor, page)) return true;
 			const serverTimeMs = Date.parse(page.serverTime);
-			const decrypted: DecryptedRecord[] = [];
-			for (const record of page.records) {
-				decrypted.push(await this.decryptOne(record));
-			}
+			// Decryption is pure per record (no DB access, no cross-record
+			// dependency) and Promise.all preserves input order, so a page's
+			// records decrypt concurrently across the Tauri IPC boundary.
+			const decrypted: DecryptedRecord[] = await Promise.all(
+				page.records.map((record) => this.decryptOne(record)),
+			);
 			const deviceId = await getOrCreateDeviceId(db);
 			// Apply in FK-dependency order (project_group, project, tag, task), not
 			// push-arrival order: the outbox re-dirties an entity's row on every
@@ -279,6 +281,7 @@ export class SyncEngine {
 			// cursor advance commit or roll back as one unit.
 			await db.transaction(async (tx) => {
 				for (const item of ordered) {
+					// oxlint-disable-next-line react-doctor/async-await-in-loop -- intentional: the applies are ordered SQL statements inside ONE transaction (§9.5) — each item may read state written by an earlier one (a tag inserted before a task links it), so running them concurrently would break both the FK-dependency order and the transaction's atomicity
 					await this.applyOne(tx, item, serverTimeMs, deviceId);
 				}
 				await setSyncState(tx, "cursor", String(page.nextCursor));
