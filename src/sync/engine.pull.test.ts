@@ -1,0 +1,320 @@
+// @vitest-environment node
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+	makeDevice,
+	syncMerging,
+	type TestDevice,
+} from "@/test-harness/engine";
+import { FakeSyncServer } from "@/test-harness/FakeSyncServer";
+import { getSyncState, setSyncState } from "./state";
+
+let server: FakeSyncServer;
+let a: TestDevice;
+let b: TestDevice;
+
+beforeEach(async () => {
+	server = new FakeSyncServer();
+	a = await makeDevice(server);
+	b = await makeDevice(server);
+});
+afterEach(() => {
+	a?.driver.close();
+	b?.driver.close();
+});
+
+async function outboxCount(d: TestDevice): Promise<number> {
+	const rows = await d.driver.select<{ n: number }>(
+		"SELECT COUNT(*) AS n FROM sync_outbox",
+	);
+	return rows[0].n;
+}
+
+describe("pull → merge → apply", () => {
+	it("propagates a task from A to B with identical stamps, and both outboxes end empty", async () => {
+		const task = await a.repo.createTask({ title: "From A" });
+		await syncMerging(a);
+		await syncMerging(b);
+
+		const rowsB = await b.driver.select<{
+			title: string;
+			field_updated_at: string;
+		}>("SELECT title, field_updated_at FROM tasks WHERE id = ?", [task.id]);
+		expect(rowsB[0].title).toBe("From A");
+		const rowsA = await a.driver.select<{ field_updated_at: string }>(
+			"SELECT field_updated_at FROM tasks WHERE id = ?",
+			[task.id],
+		);
+		expect(JSON.parse(rowsB[0].field_updated_at)).toEqual(
+			JSON.parse(rowsA[0].field_updated_at),
+		);
+		expect(await outboxCount(a)).toBe(0);
+		expect(await outboxCount(b)).toBe(0);
+		expect(await getSyncState(b.driver, "cursor")).toBe(
+			String(server.seqCounter),
+		);
+	});
+
+	it("does not echo a pulled record back to the server (§4.1: no oscillation)", async () => {
+		await a.repo.createTask({ title: "quiet" });
+		await syncMerging(a);
+		const seqAfterA = server.seqCounter;
+		await syncMerging(b);
+		await syncMerging(b); // a second full cycle must push nothing
+		expect(server.seqCounter).toBe(seqAfterA);
+	});
+
+	it("merges concurrent edits of different fields of the same task", async () => {
+		const task = await a.repo.createTask({ title: "original" });
+		await syncMerging(a);
+		await syncMerging(b);
+
+		// Offline on both sides: A renames, B reprioritises, 1ms apart so the
+		// stamps differ and each field has a distinct winner.
+		await a.repo.updateTask(task.id, { title: "renamed by A" });
+		await new Promise((r) => setTimeout(r, 2));
+		await b.repo.updateTask(task.id, { priority: "high" });
+
+		await syncMerging(a);
+		await syncMerging(b);
+		await syncMerging(a);
+
+		for (const d of [a, b]) {
+			const rows = await d.driver.select<{ title: string; priority: string }>(
+				"SELECT title, priority FROM tasks WHERE id = ?",
+				[task.id],
+			);
+			expect(rows[0]).toEqual({ title: "renamed by A", priority: "high" });
+		}
+	});
+
+	it("purge is terminal in both directions (§5.2)", async () => {
+		const t1 = await a.repo.createTask({ title: "purged remotely" });
+		const t2 = await a.repo.createTask({ title: "purged locally" });
+		await syncMerging(a);
+		await syncMerging(b);
+
+		// Remote purge vs local edit: A purges t1 while B edits it.
+		await a.repo.deleteTask(t1.id);
+		await b.repo.updateTask(t1.id, { title: "B edited t1" });
+		// Local purge vs remote edit: B purges t2 while A edits it.
+		await b.repo.deleteTask(t2.id);
+		await a.repo.updateTask(t2.id, { title: "A edited t2" });
+
+		await syncMerging(a);
+		await syncMerging(b);
+		await syncMerging(a);
+
+		for (const d of [a, b]) {
+			const rows = await d.driver.select<{
+				id: string;
+				purged_at: string | null;
+			}>("SELECT id, purged_at FROM tasks WHERE id IN (?, ?)", [t1.id, t2.id]);
+			expect(rows).toHaveLength(2);
+			for (const row of rows) expect(row.purged_at).not.toBeNull();
+		}
+		expect(server.dump().filter((r) => r.purged)).toHaveLength(2);
+	});
+
+	it("creates a local tombstone for a purge of a never-seen record", async () => {
+		const task = await a.repo.createTask({ title: "born and purged on A" });
+		await a.repo.deleteTask(task.id);
+		await syncMerging(a);
+		await syncMerging(b);
+		const rows = await b.driver.select<{ purged_at: string | null }>(
+			"SELECT purged_at FROM tasks WHERE id = ?",
+			[task.id],
+		);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].purged_at).not.toBeNull();
+		expect(await outboxCount(b)).toBe(0);
+	});
+
+	it("quarantines an undecryptable blob, keeps the loop running, and retries later (§7)", async () => {
+		const bad = await a.repo.createTask({ title: "will corrupt" });
+		const good = await a.repo.createTask({ title: "fine" });
+		await syncMerging(a);
+
+		b.cipher.corrupt("task", bad.id);
+		await syncMerging(b);
+
+		const tasksB = await b.driver.select<{ id: string }>(
+			"SELECT id FROM tasks",
+		);
+		expect(tasksB.map((r) => r.id)).toEqual([good.id]);
+		const quarantine = await b.driver.select<{
+			entity_id: string;
+			reason: string;
+		}>("SELECT entity_id, reason FROM sync_quarantine");
+		expect(quarantine).toEqual([
+			{ entity_id: bad.id, reason: "decrypt-failed" },
+		]);
+		// The cursor moved past the poisoned record: the loop was not blocked.
+		expect(await getSyncState(b.driver, "cursor")).toBe(
+			String(server.seqCounter),
+		);
+
+		// The blob heals (e.g. vault unlocked with the right key): retried and applied.
+		b.cipher.heal("task", bad.id);
+		await syncMerging(b);
+		expect(
+			await b.driver.select("SELECT id FROM tasks WHERE id = ?", [bad.id]),
+		).toHaveLength(1);
+		expect(await b.driver.select("SELECT * FROM sync_quarantine")).toHaveLength(
+			0,
+		);
+	});
+
+	it("survives quarantine across a restart (persisted, not in memory)", async () => {
+		const bad = await a.repo.createTask({ title: "poison" });
+		await syncMerging(a);
+		b.cipher.corrupt("task", bad.id);
+		await syncMerging(b);
+		const reopened = b.driver.reopen();
+		const rows = await reopened.select<{ entity_id: string }>(
+			"SELECT entity_id FROM sync_quarantine",
+		);
+		expect(rows).toEqual([{ entity_id: bad.id }]);
+		reopened.close();
+	});
+
+	it("resets the cursor and re-pulls everything on 409 CURSOR_OUT_OF_RANGE", async () => {
+		const task = await a.repo.createTask({ title: "resync me" });
+		await syncMerging(a);
+		await syncMerging(b);
+		// A cursor from another life (spec: restored backup, another server).
+		await setSyncState(b.driver, "cursor", String(server.seqCounter + 100));
+		await b.repo.updateTask(task.id, { title: "edited on B" });
+		await syncMerging(b);
+		expect(await getSyncState(b.driver, "cursor")).toBe(
+			String(server.seqCounter),
+		);
+		expect(await outboxCount(b)).toBe(0);
+		const rows = await b.driver.select<{ title: string }>(
+			"SELECT title FROM tasks WHERE id = ?",
+			[task.id],
+		);
+		expect(rows[0].title).toBe("edited on B");
+	});
+
+	it("applies a page, clears the outbox and advances the cursor in ONE transaction (§9.5)", async () => {
+		await a.repo.createTask({ title: "atomic" });
+		await syncMerging(a);
+		const cursorBefore = await getSyncState(b.driver, "cursor");
+		// The outbox cleanup is the last write of the page transaction: making
+		// it fail must roll back the applied row AND the cursor with it.
+		b.driver.failNextExecuteMatching(/DELETE FROM sync_outbox/);
+		await expect(b.engine.syncNow()).rejects.toThrow();
+		expect(await b.driver.select("SELECT id FROM tasks")).toHaveLength(0);
+		expect(await getSyncState(b.driver, "cursor")).toBe(cursorBefore);
+		// Next attempt succeeds and converges — the replay is idempotent.
+		await syncMerging(b);
+		expect(await b.driver.select("SELECT id FROM tasks")).toHaveLength(1);
+	});
+
+	it("repairs an orphaned task into the Inbox at end of cycle (§5.3), and it propagates", async () => {
+		const project = await a.repo.createProject({ name: "Doomed" });
+		const task = await a.repo.createTask({
+			title: "orphan",
+			projectId: project.id,
+		});
+		await syncMerging(a);
+		await syncMerging(b);
+		await a.repo.deleteProject(project.id);
+		await syncMerging(a);
+		await syncMerging(b);
+		await syncMerging(a);
+		for (const d of [a, b]) {
+			const rows = await d.driver.select<{ project_id: string | null }>(
+				"SELECT project_id FROM tasks WHERE id = ?",
+				[task.id],
+			);
+			expect(rows[0].project_id).toBeNull();
+		}
+	});
+
+	it("converges two same-named tags created offline to one, preserving assignments", async () => {
+		// First contact while B is still empty: the §6.4 gate stays down, and
+		// resolveFirstSync (a stub until the first-sync task) is never needed.
+		await syncMerging(b);
+		const taskA = await a.repo.createTask({ title: "on A" });
+		const taskB = await b.repo.createTask({ title: "on B" });
+		const tagA = await a.repo.createTag({ name: "urgent" });
+		const tagB = await b.repo.createTag({ name: "urgent" });
+		await a.repo.updateTask(taskA.id, { tagIds: [tagA.id] });
+		await b.repo.updateTask(taskB.id, { tagIds: [tagB.id] });
+
+		await syncMerging(a);
+		await syncMerging(b);
+		await syncMerging(a);
+		await syncMerging(b);
+
+		const winner = tagA.id < tagB.id ? tagA.id : tagB.id;
+		for (const d of [a, b]) {
+			const live = await d.driver.select<{ id: string }>(
+				"SELECT id FROM tags WHERE purged_at IS NULL",
+			);
+			expect(live.map((r) => r.id)).toEqual([winner]);
+			const links = await d.driver.select<{ task_id: string; tag_id: string }>(
+				"SELECT task_id, tag_id FROM task_tags ORDER BY task_id",
+			);
+			expect(links.map((l) => l.tag_id)).toEqual([winner, winner]);
+			expect(new Set(links.map((l) => l.task_id))).toEqual(
+				new Set([taskA.id, taskB.id]),
+			);
+		}
+	});
+
+	it("preserves unknown payload fields end to end (§5.4)", async () => {
+		// A future client pushed a task carrying a field this version ignores.
+		const futurePayload = {
+			_v: 1,
+			created_at: "2026-08-20T08:00:00.000Z",
+			_fields: {
+				title: { t: "2026-08-25T09:00:00.000Z", d: "future-device" },
+				recurrence: { t: "2026-08-25T09:00:00.000Z", d: "future-device" },
+			},
+			title: "recurring task",
+			description: null,
+			project_id: null,
+			priority: "none",
+			due_date: null,
+			sort_key: "a0",
+			completed_at: null,
+			deleted_at: null,
+			tags: [],
+			recurrence: { every: "week" },
+		};
+		const enc = await b.cipher.encrypt(
+			"task",
+			"future-1",
+			JSON.stringify(futurePayload),
+		);
+		server.push([
+			{ entityType: "task", id: "future-1", purged: false, ...enc },
+		]);
+
+		await syncMerging(b);
+		await b.repo.updateTask("future-1", { title: "renamed by old client" });
+		await syncMerging(b);
+
+		const stored = server.dump().find((r) => r.id === "future-1");
+		const decrypted = JSON.parse(
+			await b.cipher.decrypt(
+				"task",
+				"future-1",
+				stored?.ciphertext ?? "",
+				stored?.nonce ?? "",
+			),
+		) as Record<string, unknown>;
+		expect(decrypted.title).toBe("renamed by old client");
+		expect(decrypted.recurrence).toEqual({ every: "week" });
+	});
+
+	it("absorbs serverTime into the persisted clock offset (§5.1)", async () => {
+		await a.repo.createTask({ title: "tick" });
+		await syncMerging(a);
+		const stored = await getSyncState(a.driver, "clock_offset_ms");
+		expect(stored).not.toBeNull();
+		expect(Math.abs(Number(stored))).toBeLessThan(5_000); // fake server = same machine clock
+	});
+});
