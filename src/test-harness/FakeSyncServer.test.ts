@@ -93,4 +93,37 @@ describe("FakeSyncServer (mirrors the verified server semantics)", () => {
 		expect(res.records).toHaveLength(1);
 		expect(res.records[0]).toMatchObject({ id: "a", seq: 2, purged: true });
 	});
+
+	it("reports hasMore false when the remaining records exactly fill the limit", () => {
+		const server = new FakeSyncServer();
+		server.push(Array.from({ length: 4 }, (_, i) => alive(`t${i}`)));
+		const page = server.pull(2, 2);
+		expect(page.records.map((r) => r.seq)).toEqual([3, 4]);
+		expect(page.hasMore).toBe(false);
+		expect(page.nextCursor).toBe(4);
+	});
+
+	it("exposes a transport that delegates and counts every request", async () => {
+		const server = new FakeSyncServer();
+		const transport = server.transport();
+		const pushed = await transport.push([alive("a")]);
+		expect(pushed.applied.map((x) => x.seq)).toEqual([1]);
+		const pulled = await transport.pull(0, 500);
+		expect(pulled.records.map((r) => r.seq)).toEqual([1]);
+		expect(server.requestCount).toBe(2);
+		await transport.pull(1, 500);
+		expect(server.requestCount).toBe(3);
+	});
+
+	it("copies the changes handed to the transport so later mutation is inert", async () => {
+		const server = new FakeSyncServer();
+		const change = alive("a");
+		await server.transport().push([change]);
+		change.ciphertext = "dGFtcGVyZWQ=";
+		change.purged = true;
+		expect(server.dump()[0]).toMatchObject({
+			purged: false,
+			ciphertext: "Y2lwaGVy",
+		});
+	});
 });
