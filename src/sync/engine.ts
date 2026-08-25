@@ -505,7 +505,7 @@ export class SyncEngine {
 					// happen to change again (§3.2). Non-contiguous: leave the
 					// cursor alone and let the next pull fetch the foreign
 					// records plus our own echoes (idempotent no-op merges).
-					const cursor = Number((await getSyncState(db, "cursor")) ?? "0");
+					const cursor = Number((await getSyncState(tx, "cursor")) ?? "0");
 					if (minAppliedSeq === cursor + 1) {
 						await setSyncState(tx, "cursor", String(maxAppliedSeq));
 					}

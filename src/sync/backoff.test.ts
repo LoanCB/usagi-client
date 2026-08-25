@@ -64,6 +64,12 @@ describe("RequestGate backoff on 429", () => {
 		expect(sleeps).toEqual([7_000]);
 	});
 
+	it("clamps a hostile or misconfigured Retry-After to the cap", async () => {
+		const { gate, sleeps } = harness();
+		await gate.on429(999_999);
+		expect(sleeps).toEqual([60_000]);
+	});
+
 	it("resets the ladder after a success", async () => {
 		const { gate, sleeps } = harness();
 		await gate.on429(null);

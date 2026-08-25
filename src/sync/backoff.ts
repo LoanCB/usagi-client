@@ -63,7 +63,8 @@ export class RequestGate {
 			BACKOFF_CAP_MS,
 			BACKOFF_BASE_MS * 2 ** (this.consecutive429 - 1),
 		);
-		await this.sleep(retryAfterMs ?? ladder);
+		// A hostile or misconfigured Retry-After must not be honored uncapped.
+		await this.sleep(Math.min(retryAfterMs ?? ladder, BACKOFF_CAP_MS));
 	}
 
 	onSuccess(): void {
