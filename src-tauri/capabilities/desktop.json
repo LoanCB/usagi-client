@@ -12,7 +12,11 @@
 			"allow": [
 				{ "url": "https://github.com/**" },
 				{ "url": "https://objects.githubusercontent.com/**" },
-				{ "url": "https://*.githubusercontent.com/**" }
+				{ "url": "https://*.githubusercontent.com/**" },
+				{ "url": "https://**" },
+				{ "url": "http://localhost:*/**" },
+				{ "url": "http://127.0.0.1:*/**" },
+				{ "url": "http://*.local:*/**" }
 			]
 		}
 	]
