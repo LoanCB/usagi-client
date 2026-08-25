@@ -516,18 +516,19 @@ describe("SqliteRepository — tasks", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
-				.mockResolvedValueOnce([{ field_updated_at: null }]) // updateTask's own field_updated_at lookup
-				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId
+				.mockResolvedValueOnce([{ purged_at: null }]) // updateTask's purge guard
+				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
+				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
 				.mockResolvedValueOnce([taskRow]) // getTask after update
 				.mockResolvedValueOnce([]), // task_tags join
 		});
 		const repo = new SqliteRepository(db);
 		await repo.updateTask("task-1", { tagIds: ["tag-x", "tag-y"] });
-		expect(db.execute).toHaveBeenCalledTimes(4); // 1 UPDATE + 1 DELETE + 2 INSERT
+		expect(db.execute).toHaveBeenCalledTimes(5); // 1 UPDATE + 1 stamp UPDATE + 1 DELETE + 2 INSERT
 		const calls = (db.execute as ReturnType<typeof vi.fn>).mock.calls;
-		expect(calls[1][0]).toContain("DELETE FROM task_tags");
-		expect(calls[2][0]).toContain("INSERT INTO task_tags");
+		expect(calls[2][0]).toContain("DELETE FROM task_tags");
 		expect(calls[3][0]).toContain("INSERT INTO task_tags");
+		expect(calls[4][0]).toContain("INSERT INTO task_tags");
 	});
 
 	it("getTasks with tagIds filters via INNER JOIN with DISTINCT", async () => {
@@ -585,14 +586,22 @@ describe("SqliteRepository — field timestamps", () => {
 
 	it("updateTask stamps only the patched columns", async () => {
 		const db = makeDb({
-			select: vi.fn().mockResolvedValue([{ field_updated_at: null }]),
+			select: vi
+				.fn()
+				.mockResolvedValue([{ purged_at: null, field_updated_at: null }]),
 		});
 		const repo = new SqliteRepository(db);
 		await repo.updateTask("t1", { priority: "high" }).catch(() => undefined);
-		const update = (db.execute as ReturnType<typeof vi.fn>).mock.calls.find(
-			(c) => String(c[0]).startsWith("UPDATE tasks SET"),
+		// The stamp UPDATE is a separate statement from the patch UPDATE (both
+		// start with "UPDATE tasks SET"); only the stamp's params carry JSON.
+		const stampCall = (db.execute as ReturnType<typeof vi.fn>).mock.calls.find(
+			(c) =>
+				String(c[0]).startsWith("UPDATE tasks SET") &&
+				(c[1] as unknown[]).some(
+					(p) => typeof p === "string" && p.startsWith("{"),
+				),
 		);
-		const json = (update?.[1] as unknown[]).find(
+		const json = (stampCall?.[1] as unknown[]).find(
 			(p) => typeof p === "string" && p.startsWith("{"),
 		) as string;
 		const keys = Object.keys(JSON.parse(json));

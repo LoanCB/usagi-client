@@ -1,3 +1,4 @@
+import { fetch as httpFetch } from "@tauri-apps/plugin-http";
 import Database from "@tauri-apps/plugin-sql";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +19,8 @@ import { useSettingsStore } from "@/store/settings";
 import { useShortcutsStore } from "@/store/shortcuts";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
+import type { FetchLike } from "@/sync/http";
+import { initSync } from "@/sync/init";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import type { ChangelogVersion } from "@/types/changelog";
 
@@ -116,6 +119,12 @@ export default function App() {
 				await runMigrations(driver, ALL_MIGRATIONS);
 				await backfillSortKeys(driver);
 				setRepository(createRepository(db));
+				// Sync stays entirely inert without a configured server (§6.1);
+				// plan 4d's settings screen is what will ever set server_url.
+				const syncRuntime = await initSync(driver, getRepository(), {
+					fetchImpl: httpFetch as FetchLike,
+				});
+				if (syncRuntime) setRepository(syncRuntime.repository);
 				setReady(true);
 			} catch (err) {
 				setError(String(err));
