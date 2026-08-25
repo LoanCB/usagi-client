@@ -337,22 +337,32 @@ export class SyncEngine {
 			await touchOutbox(tx, record.entityType, record.id);
 			return;
 		}
+		const local = snapshot
+			? snapshotToPayload(record.entityType, snapshot)
+			: null;
+		const merged = mergePayloads(local, item.payload, serverTimeMs);
 		if (record.entityType === "tag") {
+			// Resolve on the MERGED name, not item.payload's raw (possibly stale)
+			// name: see resolveTagNameCollision's doc comment in apply.ts.
+			const mergedName = String(merged.payload.name ?? "");
 			const action = await resolveTagNameCollision(
 				tx,
 				record.id,
-				String(item.payload.name ?? ""),
+				mergedName,
 				deviceId,
+				snapshot !== null,
 			);
 			if (action === "keep-local") {
 				await writeLocalTombstone(tx, "tag", record.id, deviceId);
 				return;
 			}
+			if (action === "purge-local-row") {
+				// The local row for record.id was purged and its links remapped
+				// onto the surviving rival; the merged live state must not be
+				// upserted over that tombstone.
+				return;
+			}
 		}
-		const local = snapshot
-			? snapshotToPayload(record.entityType, snapshot)
-			: null;
-		const merged = mergePayloads(local, item.payload, serverTimeMs);
 		await upsertMerged(tx, record.entityType, record.id, merged.payload);
 		// The upsert's UPDATE trigger just armed the outbox. If nothing local
 		// survived the merge, the row is exactly what the server holds: clear

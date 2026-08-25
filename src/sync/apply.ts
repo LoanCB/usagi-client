@@ -218,77 +218,57 @@ export async function writeLocalTombstone(
 }
 
 /**
- * tags.name is globally UNIQUE (migration 001): two devices creating the same
- * name offline collide at apply time. Deterministic rule — the SMALLER id
- * wins — so every device resolves the same collision the same way without
- * coordination. Outbox ordering (dirtied_at) guarantees a live tag always
- * arrives before the tombstone of its duplicate, so task assignments survive
- * through the remap below.
+ * Purges a LIVE local tag row (`loserId`) that lost a name collision, renaming
+ * it to its own id (frees the name, matches the tombstone convention) and
+ * remapping its task_tags links to `winnerId`. `winnerId`'s row must already
+ * exist (or be about to, via the INSERT OR IGNORE stub below) since
+ * task_tags.tag_id is a foreign key. Shared by both collision directions:
+ * "remote/merged wins" (winner is the incoming record) and "rename-into-
+ * existing-name" (winner is the pre-existing local rival).
  */
-export async function resolveTagNameCollision(
+async function purgeLoserAndRemap(
 	tx: DbDriver,
-	remoteId: string,
-	remoteName: string,
+	loserId: string,
+	loserFieldUpdatedAt: string | null,
+	winnerId: string,
+	winnerName: string,
 	deviceId: string,
-): Promise<"apply-live" | "keep-local"> {
-	// A purged tag squatting the name would break the upsert's UNIQUE: free it.
-	const squatters = await tx.select<{ id: string }>(
-		"SELECT id FROM tags WHERE name = ? AND id != ? AND purged_at IS NOT NULL",
-		[remoteName, remoteId],
-	);
-	for (const squatter of squatters) {
-		await tx.execute("UPDATE tags SET name = ? WHERE id = ?", [
-			squatter.id,
-			squatter.id,
-		]);
-	}
-
-	const rivals = await tx.select<{
-		id: string;
-		field_updated_at: string | null;
-	}>(
-		"SELECT id, field_updated_at FROM tags WHERE name = ? AND id != ? AND purged_at IS NULL",
-		[remoteName, remoteId],
-	);
-	const rival = rivals[0];
-	if (!rival) return "apply-live";
-	if (rival.id < remoteId) return "keep-local";
-
-	// Remote wins: purge the local duplicate and remap its links.
+): Promise<void> {
 	const now = nowIso();
 	await tx.execute(
 		"UPDATE tags SET purged_at = ?, updated_at = ?, name = ?, field_updated_at = ? WHERE id = ?",
 		[
 			now,
 			now,
-			rival.id,
-			stampFields(rival.field_updated_at, ["purged_at", "name"], now, deviceId),
-			rival.id,
+			loserId,
+			stampFields(loserFieldUpdatedAt, ["purged_at", "name"], now, deviceId),
+			loserId,
 		],
 	);
-	await touchOutbox(tx, "tag", rival.id);
-	// The winner's row does not exist yet (upsertMerged runs after this
-	// resolution) and task_tags.tag_id is a foreign key: give the remap below a
-	// row to point at. The rival's rename just freed the name, and OR IGNORE
-	// no-ops when the remote tag already exists under another name. upsertMerged
-	// then overwrites this stub with the real payload, and the INSERT trigger's
-	// outbox entry is cleared there when nothing local survived the merge.
+	await touchOutbox(tx, "tag", loserId);
+	// The winner's row may not exist yet (upsertMerged, when it runs, comes
+	// after this resolution) and task_tags.tag_id is a foreign key: give the
+	// remap below a row to point at. The loser's rename just freed the name,
+	// and OR IGNORE no-ops when the winner already exists under another name.
+	// upsertMerged (live-record path) then overwrites this stub with the real
+	// payload; the rename-into-existing-name path leaves the pre-existing
+	// winner row untouched.
 	await tx.execute(
 		"INSERT OR IGNORE INTO tags (id, name, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, '{}')",
-		[remoteId, remoteName, now, now],
+		[winnerId, winnerName, now, now],
 	);
 	const linked = await tx.select<{ task_id: string }>(
 		"SELECT task_id FROM task_tags WHERE tag_id = ?",
-		[rival.id],
+		[loserId],
 	);
 	for (const { task_id } of linked) {
 		await tx.execute(
 			"INSERT OR IGNORE INTO task_tags (task_id, tag_id) VALUES (?, ?)",
-			[task_id, remoteId],
+			[task_id, winnerId],
 		);
 		await tx.execute("DELETE FROM task_tags WHERE task_id = ? AND tag_id = ?", [
 			task_id,
-			rival.id,
+			loserId,
 		]);
 		// The tags field of the task genuinely changed: stamp it so it wins LWW
 		// against the stale assignment and propagates (the UPDATE arms the outbox).
@@ -305,6 +285,88 @@ export async function resolveTagNameCollision(
 			],
 		);
 	}
+}
+
+/**
+ * tags.name is globally UNIQUE (migration 001): two devices creating the same
+ * name offline collide at apply time. Deterministic rule — the SMALLER id
+ * wins — so every device resolves the same collision the same way without
+ * coordination.
+ *
+ * Runs on the MERGED name, not the incoming record's raw payload name: the
+ * pre-merge remote name can be stale (a device that only edited color pushes
+ * whatever name it last saw), and resolving against it can purge a tag that
+ * is live and correctly named on every other device (rename-and-reuse
+ * scenario — see engine.pull.test.ts). Both devices compute the same merged
+ * payload, so resolving on it stays deterministic without coordination.
+ *
+ * Outbox ordering (dirtied_at) guarantees a live tag always arrives before
+ * the tombstone of its duplicate, so task assignments survive the remap.
+ */
+export async function resolveTagNameCollision(
+	tx: DbDriver,
+	recordId: string,
+	mergedName: string,
+	deviceId: string,
+	hasLocalRow: boolean,
+): Promise<"apply-live" | "keep-local" | "purge-local-row"> {
+	// A purged tag squatting the name would break the upsert's UNIQUE: free it.
+	const squatters = await tx.select<{ id: string }>(
+		"SELECT id FROM tags WHERE name = ? AND id != ? AND purged_at IS NOT NULL",
+		[mergedName, recordId],
+	);
+	for (const squatter of squatters) {
+		await tx.execute("UPDATE tags SET name = ? WHERE id = ?", [
+			squatter.id,
+			squatter.id,
+		]);
+	}
+
+	const rivals = await tx.select<{
+		id: string;
+		field_updated_at: string | null;
+	}>(
+		"SELECT id, field_updated_at FROM tags WHERE name = ? AND id != ? AND purged_at IS NULL",
+		[mergedName, recordId],
+	);
+	const rival = rivals[0];
+	if (!rival) return "apply-live";
+
+	if (rival.id < recordId) {
+		// Rival (pre-existing, smaller id) wins.
+		if (!hasLocalRow) {
+			// Pure duplicate-create: no local row for the incoming id, so there
+			// is nothing to remap — just refuse the incoming record.
+			return "keep-local";
+		}
+		// Rename-into-existing-name: a local row for recordId exists (e.g. it
+		// was renamed to collide with a rival that already had the name).
+		// Purge that local row and remap its links onto the rival; the merged
+		// live state must NOT be upserted over it.
+		const localRow = await tx.select<{ field_updated_at: string | null }>(
+			"SELECT field_updated_at FROM tags WHERE id = ?",
+			[recordId],
+		);
+		await purgeLoserAndRemap(
+			tx,
+			recordId,
+			localRow[0]?.field_updated_at ?? null,
+			rival.id,
+			mergedName,
+			deviceId,
+		);
+		return "purge-local-row";
+	}
+
+	// Incoming/merged record wins: purge the local rival and remap its links.
+	await purgeLoserAndRemap(
+		tx,
+		rival.id,
+		rival.field_updated_at,
+		recordId,
+		mergedName,
+		deviceId,
+	);
 	return "apply-live";
 }
 

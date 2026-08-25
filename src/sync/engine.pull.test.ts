@@ -349,6 +349,113 @@ describe("pull → merge → apply", () => {
 		}
 	});
 
+	it("resolves a tag-name collision on the MERGED name, not a stale pushed name (rename-and-reuse)", async () => {
+		// dirtied_at is stamped by a SQL trigger (strftime('now'), real wall
+		// clock — not the JS clock, so vi.useFakeTimers cannot control it): a
+		// small real sleep is needed between the rename and the create so they
+		// land in different milliseconds and push/pull in the intended order
+		// (same-millisecond dirtying is a separate, pre-existing ordering
+		// hazard this test does not exist to cover — see the other same-file
+		// precedent at "merges concurrent edits of different fields").
+		const tick = () => new Promise((r) => setTimeout(r, 2));
+
+		// Both devices know tag X = "bar".
+		const tagX = await a.repo.createTag({ name: "bar" });
+		await syncMerging(a);
+		await syncMerging(b);
+
+		// A renames X -> "foo" and creates Y = "bar", then syncs.
+		await a.repo.updateTag(tagX.id, { name: "foo" });
+		await tick();
+		const tagY = await a.repo.createTag({ name: "bar" });
+		await syncMerging(a);
+
+		// B, still offline at that point, edits only X's color (not its name):
+		// B's push carries X with its OLD (stale) name "bar".
+		await b.repo.updateTag(tagX.id, { color: "#ff0000" });
+		await syncMerging(b);
+
+		// A pulls B's push: the incoming payload's name is stale ("bar"), but
+		// the merged name must resolve to "foo" (A's rename has the newer
+		// stamp) — a resolver running on the raw incoming name would wrongly
+		// see a collision with Y and purge a live tag.
+		await syncMerging(a);
+		await syncMerging(b);
+
+		for (const d of [a, b]) {
+			const rows = await d.driver.select<{
+				id: string;
+				name: string;
+				color: string | null;
+				purged_at: string | null;
+			}>("SELECT id, name, color, purged_at FROM tags ORDER BY id");
+			const live = rows.filter((r) => r.purged_at === null);
+			expect(live).toHaveLength(2);
+			const x = live.find((r) => r.id === tagX.id);
+			const y = live.find((r) => r.id === tagY.id);
+			expect(x).toBeDefined();
+			expect(y).toBeDefined();
+			expect(x?.name).toBe("foo");
+			expect(x?.color).toBe("#ff0000");
+			expect(y?.name).toBe("bar");
+			expect(rows.every((r) => r.purged_at === null)).toBe(true);
+		}
+	});
+
+	it("resolves a merged-rename collision deterministically, tombstoning the loser and remapping its links", async () => {
+		const tick = () => new Promise((r) => setTimeout(r, 2));
+
+		// Both devices start out knowing only tag X = "x" (tags.name is
+		// locally UNIQUE, so A renaming X into a name it already has taken
+		// locally is not a sync scenario at all — the collision has to
+		// arrive from a rival created concurrently on the OTHER device,
+		// unseen by A until it pulls).
+		const tagX = await a.repo.createTag({ name: "x" });
+		await syncMerging(a);
+		await syncMerging(b);
+
+		const task = await b.repo.createTask({ title: "tagged" });
+		await b.repo.updateTask(task.id, { tagIds: [tagX.id] });
+		await syncMerging(b);
+		await syncMerging(a);
+
+		// Offline on both sides: A renames X -> "bar"; B independently
+		// creates Y = "bar". Neither device can see the other's write yet,
+		// so neither hits the local UNIQUE constraint.
+		await a.repo.updateTag(tagX.id, { name: "bar" });
+		await tick();
+		const tagY = await b.repo.createTag({ name: "bar" });
+
+		await syncMerging(a);
+		await syncMerging(b);
+		await syncMerging(a);
+
+		const winner = tagX.id < tagY.id ? tagX.id : tagY.id;
+		const loser = tagX.id < tagY.id ? tagY.id : tagX.id;
+		for (const d of [a, b]) {
+			const rows = await d.driver.select<{
+				id: string;
+				name: string;
+				purged_at: string | null;
+			}>("SELECT id, name, purged_at FROM tags WHERE id IN (?, ?)", [
+				tagX.id,
+				tagY.id,
+			]);
+			const live = rows.filter((r) => r.purged_at === null);
+			const purged = rows.filter((r) => r.purged_at !== null);
+			expect(live.map((r) => r.id)).toEqual([winner]);
+			expect(live[0].name).toBe("bar");
+			expect(purged.map((r) => r.id)).toEqual([loser]);
+
+			const links = await d.driver.select<{
+				task_id: string;
+				tag_id: string;
+			}>("SELECT task_id, tag_id FROM task_tags WHERE task_id = ?", [task.id]);
+			// The link must have followed to the surviving tag, whichever it is.
+			expect(links.map((l) => l.tag_id)).toEqual([winner]);
+		}
+	});
+
 	it("preserves unknown payload fields end to end (§5.4)", async () => {
 		// A future client pushed a task carrying a field this version ignores.
 		const futurePayload = {
