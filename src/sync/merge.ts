@@ -18,6 +18,14 @@ export function stampWins(
 	return candidate.d > incumbent.d;
 }
 
+/** Strict stamp identity; an absent stamp equals the legacy empty stamp. */
+export function stampsEqual(
+	a: FieldStamp | null | undefined,
+	b: FieldStamp | null | undefined,
+): boolean {
+	return (a?.t ?? "") === (b?.t ?? "") && (a?.d ?? "") === (b?.d ?? "");
+}
+
 /** Spec §5.1: a stamp more than 24h past server time is pulled back to it. */
 export function clampStamps(
 	stamps: FieldStamps,

@@ -1,6 +1,13 @@
-import type { FieldStamps } from "@/db/field-timestamps";
+import type { FieldStamp, FieldStamps } from "@/db/field-timestamps";
 
 export type SyncEntityType = "task" | "project" | "tag" | "project_group";
+
+/**
+ * A deferred FK reference parked in sync_extra (payload.ts PENDING_REF_KEY),
+ * keyed by column name. `f` is the field's stamp at deferral time: a later
+ * local edit replaces that stamp and thereby invalidates the parked value.
+ */
+export type PendingRefs = Record<string, { id: string; f: FieldStamp | null }>;
 export const ENTITY_TABLE = {
 	task: "tasks",
 	project: "projects",

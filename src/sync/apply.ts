@@ -1,13 +1,44 @@
 import type { DbDriver } from "@/db/driver";
-import { stampFields } from "@/db/field-timestamps";
+import { type FieldStamps, stampFields } from "@/db/field-timestamps";
 import { nowIso } from "@/lib/sync-clock";
-import { payloadToWrite, UNLINKED_TAGS_KEY } from "./payload";
+import { stampsEqual } from "./merge";
+import { PENDING_REF_KEY, payloadToWrite, UNLINKED_TAGS_KEY } from "./payload";
 import {
 	ENTITY_TABLE,
+	type PendingRefs,
 	type PulledRecord,
 	type SyncEntityType,
 	type SyncPayload,
 } from "./types";
+
+// The three nullable FK references sync has to keep consistent (task_tags is
+// covered separately by _unlinkedTags). Shared by the pull-time deferral
+// (upsertMerged), the end-of-cycle relink and the orphan repair.
+const FK_REFS: ReadonlyArray<{
+	entityType: SyncEntityType;
+	table: string;
+	column: string;
+	refTable: string;
+}> = [
+	{
+		entityType: "task",
+		table: "tasks",
+		column: "project_id",
+		refTable: "projects",
+	},
+	{
+		entityType: "tag",
+		table: "tags",
+		column: "project_id",
+		refTable: "projects",
+	},
+	{
+		entityType: "project",
+		table: "projects",
+		column: "group_id",
+		refTable: "project_groups",
+	},
+];
 
 export async function liveTagIds(db: DbDriver): Promise<Set<string>> {
 	const rows = await db.select<{ id: string }>(
@@ -85,6 +116,31 @@ export async function upsertMerged(
 	const linkable =
 		entityType === "task" ? await liveTagIds(tx) : new Set<string>();
 	const write = payloadToWrite(entityType, payload, linkable);
+	const fk = FK_REFS.find((f) => f.entityType === entityType);
+	if (fk && write.columns[fk.column] != null) {
+		const refId = String(write.columns[fk.column]);
+		const parent = await tx.select<{ id: string }>(
+			`SELECT id FROM ${fk.refTable} WHERE id = ?`,
+			[refId],
+		);
+		if (parent.length === 0) {
+			// The parent has not arrived yet — it can sit in a LATER pull page
+			// (or in quarantine); a tombstone would satisfy the FK, absence does
+			// not. Defer: provisional NULL WITHOUT restamping (this is not an
+			// edit and must never propagate), true value parked in sync_extra
+			// (folded back on push), materialised by relinkPendingRefs at end of
+			// cycle. repairOrphans only ever sees the reference again once the
+			// parent row exists, so "not yet arrived" never repairs as "purged".
+			write.columns[fk.column] = null;
+			const extra = write.extra
+				? (JSON.parse(write.extra) as Record<string, unknown>)
+				: {};
+			extra[PENDING_REF_KEY] = {
+				[fk.column]: { id: refId, f: payload._fields[fk.column] ?? null },
+			} satisfies PendingRefs;
+			write.extra = JSON.stringify(extra);
+		}
+	}
 	const cols: Record<string, unknown> = {
 		...write.columns,
 		updated_at: nowIso(),
@@ -379,12 +435,7 @@ export async function repairOrphans(
 	// A referent is gone only once PURGED. An archived referent (deleted_at,
 	// §1.3) is an ordinary, restorable LWW state: detaching its tasks here
 	// would propagate a stamped edit that destroys the archive semantics.
-	const fixes: Array<{ table: string; column: string; refTable: string }> = [
-		{ table: "tasks", column: "project_id", refTable: "projects" },
-		{ table: "tags", column: "project_id", refTable: "projects" },
-		{ table: "projects", column: "group_id", refTable: "project_groups" },
-	];
-	for (const { table, column, refTable } of fixes) {
+	for (const { table, column, refTable } of FK_REFS) {
 		const orphans = await tx.select<{
 			id: string;
 			field_updated_at: string | null;
@@ -402,6 +453,74 @@ export async function repairOrphans(
 					orphan.id,
 				],
 			);
+		}
+	}
+}
+
+/**
+ * End-of-cycle: FK references deferred by upsertMerged because their parent
+ * had not arrived yet. Runs BEFORE repairOrphans so a parent that turned out
+ * to be a tombstone is materialised first, then detached WITH a stamp by the
+ * orphan repair — the genuine "parent purged" answer. A parent still absent
+ * (later cycle, quarantine) stays parked; a field re-stamped by a newer local
+ * edit has won LWW over the parked value, which is dropped.
+ */
+export async function relinkPendingRefs(tx: DbDriver): Promise<void> {
+	for (const { entityType, table, column, refTable } of FK_REFS) {
+		const pending = await tx.select<{
+			id: string;
+			sync_extra: string;
+			field_updated_at: string | null;
+			dirtied: string | null;
+		}>(
+			`SELECT t.id, t.sync_extra, t.field_updated_at,
+			        (SELECT dirtied_at FROM sync_outbox o WHERE o.entity_type = '${entityType}' AND o.entity_id = t.id) AS dirtied
+			 FROM ${table} t WHERE t.sync_extra LIKE '%${PENDING_REF_KEY}%'`,
+		);
+		for (const row of pending) {
+			let extra: Record<string, unknown>;
+			try {
+				extra = JSON.parse(row.sync_extra) as Record<string, unknown>;
+			} catch {
+				continue;
+			}
+			const refs = extra[PENDING_REF_KEY] as PendingRefs | undefined;
+			const ref = refs?.[column];
+			if (!refs || !ref) continue;
+			let stamps: FieldStamps;
+			try {
+				stamps = JSON.parse(row.field_updated_at ?? "{}") as FieldStamps;
+			} catch {
+				stamps = {};
+			}
+			const superseded = !stampsEqual(stamps[column], ref.f);
+			if (!superseded) {
+				const parent = await tx.select<{ id: string }>(
+					`SELECT id FROM ${refTable} WHERE id = ?`,
+					[ref.id],
+				);
+				if (parent.length === 0) continue; // still absent: stays parked
+			}
+			delete refs[column];
+			if (Object.keys(refs).length === 0) delete extra[PENDING_REF_KEY];
+			const nextExtra =
+				Object.keys(extra).length > 0 ? JSON.stringify(extra) : null;
+			if (superseded) {
+				await tx.execute(`UPDATE ${table} SET sync_extra = ? WHERE id = ?`, [
+					nextExtra,
+					row.id,
+				]);
+			} else {
+				await tx.execute(
+					`UPDATE ${table} SET ${column} = ?, sync_extra = ? WHERE id = ?`,
+					[ref.id, nextExtra, row.id],
+				);
+			}
+			// Materialisation (or dropping a lost value) changes nothing the
+			// field's stamp does not already claim: nothing new must push. Drop
+			// the outbox entry the UPDATE trigger just created — unless the row
+			// was already dirty before this repair.
+			if (row.dirtied === null) await clearOutbox(tx, entityType, row.id);
 		}
 	}
 }

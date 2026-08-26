@@ -6,6 +6,7 @@ import {
 	clearOutbox,
 	quarantinePull,
 	quarantinePushTooLarge,
+	relinkPendingRefs,
 	relinkPendingTags,
 	repairOrphans,
 	resolveTagNameCollision,
@@ -270,8 +271,9 @@ export class SyncEngine {
 			// touch, so a parent touched again after its child was pushed can sort
 			// AFTER that child in server seq. Same-type/id relative order (there is
 			// at most one live record per id per page) is preserved by the sort's
-			// stability. This does not cover a parent landing in a LATER page — that
-			// gap is what repairOrphans (§5.3) exists to close.
+			// stability. A parent landing in a LATER page cannot be ordered here at
+			// all: upsertMerged defers that reference (sync_extra PENDING_REF_KEY)
+			// and relinkPendingRefs materialises it at end of cycle.
 			const ordered = [...decrypted].sort(
 				(x, y) =>
 					APPLY_ORDER_RANK[x.record.entityType] -
@@ -413,6 +415,9 @@ export class SyncEngine {
 		const db = this.deps.db;
 		const deviceId = await getOrCreateDeviceId(db);
 		await db.transaction(async (tx) => {
+			// Refs first: a parent that arrived as a tombstone is materialised,
+			// then detached WITH a stamp by repairOrphans below.
+			await relinkPendingRefs(tx);
 			await relinkPendingTags(tx);
 			await repairOrphans(tx, deviceId);
 		});

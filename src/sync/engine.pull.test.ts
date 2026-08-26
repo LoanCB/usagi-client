@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { getOrCreateDeviceId } from "@/db/device-id";
 import {
 	FAKE_SERVER_INFO,
 	makeDevice,
@@ -509,6 +510,179 @@ describe("pull → merge → apply", () => {
 		const stored = await getSyncState(a.driver, "clock_offset_ms");
 		expect(stored).not.toBeNull();
 		expect(Math.abs(Number(stored))).toBeLessThan(5_000); // fake server = same machine clock
+	});
+
+	it("first sync converges when a re-touched parent lands in a LATER page than its child", async () => {
+		// One record per page: every entity lands in its own pull page, so the
+		// FK-dependency sort inside a page cannot help across pages.
+		const paged = new FakeSyncServer(1);
+		const src = await makeDevice(paged);
+		const dst = await makeDevice(paged);
+		try {
+			const tick = () => new Promise((r) => setTimeout(r, 2));
+			const project = await src.repo.createProject({ name: "Parent" });
+			await tick();
+			const task = await src.repo.createTask({
+				title: "child",
+				projectId: project.id,
+			});
+			await tick();
+			// Re-touching the parent AFTER the child replaces its outbox entry
+			// with a fresher dirtied_at: it pushes after the task and takes the
+			// higher seq, i.e. the later pull page.
+			await src.repo.updateProject(project.id, { name: "Parent v2" });
+			await syncMerging(src);
+			const dump = paged.dump();
+			const taskSeq = dump.find((r) => r.entityType === "task")?.seq ?? 0;
+			const projectSeq = dump.find((r) => r.entityType === "project")?.seq ?? 0;
+			expect(taskSeq).toBeLessThan(projectSeq); // scenario sanity check
+
+			await syncMerging(dst);
+
+			const tasks = await dst.driver.select<{
+				project_id: string | null;
+				field_updated_at: string;
+				sync_extra: string | null;
+			}>(
+				"SELECT project_id, field_updated_at, sync_extra FROM tasks WHERE id = ?",
+				[task.id],
+			);
+			expect(tasks[0].project_id).toBe(project.id);
+			const projects = await dst.driver.select<{ name: string }>(
+				"SELECT name FROM projects WHERE id = ?",
+				[project.id],
+			);
+			expect(projects[0].name).toBe("Parent v2");
+			// The provisional detachment must never have been stamped as an
+			// edit: dst's stamps are identical to src's, nothing is parked, and
+			// nothing echoes back.
+			const srcTask = await src.driver.select<{ field_updated_at: string }>(
+				"SELECT field_updated_at FROM tasks WHERE id = ?",
+				[task.id],
+			);
+			expect(JSON.parse(tasks[0].field_updated_at)).toEqual(
+				JSON.parse(srcTask[0].field_updated_at),
+			);
+			expect(tasks[0].sync_extra).toBeNull();
+			const outbox = await dst.driver.select<{ n: number }>(
+				"SELECT COUNT(*) AS n FROM sync_outbox",
+			);
+			expect(outbox[0].n).toBe(0);
+			expect(await getSyncState(dst.driver, "cursor")).toBe(
+				String(paged.seqCounter),
+			);
+		} finally {
+			src.driver.close();
+			dst.driver.close();
+		}
+	});
+
+	it("detaches the child WITH a stamp when the cross-page parent turns out to be purged", async () => {
+		const paged = new FakeSyncServer(1);
+		const src = await makeDevice(paged);
+		const dst = await makeDevice(paged);
+		try {
+			const tick = () => new Promise((r) => setTimeout(r, 2));
+			const project = await src.repo.createProject({ name: "Doomed" });
+			await tick();
+			const task = await src.repo.createTask({
+				title: "child",
+				projectId: project.id,
+			});
+			await syncMerging(src);
+			// The purge replaces the project's record at a HIGHER seq: a fresh
+			// device pulls the child first, then the tombstone.
+			paged.push([{ entityType: "project", id: project.id, purged: true }]);
+
+			await syncMerging(dst);
+
+			const rows = await dst.driver.select<{
+				project_id: string | null;
+				sync_extra: string | null;
+				field_updated_at: string;
+			}>(
+				"SELECT project_id, sync_extra, field_updated_at FROM tasks WHERE id = ?",
+				[task.id],
+			);
+			// Parent genuinely purged: nothing stays parked, and the detachment
+			// is a REAL stamped edit by THIS device, armed to propagate.
+			expect(rows[0].project_id).toBeNull();
+			expect(rows[0].sync_extra).toBeNull();
+			const stamp = (
+				JSON.parse(rows[0].field_updated_at) as Record<
+					string,
+					{ t: string; d: string }
+				>
+			).project_id;
+			expect(stamp.d).toBe(await getOrCreateDeviceId(dst.driver));
+
+			// A real edit propagates: the same cycle's push already carried it,
+			// so src converges on the detachment (and on the purge).
+			await syncMerging(src);
+			const srcRows = await src.driver.select<{ project_id: string | null }>(
+				"SELECT project_id FROM tasks WHERE id = ?",
+				[task.id],
+			);
+			expect(srcRows[0].project_id).toBeNull();
+		} finally {
+			src.driver.close();
+			dst.driver.close();
+		}
+	});
+
+	it("drops a parked cross-page ref that lost LWW to a newer local edit (quarantined parent)", async () => {
+		const paged = new FakeSyncServer(1);
+		const src = await makeDevice(paged);
+		const dst = await makeDevice(paged);
+		try {
+			const tick = () => new Promise((r) => setTimeout(r, 2));
+			const project = await src.repo.createProject({ name: "Slow" });
+			await tick();
+			const task = await src.repo.createTask({
+				title: "child",
+				projectId: project.id,
+			});
+			await tick();
+			await src.repo.updateProject(project.id, { name: "Slow v2" });
+			await syncMerging(src);
+
+			// The parent is undecryptable: it lands in quarantine, so the child's
+			// reference must stay parked (NOT repaired as an orphan) across cycles.
+			dst.cipher.corrupt("project", project.id);
+			await syncMerging(dst);
+			let rows = await dst.driver.select<{
+				project_id: string | null;
+				sync_extra: string | null;
+			}>("SELECT project_id, sync_extra FROM tasks WHERE id = ?", [task.id]);
+			expect(rows[0].project_id).toBeNull();
+			expect(rows[0].sync_extra).toContain("_pendingRef");
+
+			// Meanwhile the user moves the task to the Inbox: a stamped local
+			// edit that must WIN over the parked reference.
+			await tick();
+			await dst.repo.updateTask(task.id, { projectId: null });
+
+			dst.cipher.heal("project", project.id);
+			await syncMerging(dst);
+
+			rows = await dst.driver.select<{
+				project_id: string | null;
+				sync_extra: string | null;
+			}>("SELECT project_id, sync_extra FROM tasks WHERE id = ?", [task.id]);
+			expect(rows[0].project_id).toBeNull();
+			expect(rows[0].sync_extra).toBeNull();
+
+			// And the local edit is what propagates, not the dropped ref.
+			await syncMerging(src);
+			const srcRows = await src.driver.select<{ project_id: string | null }>(
+				"SELECT project_id FROM tasks WHERE id = ?",
+				[task.id],
+			);
+			expect(srcRows[0].project_id).toBeNull();
+		} finally {
+			src.driver.close();
+			dst.driver.close();
+		}
 	});
 
 	it("treats SyncNetworkError as offline (§7): syncNow resolves quietly and status returns to idle", async () => {

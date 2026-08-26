@@ -12,6 +12,12 @@
 						"fr": "L'import d'une sauvegarde affiche désormais une confirmation qui explique ce que font fusionner et remplacer, et avertit que remplacer supprime les tâches absentes de la sauvegarde sur tous vos appareils synchronisés, pas seulement celui-ci."
 					}
 				],
+				"fixes": [
+					{
+						"en": "Fixed a first sync that could stay stuck forever on a large account: when a project or group was edited after the items inside it, it could arrive later than them and block synchronisation. Such items now keep their project and are reattached once it arrives.",
+						"fr": "Correction d'une première synchronisation qui pouvait rester bloquée indéfiniment sur un compte volumineux : lorsqu'un projet ou un groupe était modifié après les éléments qu'il contient, il pouvait arriver après eux et bloquer la synchronisation. Ces éléments conservent désormais leur projet et y sont rattachés dès son arrivée."
+					}
+				],
 				"performance": [
 					{
 						"en": "Creating and updating tasks now runs independent database reads in parallel, shaving a round-trip off every task write.",

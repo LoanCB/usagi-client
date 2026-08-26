@@ -1,6 +1,12 @@
 import type { DbDriver } from "@/db/driver";
 import type { FieldStamps } from "@/db/field-timestamps";
-import { ENTITY_TABLE, type SyncEntityType, type SyncPayload } from "./types";
+import { stampsEqual } from "./merge";
+import {
+	ENTITY_TABLE,
+	type PendingRefs,
+	type SyncEntityType,
+	type SyncPayload,
+} from "./types";
 
 /**
  * The synced fields per entity, spec §2.2. Same lists as 4a's
@@ -34,7 +40,24 @@ export const SYNC_FIELDS = {
  */
 export const UNLINKED_TAGS_KEY = "_unlinkedTags";
 
+/**
+ * An FK reference (task/tag → project, project → group) whose parent row does
+ * not exist locally yet — it can land in a LATER pull page than its child when
+ * re-touched after it (higher seq). The column holds a provisional NULL that
+ * is deliberately NOT stamped (it is not an edit and must never propagate);
+ * the true value is parked here, folded back into the payload on push, and
+ * materialised by relinkPendingRefs once the parent row exists.
+ */
+export const PENDING_REF_KEY = "_pendingRef";
+
 const META_KEYS = new Set(["_v", "_fields", "created_at"]);
+
+const SYNC_FIELD_SET: Record<SyncEntityType, ReadonlySet<string>> = {
+	task: new Set<string>(SYNC_FIELDS.task),
+	project: new Set<string>(SYNC_FIELDS.project),
+	tag: new Set<string>(SYNC_FIELDS.tag),
+	project_group: new Set<string>(SYNC_FIELDS.project_group),
+};
 
 export interface EntitySnapshot {
 	columns: Record<string, unknown>;
@@ -108,6 +131,20 @@ export function snapshotToPayload(
 	for (const [key, value] of Object.entries(extra)) {
 		if (!key.startsWith("_")) payload[key] = value;
 	}
+	const pending = extra[PENDING_REF_KEY];
+	if (pending && typeof pending === "object") {
+		for (const [column, ref] of Object.entries(pending as PendingRefs)) {
+			// Fold the parked reference back over the provisional NULL, but only
+			// while the field still carries the stamp recorded at deferral time:
+			// a newer local edit owns the field and must not be overridden.
+			if (
+				SYNC_FIELD_SET[entityType].has(column) &&
+				stampsEqual(stamps[column], ref.f)
+			) {
+				payload[column] = ref.id;
+			}
+		}
+	}
 	return payload;
 }
 
@@ -116,7 +153,7 @@ export function payloadToWrite(
 	payload: SyncPayload,
 	linkableTagIds: ReadonlySet<string>,
 ): EntityWrite {
-	const known = new Set<string>(SYNC_FIELDS[entityType]);
+	const known = SYNC_FIELD_SET[entityType];
 	const columns: Record<string, unknown> = { created_at: payload.created_at };
 	for (const field of SYNC_FIELDS[entityType]) {
 		if (field !== "tags") columns[field] = payload[field] ?? null;
