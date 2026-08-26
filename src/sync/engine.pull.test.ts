@@ -700,4 +700,27 @@ describe("pull → merge → apply", () => {
 		await expect(offline.syncNow()).resolves.toBeUndefined();
 		expect(offline.getStatus()).toBe("idle");
 	});
+
+	it("surfaces a programming bug instead of mistaking its TypeError for being offline", async () => {
+		// Every real transport failure is wrapped into SyncNetworkError by
+		// requestJson, so a raw TypeError reaching syncNow is never "offline":
+		// it is a bug (here the classic call on an undefined value). Swallowing
+		// it would leave sync silently dead — status idle, nothing pushed, no
+		// error anywhere.
+		const buggy = {
+			pull: () => {
+				const missing = undefined as unknown as { fn: () => void };
+				missing.fn();
+				return Promise.reject(new Error("unreachable"));
+			},
+			push: () => Promise.reject(new Error("unreachable")),
+		} as unknown as SyncTransport;
+		const engine = new SyncEngine({
+			db: a.driver,
+			transport: buggy,
+			cipher: a.cipher,
+			getServerInfo: async () => FAKE_SERVER_INFO,
+		});
+		await expect(engine.syncNow()).rejects.toThrow(TypeError);
+	});
 });

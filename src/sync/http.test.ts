@@ -102,4 +102,19 @@ describe("requestJson", () => {
 		expect(err).toBeInstanceOf(SyncNetworkError);
 		expect((err as SyncNetworkError).message).toContain("could not connect");
 	});
+
+	it("wraps a browser fetch TypeError into SyncNetworkError too", async () => {
+		// The engine deliberately does NOT treat a raw TypeError as offline (it
+		// would hide programming bugs), so being offline under browser fetch —
+		// which rejects with "TypeError: Failed to fetch" — is recognised as
+		// offline solely because this wrapping happens here.
+		const fetchSpy = vi.fn(async () => {
+			throw new TypeError("Failed to fetch");
+		});
+		const err = await requestJson(fetchSpy, "GET", "https://s/x").catch(
+			(e: unknown) => e,
+		);
+		expect(err).toBeInstanceOf(SyncNetworkError);
+		expect((err as SyncNetworkError).message).toContain("Failed to fetch");
+	});
 });
