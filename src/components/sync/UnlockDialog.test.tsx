@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import "@/i18n";
-import { SyncUnlockOfflineError } from "@/sync/types";
+import { SyncUnlockOfflineError, SyncUnlockReauthError } from "@/sync/types";
 import { UnlockDialog } from "./UnlockDialog";
 
 const password = () => screen.getByLabelText(/password|mot de passe/i);
@@ -74,6 +74,50 @@ describe("UnlockDialog", () => {
 			screen.queryByText(/^wrong password\.$|^mot de passe incorrect\.$/i),
 		).not.toBeInTheDocument();
 		expect(onOpenChange).not.toHaveBeenCalledWith(false);
+	});
+
+	it("dit que la session a expiré plutôt que d'accuser un mot de passe correct", async () => {
+		const user = userEvent.setup();
+		const onOpenChange = vi.fn();
+		render(
+			<UnlockDialog
+				open
+				onOpenChange={onOpenChange}
+				onUnlock={vi.fn(async () => {
+					throw new SyncUnlockReauthError();
+				})}
+			/>,
+		);
+		await user.type(password(), "correct-password");
+		await user.click(submit());
+		expect(
+			await screen.findByText(
+				/your password is fine|votre mot de passe est correct/i,
+			),
+		).toBeInTheDocument();
+		// No password can ever open a dead session: saying "wrong password" here
+		// sends the user into an unwinnable retry loop.
+		expect(
+			screen.queryByText(/^wrong password\.$|^mot de passe incorrect\.$/i),
+		).not.toBeInTheDocument();
+		expect(onOpenChange).not.toHaveBeenCalledWith(false);
+	});
+
+	it("porte la copie de reconnexion en mode reauth", async () => {
+		render(
+			<UnlockDialog
+				open
+				mode="reauth"
+				onOpenChange={vi.fn()}
+				onUnlock={vi.fn()}
+			/>,
+		);
+		expect(
+			screen.getByText(/session expired|session expirée/i),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /^sign in$|^se connecter$/i }),
+		).toBeInTheDocument();
 	});
 
 	it("n'expose jamais le mot de passe en clair", async () => {

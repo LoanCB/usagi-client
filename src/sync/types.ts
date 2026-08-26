@@ -102,6 +102,20 @@ export class SyncUnlockOfflineError extends Error {
 	}
 }
 
+/**
+ * Thrown by the production `unlock` dep when the server rejected the session
+ * itself (ReauthRequiredError: the refresh token was revoked or rotated away).
+ * Distinct from both offline and a rejected password — the password is fine and
+ * retyping it can never help, so UnlockDialog must say so and point at
+ * signing in again.
+ */
+export class SyncUnlockReauthError extends Error {
+	constructor() {
+		super("reauth required: the stored session was rejected");
+		this.name = "SyncUnlockReauthError";
+	}
+}
+
 export interface SyncPayload {
 	_v: 1;
 	created_at: string;

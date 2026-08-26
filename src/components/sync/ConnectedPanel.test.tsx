@@ -15,6 +15,7 @@ function setup(
 		onSyncNow: vi.fn(async () => {}),
 		onDisconnect: vi.fn(async () => {}),
 		onUnlock: vi.fn(),
+		onReauth: vi.fn(),
 		devices: { load: vi.fn(async () => []), revoke: vi.fn(async () => {}) },
 		...overrides,
 	};
@@ -59,7 +60,54 @@ describe("ConnectedPanel", () => {
 
 	it("annonce la reconnexion nécessaire", () => {
 		setup({ status: "reauth-required" });
-		expect(screen.getByText(/sign in again|reconnexion/i)).toBeInTheDocument();
+		// The status line and the action button share the wording, so pin the
+		// non-interactive one to prove the STATE is announced.
+		expect(
+			screen
+				.getAllByText(/sign in again|se reconnecter/i)
+				.some((node) => node.tagName === "P"),
+		).toBe(true);
+	});
+
+	it("propose de se reconnecter, et pas de synchroniser, quand la session a expiré", async () => {
+		const { props, user } = setup({ status: "reauth-required" });
+		// "Sync now" here would hit the vault guard and flip the status to locked,
+		// then a correct password would be reported as wrong. It must not be offered.
+		expect(
+			screen.queryByRole("button", {
+				name: /sync now|synchroniser maintenant/i,
+			}),
+		).not.toBeInTheDocument();
+		await user.click(
+			screen.getByRole("button", { name: /sign in again|se reconnecter/i }),
+		);
+		expect(props.onReauth).toHaveBeenCalledTimes(1);
+	});
+
+	it("annonce l'échec d'une déconnexion au lieu de rester muet", async () => {
+		const { user } = setup({
+			onDisconnect: vi.fn(async () => {
+				throw new Error("server_url missing");
+			}),
+		});
+		await user.click(
+			screen.getByRole("button", {
+				name: /disconnect this device|déconnecter cet appareil/i,
+			}),
+		);
+		const dialog = screen.getByRole("alertdialog");
+		await user.click(
+			within(dialog).getByRole("button", {
+				name: /^disconnect$|^déconnecter$/i,
+			}),
+		);
+		expect(
+			await within(dialog).findByText(
+				/could not disconnect|impossible de déconnecter/i,
+			),
+		).toBeInTheDocument();
+		// Still open, still retryable — a failed disconnect must not look done.
+		expect(screen.getByRole("alertdialog")).toBeInTheDocument();
 	});
 
 	it("ne déconnecte qu'après confirmation", async () => {

@@ -20,6 +20,10 @@ export interface ConnectedPanelProps {
 	onSyncNow: () => Promise<void>;
 	onDisconnect: () => Promise<void>;
 	onUnlock: () => void;
+	/** Replays a sign-in against the stored server and email once the session
+	 * itself expired. Distinct from onUnlock: no password reopens a dead
+	 * session, and syncing is not an option either. */
+	onReauth: () => void;
 	devices: DeviceListProps;
 }
 
@@ -43,21 +47,36 @@ export function ConnectedPanel({
 	onSyncNow,
 	onDisconnect,
 	onUnlock,
+	onReauth,
 	devices,
 }: ConnectedPanelProps) {
 	const { t, i18n } = useTranslation();
 	const [confirming, setConfirming] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [syncing, setSyncing] = useState(false);
+	const [disconnectFailed, setDisconnectFailed] = useState(false);
 
 	async function handleDisconnect() {
 		setBusy(true);
+		setDisconnectFailed(false);
 		try {
 			await onDisconnect();
 			setConfirming(false);
+		} catch {
+			// Sign-out can fail before it ever touches the database (a missing
+			// server_url trips its precondition). Saying nothing left the dialog
+			// open and inert, looking like a dead button.
+			setDisconnectFailed(true);
 		} finally {
 			setBusy(false);
 		}
+	}
+
+	function closeConfirm() {
+		setConfirming(false);
+		// Not just on the next success: a stale failure resurfacing on reopen
+		// would describe an attempt the user already abandoned.
+		setDisconnectFailed(false);
 	}
 
 	async function handleSyncNow() {
@@ -99,6 +118,13 @@ export function ConnectedPanel({
 					<Button type="button" onClick={onUnlock}>
 						{t("sync.unlock.submit")}
 					</Button>
+				) : status === "reauth-required" ? (
+					// "Sync now" here hits the vault guard and flips the status to
+					// locked, and unlocking then 401s on a correct password. Signing
+					// in again is the only exit that is not disconnecting.
+					<Button type="button" onClick={onReauth}>
+						{t("sync.reauth.action")}
+					</Button>
 				) : (
 					<Button
 						type="button"
@@ -130,7 +156,7 @@ export function ConnectedPanel({
 
 			<Dialog
 				open={confirming}
-				onOpenChange={(open) => !open && setConfirming(false)}
+				onOpenChange={(open) => !open && closeConfirm()}
 			>
 				<DialogContent role="alertdialog">
 					<DialogHeader>
@@ -139,12 +165,13 @@ export function ConnectedPanel({
 					<DialogDescription>
 						{t("sync.disconnectConfirmMessage")}
 					</DialogDescription>
+					{disconnectFailed && (
+						<p className="text-xs text-destructive">
+							{t("sync.disconnectFailed")}
+						</p>
+					)}
 					<DialogFooter>
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => setConfirming(false)}
-						>
+						<Button type="button" variant="outline" onClick={closeConfirm}>
 							{t("common.cancel")}
 						</Button>
 						<Button

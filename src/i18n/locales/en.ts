@@ -403,7 +403,15 @@ const en = {
 		disconnectConfirmTitle: "Disconnect from this server?",
 		disconnectConfirmMessage:
 			"Sync stops and this device forgets the account. Your tasks stay on this device, untouched.",
+		disconnectFailed:
+			"Could not disconnect this device. Nothing was changed — try again.",
 		changeServerHint: "Disconnect first to use a different server.",
+		reauth: {
+			title: "Session expired",
+			intro:
+				"This device's session has expired, so the server no longer accepts it. Enter your password to sign in again — your account and server do not change.",
+			action: "Sign in again",
+		},
 		unlock: {
 			title: "Unlock sync",
 			intro:
@@ -413,6 +421,8 @@ const en = {
 			failed: "Wrong password.",
 			offline:
 				"Can't reach the server, so your key can't be unwrapped. Check your connection and try again — your password is probably fine.",
+			sessionExpired:
+				"Your password is fine — this device's session expired, so the server refused it. Close this and use “Sign in again”.",
 		},
 		banner: {
 			locked: "Sync is paused — unlock to resume.",

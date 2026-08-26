@@ -410,8 +410,16 @@ const fr: typeof en = {
 		disconnectConfirmTitle: "Se déconnecter de ce serveur ?",
 		disconnectConfirmMessage:
 			"La synchronisation s'arrête et cet appareil oublie le compte. Vos tâches restent sur cet appareil, intactes.",
+		disconnectFailed:
+			"Impossible de déconnecter cet appareil. Rien n'a été modifié — réessayez.",
 		changeServerHint:
 			"Déconnectez-vous d'abord pour utiliser un autre serveur.",
+		reauth: {
+			title: "Session expirée",
+			intro:
+				"La session de cet appareil a expiré, le serveur ne l'accepte plus. Saisissez votre mot de passe pour vous reconnecter — votre compte et votre serveur ne changent pas.",
+			action: "Se reconnecter",
+		},
 		unlock: {
 			title: "Déverrouiller la synchronisation",
 			intro:
@@ -421,6 +429,8 @@ const fr: typeof en = {
 			failed: "Mot de passe incorrect.",
 			offline:
 				"Impossible de joindre le serveur, votre clé ne peut donc pas être déchiffrée. Vérifiez votre connexion et réessayez — votre mot de passe est probablement correct.",
+			sessionExpired:
+				"Votre mot de passe est correct — c'est la session de cet appareil qui a expiré et que le serveur a refusée. Fermez cette fenêtre et utilisez « Se reconnecter ».",
 		},
 		banner: {
 			locked: "La synchronisation est en pause — déverrouillez pour reprendre.",
