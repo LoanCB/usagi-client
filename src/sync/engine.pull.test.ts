@@ -265,6 +265,7 @@ describe("pull → merge → apply", () => {
 			transport: racing,
 			cipher: a.cipher,
 			getServerInfo: async () => FAKE_SERVER_INFO,
+			isUnlocked: async () => true,
 		});
 		await rigged.syncNow();
 
@@ -772,6 +773,7 @@ describe("pull → merge → apply", () => {
 			transport: offlineTransport,
 			cipher: a.cipher,
 			getServerInfo: async () => FAKE_SERVER_INFO,
+			isUnlocked: async () => true,
 		});
 		await expect(offline.syncNow()).resolves.toBeUndefined();
 		expect(offline.getStatus()).toBe("idle");
@@ -796,6 +798,7 @@ describe("pull → merge → apply", () => {
 			transport: buggy,
 			cipher: a.cipher,
 			getServerInfo: async () => FAKE_SERVER_INFO,
+			isUnlocked: async () => true,
 		});
 		await expect(engine.syncNow()).rejects.toThrow(TypeError);
 	});

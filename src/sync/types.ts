@@ -76,6 +76,7 @@ export const CLIENT_PROTOCOL_VERSION = 1;
 export type SyncStatus =
 	| "idle"
 	| "syncing"
+	| "locked"
 	| "awaiting-first-sync"
 	| "reauth-required"
 	| "protocol-mismatch";

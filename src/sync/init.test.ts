@@ -29,6 +29,7 @@ describe("initSync — sync off means OFF (§6.1, §8.2)", () => {
 		const runtime = await initSync(driver, repo, {
 			fetchImpl: fetchSpy as unknown as typeof fetch,
 			cipher: new FakeRecordCipher(),
+			isUnlocked: async () => true,
 		});
 		expect(runtime).toBeNull();
 		// Local writes and hours of uptime must not wake anything up.
@@ -44,6 +45,7 @@ describe("initSync — sync off means OFF (§6.1, §8.2)", () => {
 		const runtime = await initSync(driver, repo, {
 			fetchImpl: fetchSpy as unknown as typeof fetch,
 			cipher: new FakeRecordCipher(),
+			isUnlocked: async () => true,
 		});
 		expect(runtime).toBeNull();
 		expect(fetchSpy).not.toHaveBeenCalled();
@@ -59,6 +61,7 @@ describe("initSync — sync off means OFF (§6.1, §8.2)", () => {
 		const runtime = await initSync(driver, repo, {
 			fetchImpl: fetchSpy as unknown as typeof fetch,
 			cipher: new FakeRecordCipher(),
+			isUnlocked: async () => true,
 		});
 		expect(runtime).not.toBeNull();
 		await vi.runOnlyPendingTimersAsync();

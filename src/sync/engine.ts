@@ -46,6 +46,14 @@ export interface SyncEngineDeps {
 	transport: SyncTransport;
 	cipher: RecordCipher;
 	getServerInfo: () => Promise<ServerInfo>;
+	/**
+	 * The DEK lives only in Rust memory, so a restart leaves the vault shut
+	 * while server_url and refresh_token survive on disk. Decrypting then
+	 * fails as `decrypt-failed` and quarantines a whole pull page while the
+	 * cursor moves on; encrypting throws straight out of pushPhase. The
+	 * engine has to know, so this port is required, not defaulted.
+	 */
+	isUnlocked: () => Promise<boolean>;
 }
 
 interface DecryptedRecord {
@@ -107,6 +115,10 @@ export class SyncEngine {
 		}
 		this.running = true;
 		try {
+			if (!(await this.deps.isUnlocked())) {
+				this.setStatus("locked");
+				return;
+			}
 			if (!(await this.ensureProtocol())) return;
 			await this.loadPersistedOffset();
 			this.setStatus("syncing");
