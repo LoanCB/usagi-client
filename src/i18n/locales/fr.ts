@@ -320,6 +320,132 @@ const fr: typeof en = {
 		back: "Retour",
 		trigger: "Rechercher…",
 	},
+	sync: {
+		title: "Synchronisation",
+		tab: "Synchronisation",
+		intro:
+			"Synchronisez vos tâches entre vos appareils via un serveur de votre choix. Tout est chiffré sur cet appareil avant d'en sortir — le serveur ne voit jamais vos données.",
+		serverUrl: "Adresse du serveur",
+		serverUrlPlaceholder: "https://sync.exemple.com",
+		testConnection: "Tester la connexion",
+		testing: "Test en cours…",
+		serverFound: "{{name}} {{version}} — compatible",
+		urlError: {
+			empty: "Saisissez une adresse de serveur.",
+			malformed: "Cette adresse ne semble pas valide.",
+			insecure:
+				"Une adresse non chiffrée (http://) n'est autorisée que pour localhost, 127.0.0.1 et les noms en .local.",
+		},
+		insecureWarning:
+			"Cette connexion n'est pas chiffrée. Ne le faites que sur un réseau de confiance.",
+		unreachable:
+			"Impossible de joindre ce serveur. Vérifiez l'adresse et votre connexion.",
+		notUsagi: "Cette adresse répond, mais ce n'est pas un serveur usagi.",
+		protocolMismatch:
+			"Ce serveur parle la version {{server}} du protocole, cette application la version {{client}}. Mettez à jour le plus ancien des deux — la synchronisation est désactivée en attendant.",
+		signIn: "Se connecter",
+		signingIn: "Connexion…",
+		createAccount: "Créer un compte",
+		creatingAccount: "Création du compte…",
+		registrationClosed:
+			"Ce serveur n'accepte pas de nouveaux comptes. Connectez-vous avec un compte existant.",
+		email: "Adresse e-mail",
+		password: "Mot de passe",
+		inviteToken: "Jeton d'invitation",
+		inviteTokenHint:
+			"Facultatif — seulement si le propriétaire du serveur vous en a fourni un.",
+		signInFailed: "Adresse e-mail ou mot de passe incorrect.",
+		registerFailed:
+			"Impossible de créer le compte. Le jeton d'invitation est peut-être déjà utilisé ou expiré.",
+		passwordHint:
+			"Choisissez un mot de passe solide. Il chiffre tout, et il n'est jamais transmis au serveur — personne ne peut le réinitialiser à votre place.",
+		recovery: {
+			title: "Votre clé de récupération",
+			intro:
+				"Ces 24 mots sont le seul moyen de retrouver votre compte si vous oubliez votre mot de passe. Notez-les et conservez-les en lieu sûr. Ils sont affichés une seule fois et ne sont jamais enregistrés.",
+			copy: "Copier",
+			copied: "Copié",
+			continue: "Je les ai notés",
+			confirmTitle: "Confirmez votre clé de récupération",
+			confirmIntro:
+				"Saisissez ces trois mots pour confirmer que vous avez bien noté la clé.",
+			wordLabel: "Mot {{position}}",
+			wrongWords:
+				"Ces mots ne correspondent pas. Vérifiez votre copie et réessayez.",
+			back: "Afficher à nouveau la clé",
+			confirm: "Confirmer",
+		},
+		status: {
+			label: "État",
+			idle: "À jour",
+			syncing: "Synchronisation…",
+			locked: "En pause — déverrouillez pour reprendre",
+			awaitingFirstSync: "En attente de votre réponse",
+			reauthRequired: "Reconnexion nécessaire",
+			protocolMismatch: "Serveur incompatible",
+		},
+		lastSync: "Dernière synchronisation",
+		never: "Jamais",
+		syncNow: "Synchroniser maintenant",
+		account: "Compte",
+		devices: {
+			title: "Appareils",
+			thisDevice: "Cet appareil",
+			lastSeen: "Vu {{when}}",
+			never: "Jamais vu",
+			revoke: "Révoquer",
+			revokeShort: "Révoquer",
+			revoking: "Révocation…",
+			revokeConfirmTitle: "Révoquer cet appareil ?",
+			revokeConfirmMessage:
+				"{{name}} sera déconnecté et cessera de se synchroniser. Ses données locales y restent.",
+			revokeFailed: "Impossible de révoquer cet appareil.",
+			loadFailed: "Impossible de charger vos appareils.",
+			empty: "Aucun autre appareil.",
+		},
+		disconnect: "Déconnecter cet appareil",
+		disconnectShort: "Déconnecter",
+		disconnecting: "Déconnexion…",
+		disconnectConfirmTitle: "Se déconnecter de ce serveur ?",
+		disconnectConfirmMessage:
+			"La synchronisation s'arrête et cet appareil oublie le compte. Vos tâches restent sur cet appareil, intactes.",
+		changeServerHint:
+			"Déconnectez-vous d'abord pour utiliser un autre serveur.",
+		unlock: {
+			title: "Déverrouiller la synchronisation",
+			intro:
+				"Votre mot de passe est nécessaire pour déchiffrer ce que le serveur envoie. Il n'est jamais conservé, il est donc redemandé après chaque redémarrage.",
+			submit: "Déverrouiller",
+			unlocking: "Déverrouillage…",
+			failed: "Mot de passe incorrect.",
+		},
+		banner: {
+			locked: "La synchronisation est en pause — déverrouillez pour reprendre.",
+			reauthRequired: "La synchronisation nécessite une reconnexion.",
+			protocolMismatch:
+				"Synchronisation désactivée : ce serveur n'est pas compatible avec cette version de l'application.",
+			action: "Ouvrir les réglages",
+		},
+		firstSync: {
+			title: "Ce compte contient déjà des données",
+			intro:
+				"Cet appareil contient des tâches, et le compte aussi. Choisissez comment les combiner — la question n'est posée qu'une fois.",
+			merge: "Fusionner",
+			mergeExplanation:
+				"Tout conserver. Ce qui n'existe que d'un côté est gardé, et lorsque les deux ont modifié la même chose, la modification la plus récente l'emporte.",
+			replace: "Remplacer",
+			replaceExplanation:
+				"Abandonner le contenu de cet appareil et télécharger à la place les données du compte.",
+			replaceWarning:
+				"Les tâches, projets et tags actuellement sur cet appareil seront supprimés. Une sauvegarde est enregistrée sur votre ordinateur au préalable.",
+			backupSaving: "Enregistrement d'une sauvegarde…",
+			backupFailed:
+				"La sauvegarde n'a pas pu être enregistrée, rien n'a donc été remplacé. Réessayez ou choisissez Fusionner.",
+			applying: "Application…",
+			confirm: "Continuer",
+			failed: "Impossible d'appliquer votre choix. Rien n'a été modifié.",
+		},
+	},
 };
 
 export default fr;
