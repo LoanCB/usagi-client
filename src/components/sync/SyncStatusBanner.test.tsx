@@ -50,4 +50,19 @@ describe("SyncStatusBanner", () => {
 		);
 		expect(onOpenSettings).toHaveBeenCalledTimes(1);
 	});
+
+	it("ouvre les réglages sur l'onglet Synchronisation, pas sur Général", async () => {
+		const user = userEvent.setup();
+		const onOpenSettings = vi.fn();
+		setStatus("locked");
+		render(<SyncStatusBanner onOpenSettings={onOpenSettings} />);
+		await user.click(
+			screen.getByRole("button", {
+				name: /open settings|ouvrir les réglages/i,
+			}),
+		);
+		// This banner is the only route to unlocking a locked vault; landing on
+		// General leaves the user a click short of what the banner is about.
+		expect(onOpenSettings).toHaveBeenCalledWith("sync");
+	});
 });

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { TaskFilters } from "@/types";
+import type { SettingsTab } from "@/types/settings-tab";
 
 interface UIStore {
 	sidebarCollapsed: boolean;
@@ -10,13 +11,15 @@ interface UIStore {
 	/** Lifted here (rather than local state in SettingsDialog) so the sync
 	 * status banner in AppShell can open Settings without owning it. */
 	settingsOpen: boolean;
+	/** Which tab the next open should land on. */
+	settingsTab: SettingsTab;
 	setSidebarCollapsed(v: boolean): void;
 	setSelectedProject(id: string | null | undefined): void;
 	setSelectedTask(id: string | null): void;
 	navigateToTask(projectId: string | null, taskId: string): void;
 	setFilters(filters: Partial<TaskFilters>): void;
 	toggleGroupCollapsed(id: string): void;
-	openSettings(): void;
+	openSettings(tab?: SettingsTab): void;
 	setSettingsOpen(open: boolean): void;
 }
 
@@ -27,6 +30,7 @@ export const useUIStore = create<UIStore>((set) => ({
 	activeFilters: {},
 	collapsedGroupIds: new Set<string>(),
 	settingsOpen: false,
+	settingsTab: "general",
 
 	setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
 	setSelectedProject: (id) =>
@@ -47,6 +51,15 @@ export const useUIStore = create<UIStore>((set) => ({
 			else next.add(id);
 			return { collapsedGroupIds: next };
 		}),
-	openSettings: () => set({ settingsOpen: true }),
-	setSettingsOpen: (open) => set({ settingsOpen: open }),
+	openSettings: (tab = "general") =>
+		set({ settingsOpen: true, settingsTab: tab }),
+	setSettingsOpen: (open) =>
+		// Closing drops the requested tab so the next generic open — the sidebar
+		// button, which goes through the dialog trigger and cannot name one —
+		// lands on General rather than wherever a banner last sent the user.
+		set(
+			open
+				? { settingsOpen: true }
+				: { settingsOpen: false, settingsTab: "general" },
+		),
 }));

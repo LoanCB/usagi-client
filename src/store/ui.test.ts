@@ -81,3 +81,25 @@ describe("setFilters", () => {
 		expect(useUIStore.getState().activeFilters.priority).toBe("low");
 	});
 });
+
+describe("openSettings", () => {
+	it("ouvre sur l'onglet Général par défaut", () => {
+		useUIStore.getState().openSettings();
+		expect(useUIStore.getState().settingsOpen).toBe(true);
+		expect(useUIStore.getState().settingsTab).toBe("general");
+	});
+
+	it("ouvre sur l'onglet demandé", () => {
+		useUIStore.getState().openSettings("sync");
+		expect(useUIStore.getState().settingsOpen).toBe(true);
+		expect(useUIStore.getState().settingsTab).toBe("sync");
+	});
+
+	it("oublie l'onglet demandé à la fermeture", () => {
+		// The sidebar button goes through the dialog trigger and cannot name a
+		// tab, so a stale request would keep sending it to Sync.
+		useUIStore.getState().openSettings("sync");
+		useUIStore.getState().setSettingsOpen(false);
+		expect(useUIStore.getState().settingsTab).toBe("general");
+	});
+});
