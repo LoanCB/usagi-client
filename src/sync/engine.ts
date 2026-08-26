@@ -142,7 +142,12 @@ export class SyncEngine {
 	private async runCycle(): Promise<void> {
 		try {
 			if (!(await this.deps.isUnlocked())) {
-				this.setStatus("locked");
+				// A revoked session locks the vault itself (§7, init.ts), so this
+				// guard fires right after. Reporting "locked" there would lose the
+				// only actionable state and tell the user to unlock — which cannot
+				// help: no password revives a session the server refused. Signing in
+				// again builds a fresh engine, which is what clears this.
+				if (this.status !== "reauth-required") this.setStatus("locked");
 				return;
 			}
 			if (!(await this.ensureProtocol())) return;

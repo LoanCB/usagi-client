@@ -1,7 +1,17 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it } from "vitest";
-import { makeDevice, syncMerging } from "@/test-harness/engine";
+import { ALL_MIGRATIONS } from "@/db/migrations";
+import { runMigrations } from "@/db/migrations/run-migrations";
+import { BetterSqliteDriver } from "@/test-harness/BetterSqliteDriver";
+import {
+	FAKE_SERVER_INFO,
+	makeDevice,
+	syncMerging,
+} from "@/test-harness/engine";
+import { FakeRecordCipher } from "@/test-harness/FakeRecordCipher";
 import { FakeSyncServer } from "@/test-harness/FakeSyncServer";
+import { SyncEngine } from "./engine";
+import { ReauthRequiredError } from "./types";
 
 describe("engine — verrouillage du coffre", () => {
 	let server: FakeSyncServer;
@@ -64,5 +74,37 @@ describe("engine — verrouillage du coffre", () => {
 		unlocked = true;
 		await syncMerging(device);
 		expect(server.dump()).toHaveLength(1);
+	});
+	it("ne remplace pas « reconnexion requise » par « verrouillé »", async () => {
+		// Séquence réelle d'une révocation (§7) : le serveur refuse le jeton, le
+		// moteur passe en reauth-required, init.ts verrouille alors le coffre — et
+		// le tick suivant du scheduler trouve un coffre fermé.
+		const driver = new BetterSqliteDriver();
+		await runMigrations(driver, ALL_MIGRATIONS);
+		let unlocked = true;
+		const engine = new SyncEngine({
+			db: driver,
+			transport: {
+				pull: () => Promise.reject(new ReauthRequiredError("revoked")),
+				push: () => Promise.reject(new ReauthRequiredError("revoked")),
+			},
+			cipher: new FakeRecordCipher(),
+			getServerInfo: async () => FAKE_SERVER_INFO,
+			isUnlocked: async () => unlocked,
+		});
+		// Ce que fait init.ts sur ce statut.
+		engine.onStatus((s) => {
+			if (s === "reauth-required") unlocked = false;
+		});
+
+		await engine.syncNow();
+		expect(engine.getStatus()).toBe("reauth-required");
+
+		// Le tick suivant ne doit pas dégrader l'état : dire « déverrouillez pour
+		// reprendre » enverrait l'utilisateur saisir un mot de passe qui ne peut
+		// rien ranimer, et masquerait le seul bouton qui le sortirait de là.
+		await engine.syncNow();
+		expect(engine.getStatus()).toBe("reauth-required");
+		driver.close();
 	});
 });
