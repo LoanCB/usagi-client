@@ -20,6 +20,10 @@
 					{
 						"en": "Fixed a first sync that could stay stuck forever on a large account: when a project or group was edited after the items inside it, it could arrive later than them and block synchronisation. Such items now keep their project and are reattached once it arrives.",
 						"fr": "Correction d'une première synchronisation qui pouvait rester bloquée indéfiniment sur un compte volumineux : lorsqu'un projet ou un groupe était modifié après les éléments qu'il contient, il pouvait arriver après eux et bloquer la synchronisation. Ces éléments conservent désormais leur projet et y sont rattachés dès son arrivée."
+					},
+					{
+						"en": "Sync no longer risks deleting a live tag when a rename and a new tag reusing the freed name were made in the same offline burst and arrived out of order.",
+						"fr": "La synchronisation ne risque plus de supprimer un tag actif lorsqu'un renommage et un nouveau tag réutilisant le nom libéré ont été faits dans la même rafale hors ligne et arrivent dans le désordre."
 					}
 				],
 				"performance": [
