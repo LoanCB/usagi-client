@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSyncStore } from "@/store/sync";
 import type { SyncDevice } from "@/sync/devices-types";
-import type { ServerInfo } from "@/sync/types";
+import { SyncNetworkError } from "@/sync/http";
+import { type ServerInfo, SyncUnlockOfflineError } from "@/sync/types";
 import { ConnectedPanel } from "./ConnectedPanel";
 import { RegisterForm } from "./RegisterForm";
 import { ServerUrlForm } from "./ServerUrlForm";
@@ -48,29 +49,76 @@ type Screen =
 	  }
 	| { kind: "connected"; session: SyncSession };
 
-export function SyncPanel({ deps }: { deps: SyncPanelDeps }) {
+export function SyncPanel({
+	deps,
+	onDismissBlockedChange,
+}: {
+	deps: SyncPanelDeps;
+	/** Raised while the panel shows something that dismissing would destroy —
+	 * today the one-shot recovery key. The host dialog must refuse to close. */
+	onDismissBlockedChange?: (blocked: boolean) => void;
+}) {
 	const { t } = useTranslation();
 	const status = useSyncStore((s) => s.status);
 	const lastSyncAt = useSyncStore((s) => s.lastSyncAt);
 	const [screen, setScreen] = useState<Screen>({ kind: "loading" });
 	const [unlocking, setUnlocking] = useState(false);
+	const [reauthing, setReauthing] = useState(false);
 
 	const loadSession = deps.loadSession;
 	useEffect(() => {
 		let cancelled = false;
 		void loadSession().then((session) => {
 			if (cancelled) return;
-			setScreen(session ? { kind: "connected", session } : { kind: "server" });
+			// Only ever settle the initial "loading" screen. Should this effect run
+			// again (a caller handing over a new deps identity), clobbering the
+			// current screen would discard a verified server, typed credentials —
+			// or a displayed 24-word recovery key, which exists nowhere else.
+			setScreen((current) =>
+				current.kind === "loading"
+					? session
+						? { kind: "connected", session }
+						: { kind: "server" }
+					: current,
+			);
 		});
 		return () => {
 			cancelled = true;
 		};
 	}, [loadSession]);
 
+	// Unmounting with the guard still raised would leave the host dialog
+	// permanently undismissable, so release it whatever the exit path.
+	useEffect(
+		() => () => onDismissBlockedChange?.(false),
+		[onDismissBlockedChange],
+	);
+
 	const handleDisconnect = useCallback(async () => {
 		await deps.signOut();
 		setScreen({ kind: "server" });
 	}, [deps]);
+
+	const session = screen.kind === "connected" ? screen.session : null;
+	const signIn = deps.signIn;
+	const handleReauth = useCallback(
+		async (password: string) => {
+			if (!session) return;
+			try {
+				await signIn({
+					serverUrl: session.serverUrl,
+					email: session.accountEmail,
+					password,
+				});
+			} catch (err) {
+				// Same reasoning as the unlock path: an unreachable server must not
+				// be reported as a bad password.
+				if (err instanceof SyncNetworkError) throw new SyncUnlockOfflineError();
+				throw err;
+			}
+		},
+		[session, signIn],
+	);
 
 	if (screen.kind === "loading") return <div className="py-4" />;
 
@@ -85,12 +133,19 @@ export function SyncPanel({ deps }: { deps: SyncPanelDeps }) {
 					onSyncNow={deps.syncNow}
 					onDisconnect={handleDisconnect}
 					onUnlock={() => setUnlocking(true)}
+					onReauth={() => setReauthing(true)}
 					devices={{ load: deps.listDevices, revoke: deps.revokeDevice }}
 				/>
 				<UnlockDialog
 					open={unlocking}
 					onOpenChange={setUnlocking}
 					onUnlock={deps.unlock}
+				/>
+				<UnlockDialog
+					mode="reauth"
+					open={reauthing}
+					onOpenChange={setReauthing}
+					onUnlock={handleReauth}
 				/>
 			</>
 		);
@@ -141,6 +196,7 @@ export function SyncPanel({ deps }: { deps: SyncPanelDeps }) {
 									inviteToken,
 								})
 							}
+							onRecoveryPhraseVisible={onDismissBlockedChange}
 							onComplete={() => {
 								// persistSession has just written account_email to sync_state:
 								// re-read it rather than threading the just-typed email through

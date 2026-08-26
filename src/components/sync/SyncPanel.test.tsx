@@ -190,6 +190,55 @@ describe("SyncPanel", () => {
 		).not.toBeInTheDocument();
 	});
 
+	it("ne réinitialise pas l'écran quand l'identité des deps change", async () => {
+		const user = userEvent.setup();
+		const { rerender } = render(<SyncPanel deps={makeDeps()} />);
+		await user.type(
+			await screen.findByLabelText(/server address|adresse du serveur/i),
+			"https://sync.example.com",
+		);
+		await user.click(testButton());
+		await screen.findByLabelText(/^password$|^mot de passe$/i);
+
+		// A host re-render handing over a freshly built deps object must not throw
+		// the user back: the very same effect would otherwise discard a displayed
+		// 24-word recovery key, which exists nowhere else.
+		rerender(<SyncPanel deps={makeDeps()} />);
+		expect(
+			await screen.findByLabelText(/^password$|^mot de passe$/i),
+		).toBeInTheDocument();
+	});
+
+	it("rejoue une connexion sur le serveur et l'email mémorisés quand la session a expiré", async () => {
+		const user = userEvent.setup();
+		const deps = makeDeps({
+			loadSession: vi.fn(async () => ({
+				accountEmail: "b@example.com",
+				serverUrl: "https://sync.example.com",
+			})),
+		});
+		useSyncStore.setState({ status: "reauth-required" });
+		render(<SyncPanel deps={deps} />);
+		await screen.findByText("b@example.com");
+		await user.click(
+			screen.getByRole("button", { name: /sign in again|se reconnecter/i }),
+		);
+		await user.type(
+			await screen.findByLabelText(/^password$|^mot de passe$/i),
+			"hunter2hunter2",
+		);
+		await user.click(
+			screen.getByRole("button", { name: /^sign in$|^se connecter$/i }),
+		);
+		await waitFor(() =>
+			expect(deps.signIn).toHaveBeenCalledWith({
+				serverUrl: "https://sync.example.com",
+				email: "b@example.com",
+				password: "hunter2hunter2",
+			}),
+		);
+	});
+
 	it("revient à la saisie d'URL après déconnexion", async () => {
 		const user = userEvent.setup();
 		const deps = makeDeps({
