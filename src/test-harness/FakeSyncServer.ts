@@ -30,6 +30,11 @@ export class FakeSyncServer {
 	private counter = 0;
 	requestCount = 0;
 
+	// The real server may return fewer records than the client asked for (its
+	// own page bound) while still reporting hasMore: capping here lets tests
+	// exercise multi-page pulls without pushing 500+ records.
+	constructor(private readonly maxPageSize = Number.POSITIVE_INFINITY) {}
+
 	get seqCounter(): number {
 		return this.counter;
 	}
@@ -75,11 +80,11 @@ export class FakeSyncServer {
 		const sorted = [...this.records.values()]
 			.filter((r) => r.seq > cursor)
 			.sort((a, b) => a.seq - b.seq);
-		const page = sorted.slice(0, limit);
+		const page = sorted.slice(0, Math.min(limit, this.maxPageSize));
 		return {
 			records: page.map((r) => ({ ...r })),
 			nextCursor: page.length > 0 ? page[page.length - 1].seq : cursor,
-			hasMore: sorted.length > limit,
+			hasMore: sorted.length > page.length,
 			serverTime: new Date().toISOString(),
 		};
 	}
