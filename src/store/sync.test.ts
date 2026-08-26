@@ -66,4 +66,47 @@ describe("useSyncStore", () => {
 		first.emit("protocol-mismatch");
 		expect(useSyncStore.getState().status).toBe("idle");
 	});
+	it("signale un cycle terminé pour que les vues se rechargent", async () => {
+		const { engine, emit } = fakeEngine("idle");
+		useSyncStore.getState().attach(engine);
+		const before = useSyncStore.getState().revision;
+
+		// Un cycle complet : le moteur a écrit dans SQLite sans passer par le
+		// repository, donc rien n'a invalidé les stores.
+		emit("syncing");
+		emit("idle");
+		expect(useSyncStore.getState().revision).toBe(before + 1);
+	});
+
+	it("ne signale rien quand le cycle s'arrête avant d'appliquer", () => {
+		const { engine, emit } = fakeEngine("idle");
+		useSyncStore.getState().attach(engine);
+		const before = useSyncStore.getState().revision;
+
+		// Coffre verrouillé, session expirée, protocole incompatible : le cycle
+		// n'a rien appliqué, recharger les vues serait du bruit.
+		for (const dead of [
+			"locked",
+			"reauth-required",
+			"protocol-mismatch",
+		] as const) {
+			emit("syncing");
+			emit(dead);
+		}
+		expect(useSyncStore.getState().revision).toBe(before);
+	});
+
+	it("garde un compteur monotone à travers detach", () => {
+		const { engine, emit } = fakeEngine("idle");
+		useSyncStore.getState().attach(engine);
+		emit("syncing");
+		emit("idle");
+		const afterCycle = useSyncStore.getState().revision;
+
+		// Volontairement pas remis à zéro : la déconnexion ne touche pas aux
+		// données locales, donc rien à recharger — et un compteur qui recule
+		// ferait recharger les vues pour rien à la reconnexion suivante.
+		useSyncStore.getState().detach();
+		expect(useSyncStore.getState().revision).toBe(afterCycle);
+	});
 });

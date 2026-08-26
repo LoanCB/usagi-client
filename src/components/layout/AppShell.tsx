@@ -17,7 +17,10 @@ import { useSettingsStore } from "@/store/settings";
 import { useSyncStore } from "@/store/sync";
 import { useUIStore } from "@/store/ui";
 import { getSyncRuntime } from "@/sync/runtime";
-import { reloadStoresAfterFirstSync } from "./first-sync-reload";
+import {
+	reloadStoresAfterFirstSync,
+	reloadStoresAfterSync,
+} from "./first-sync-reload";
 import { GlobalSearch } from "./GlobalSearch";
 import { ResizeHandle } from "./ResizeHandle";
 import { Sidebar } from "./Sidebar";
@@ -64,6 +67,7 @@ export function AppShell() {
 	const parallaxEnabled = useSettingsStore((s) => s.parallaxEnabled);
 	const glassmorphismEnabled = useSettingsStore((s) => s.glassmorphismEnabled);
 	const syncStatus = useSyncStore((s) => s.status);
+	const syncRevision = useSyncStore((s) => s.revision);
 	const { width, isDragging, onMouseDown, onDoubleClick, onKeyDown } =
 		useResizable({
 			storageKey: "task-detail-width",
@@ -77,6 +81,15 @@ export function AppShell() {
 	useEffect(() => {
 		document.documentElement.classList.toggle("glass", glassmorphismEnabled);
 	}, [glassmorphismEnabled]);
+
+	// Projects, groups and tags have no per-view filter, so they reload centrally
+	// once a sync cycle has applied rows. Tasks do not: TaskList reloads itself,
+	// keeping the active view's filters. Skipped on the first render, where
+	// App.tsx has just done the initial load.
+	useEffect(() => {
+		if (syncRevision === 0) return;
+		reloadStoresAfterSync();
+	}, [syncRevision]);
 
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
