@@ -1,5 +1,6 @@
 import { completeUnlock as vaultCompleteUnlock } from "@/crypto";
 import type { DbDriver } from "@/db/driver";
+import i18n from "@/i18n";
 import { useSyncStore } from "@/store/sync";
 import {
 	AuthorizedHttp,
@@ -33,11 +34,11 @@ function devicePlatform(): string {
 }
 
 /** No hostname API is exposed to the webview and no Tauri plugin is installed
- * to read one; the server only uses this label for the user's own device
- * list, so a literal placeholder is enough rather than pulling in a new
- * dependency or an i18n key outside the sync.* namespace this task owns. */
+ * to read one, so the device list shows a generic translated label. This
+ * module is not a component, so it reaches the i18next singleton directly
+ * rather than through useTranslation(). The server caps deviceName at 128. */
 function defaultDeviceName(): string {
-	return "usagi desktop";
+	return i18n.t("sync.defaultDeviceName").slice(0, 128);
 }
 
 /** startSync already rebuilds the engine from sync_state and calls

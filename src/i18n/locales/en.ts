@@ -381,6 +381,7 @@ const en = {
 		never: "Never",
 		syncNow: "Sync now",
 		account: "Account",
+		defaultDeviceName: "usagi desktop",
 		devices: {
 			title: "Devices",
 			thisDevice: "This device",

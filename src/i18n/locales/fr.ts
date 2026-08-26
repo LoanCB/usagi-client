@@ -388,6 +388,7 @@ const fr: typeof en = {
 		never: "Jamais",
 		syncNow: "Synchroniser maintenant",
 		account: "Compte",
+		defaultDeviceName: "usagi bureau",
 		devices: {
 			title: "Appareils",
 			thisDevice: "Cet appareil",
