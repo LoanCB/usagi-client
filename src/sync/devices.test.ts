@@ -2,8 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthorizedHttp } from "./auth";
 import { listDevices, revokeDevice } from "./devices";
 
-function fakeHttp(impl: (method: string, path: string) => unknown): AuthorizedHttp {
-	return { request: vi.fn(async (method, path) => impl(method, path)) } as unknown as AuthorizedHttp;
+function fakeHttp(
+	impl: (method: string, path: string) => unknown,
+): AuthorizedHttp {
+	return {
+		request: vi.fn(async (method, path) => impl(method, path)),
+	} as unknown as AuthorizedHttp;
 }
 
 describe("listDevices", () => {
@@ -52,6 +56,9 @@ describe("revokeDevice", () => {
 	it("encode l'identifiant dans le chemin", async () => {
 		const http = fakeHttp(() => undefined);
 		await revokeDevice(http, "a b/c");
-		expect(http.request).toHaveBeenCalledWith("DELETE", "/v1/devices/a%20b%2Fc");
+		expect(http.request).toHaveBeenCalledWith(
+			"DELETE",
+			"/v1/devices/a%20b%2Fc",
+		);
 	});
 });
