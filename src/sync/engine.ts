@@ -128,15 +128,15 @@ export class SyncEngine {
 			// §7: offline and transient server failures are normal states — the
 			// outbox accumulates and the next trigger retries. Anything else
 			// (a DB failure, a bug) must surface, not vanish.
-			// SyncNetworkError is the production offline path (Tauri's fetch
-			// rejects with a serialized Rust error); TypeError is kept for
-			// browser fetch in dev/tests.
-			if (
-				err instanceof SyncHttpError ||
-				err instanceof SyncNetworkError ||
-				err instanceof TypeError
-			)
+			// Both offline shapes already arrive as SyncNetworkError: requestJson
+			// wraps EVERY transport-level rejection into it, whichever fetch threw
+			// (Tauri's serialized Rust error, or a browser TypeError). So a raw
+			// TypeError here never means offline — it means a bug, and swallowing
+			// it as one used to leave sync silently dead: status idle, nothing
+			// pushed, no error surfaced anywhere.
+			if (err instanceof SyncHttpError || err instanceof SyncNetworkError) {
 				return;
+			}
 			throw err;
 		} finally {
 			this.running = false;
