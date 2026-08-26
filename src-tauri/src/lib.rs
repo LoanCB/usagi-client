@@ -30,6 +30,7 @@ fn send_app_notification(app: tauri::AppHandle, title: String, body: String) -> 
 }
 
 pub mod crypto;
+pub mod db;
 
 #[cfg(desktop)]
 mod updater;
@@ -41,7 +42,10 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_sql::Builder::new().build());
+        .plugin(tauri_plugin_sql::Builder::new().build())
+        // After the sql plugin: it owns the `DbInstances` map this writes the
+        // single-connection pool into. See src-tauri/src/db.rs.
+        .plugin(db::init());
 
     let builder = builder.manage(std::sync::Mutex::new(crypto::state::CryptoState::default()));
 

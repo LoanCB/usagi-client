@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { ConnectionLock } from "@/db/connection-lock";
 import type { DbDriver, QueryResult } from "@/db/driver";
 
 /**
@@ -10,17 +11,27 @@ export class BetterSqliteDriver implements DbDriver {
 	private db: Database.Database;
 	private writes = 0;
 	private failNext: RegExp | null = null;
+	/**
+	 * Shared with every driver over the same connection, exactly as production
+	 * shares one lock per Database: a test passing on an interleaving the real
+	 * adapter serializes would be a test that lies.
+	 */
+	private lock: ConnectionLock;
 
 	constructor(filename?: string);
 	/**
 	 * Adopt an already-open connection. Used by `reopen`: a second
 	 * `new Database(":memory:")` would be a distinct, empty database.
 	 */
-	constructor(connection: Database.Database);
-	constructor(source: string | Database.Database = ":memory:") {
+	constructor(connection: Database.Database, lock?: ConnectionLock);
+	constructor(
+		source: string | Database.Database = ":memory:",
+		lock?: ConnectionLock,
+	) {
 		// One initialization path for every field, so a field added later cannot
 		// be skipped the way a hand-copied list would skip it.
 		this.db = typeof source === "string" ? new Database(source) : source;
+		this.lock = lock ?? new ConnectionLock();
 		// Match tauri-plugin-sql, which enables FK enforcement per connection.
 		this.db.pragma("foreign_keys = ON");
 	}
@@ -35,7 +46,11 @@ export class BetterSqliteDriver implements DbDriver {
 		this.db.prepare(query).run();
 	}
 
-	execute(query: string, bindValues: unknown[] = []): Promise<QueryResult> {
+	/** The statement itself, with the instrumentation but without the lock. */
+	private executeUnlocked(
+		query: string,
+		bindValues: unknown[],
+	): Promise<QueryResult> {
 		if (this.failNext?.test(query)) {
 			this.failNext = null;
 			return Promise.reject(
@@ -54,35 +69,73 @@ export class BetterSqliteDriver implements DbDriver {
 		}
 	}
 
-	select<T>(query: string, bindValues: unknown[] = []): Promise<T[]> {
+	private selectUnlocked<T>(
+		query: string,
+		bindValues: unknown[],
+	): Promise<T[]> {
 		const rows = this.db.prepare(query).all(...(bindValues as never[]));
 		return Promise.resolve(rows as T[]);
 	}
 
-	async transaction<T>(work: (tx: DbDriver) => Promise<T>): Promise<T> {
-		// better-sqlite3's own `transaction()` helper only wraps synchronous
-		// functions; `work` is async, so drive the statements by hand.
-		this.raw("BEGIN");
+	async execute(
+		query: string,
+		bindValues: unknown[] = [],
+	): Promise<QueryResult> {
+		const release = await this.lock.acquire("shared");
 		try {
-			const out = await work(this);
-			this.raw("COMMIT");
-			return out;
-		} catch (error) {
+			return await this.executeUnlocked(query, bindValues);
+		} finally {
+			release();
+		}
+	}
+
+	async select<T>(query: string, bindValues: unknown[] = []): Promise<T[]> {
+		const release = await this.lock.acquire("shared");
+		try {
+			return await this.selectUnlocked<T>(query, bindValues);
+		} finally {
+			release();
+		}
+	}
+
+	async transaction<T>(work: (tx: DbDriver) => Promise<T>): Promise<T> {
+		const release = await this.lock.acquire("exclusive");
+		// The lock is held, so `work` gets a view that does not re-acquire it.
+		const tx: DbDriver = {
+			execute: (query, bindValues = []) =>
+				this.executeUnlocked(query, bindValues),
+			select: (query, bindValues = []) =>
+				this.selectUnlocked(query, bindValues),
+			transaction: () =>
+				Promise.reject(new Error("nested transactions are not supported")),
+		};
+		try {
+			// better-sqlite3's own `transaction()` helper only wraps synchronous
+			// functions; `work` is async, so drive the statements by hand.
+			this.raw("BEGIN");
 			try {
-				this.raw("ROLLBACK");
-			} catch {
-				// A failing ROLLBACK must not replace the error being handled: the
-				// original is the one explaining why the transaction aborted.
-				// `Error.cause` would carry both, but it needs an ES2022 lib and
-				// this project targets ES2020.
+				const out = await work(tx);
+				this.raw("COMMIT");
+				return out;
+			} catch (error) {
+				try {
+					this.raw("ROLLBACK");
+				} catch {
+					// A failing ROLLBACK must not replace the error being handled: the
+					// original is the one explaining why the transaction aborted.
+					// `Error.cause` would carry both, but it needs an ES2022 lib and
+					// this project targets ES2020.
+				}
+				throw error;
 			}
-			throw error;
+		} finally {
+			release();
 		}
 	}
 
 	/** A second driver over the same database, with no memoised state. */
 	reopen(): BetterSqliteDriver {
-		return new BetterSqliteDriver(this.db);
+		return new BetterSqliteDriver(this.db, this.lock);
 	}
 
 	/** Statements executed so far. Task 7 asserts a move writes one row, not N. */

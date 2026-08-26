@@ -26,6 +26,9 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# The pool built in `db.rs` is handed to tauri-plugin-sql, so both must resolve
+# to the same `sqlx` crate rather than two copies of it.
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 # Verified by compilation, not from memory: argon2 has no stable 0.6 (release
 # candidates only), and x25519-dalek 3.0 gates StaticSecret behind a feature.
 # `zeroize` is explicit because neither crate enables it by default: argon2 then
@@ -43,6 +46,10 @@ zeroize = { version = "1.9.0", features = ["derive"] }
 getrandom = "0.4.3"
 base64 = "0.22"
 hex = "0.4"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tempfile = "3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 mac-notification-sys = "0.6"
