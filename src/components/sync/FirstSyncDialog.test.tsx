@@ -99,6 +99,48 @@ describe("FirstSyncDialog", () => {
 		expect(props.onResolved).not.toHaveBeenCalled();
 	});
 
+	it("efface l'erreur de sauvegarde quand l'utilisateur change d'avis pour Fusionner", async () => {
+		const { props, user } = setup({
+			backup: vi.fn(async () => {
+				throw new Error("disk full");
+			}),
+		});
+		await user.click(chooseReplace());
+		await user.click(confirm());
+		expect(
+			await screen.findByText(
+				/backup could not be saved|sauvegarde n'a pas pu/i,
+			),
+		).toBeInTheDocument();
+
+		// Merge never backs up, so a lingering backup error would be nonsense.
+		await user.click(chooseMerge());
+		expect(
+			screen.queryByText(/backup could not be saved|sauvegarde n'a pas pu/i),
+		).not.toBeInTheDocument();
+		expect(props.resolve).not.toHaveBeenCalled();
+	});
+
+	it("efface l'erreur d'application quand l'utilisateur change d'avis", async () => {
+		const { user } = setup({
+			resolve: vi.fn(async () => {
+				throw new Error("engine failed");
+			}),
+		});
+		await user.click(chooseMerge());
+		await user.click(confirm());
+		expect(
+			await screen.findByText(/could not apply|impossible d'appliquer/i),
+		).toBeInTheDocument();
+
+		// Changing the choice is a fresh attempt: the previous failure no longer
+		// describes what would happen on confirm.
+		await user.click(chooseReplace());
+		expect(
+			screen.queryByText(/could not apply|impossible d'appliquer/i),
+		).not.toBeInTheDocument();
+	});
+
 	it("ne peut pas être fermé sans répondre", () => {
 		setup();
 		// §6.4: le moteur reste suspendu tant que la question n'a pas de réponse,
