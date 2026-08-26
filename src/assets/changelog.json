@@ -16,8 +16,8 @@
 						"fr": "La création d'un compte de synchronisation fournit une clé de récupération de 24 mots. Elle est affichée une seule fois et n'est jamais enregistrée — c'est le seul moyen de retrouver votre compte si vous oubliez votre mot de passe, d'où la confirmation demandée."
 					},
 					{
-						"en": "When you connect a device that already has tasks to an account that also has some, the app asks whether to merge them or replace what is on this device — and writes an automatic backup to the app's data folder before replacing anything.",
-						"fr": "Lorsqu'un appareil contenant déjà des tâches est connecté à un compte qui en contient aussi, l'application demande s'il faut les fusionner ou remplacer le contenu de cet appareil — et enregistre une sauvegarde automatique dans le dossier de données de l'application avant tout remplacement."
+						"en": "When you connect a device that already has tasks to an account that also has some, the app asks whether to merge them or replace what is on this device — and writes an automatic backup next to the app's database, in its configuration folder, before replacing anything.",
+						"fr": "Lorsqu'un appareil contenant déjà des tâches est connecté à un compte qui en contient aussi, l'application demande s'il faut les fusionner ou remplacer le contenu de cet appareil — et enregistre une sauvegarde automatique à côté de la base de données de l'application, dans son dossier de configuration, avant tout remplacement."
 					},
 					{
 						"en": "Importing a backup now shows a confirmation dialog explaining what merge and replace each do, and warns that replace deletes tasks missing from the backup on all your synced devices, not just this one.",

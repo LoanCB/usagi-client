@@ -1,4 +1,4 @@
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { appConfigDir, join } from "@tauri-apps/api/path";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -17,6 +17,7 @@ import { useSettingsStore } from "@/store/settings";
 import { useSyncStore } from "@/store/sync";
 import { useUIStore } from "@/store/ui";
 import { getSyncRuntime } from "@/sync/runtime";
+import { reloadStoresAfterFirstSync } from "./first-sync-reload";
 import { GlobalSearch } from "./GlobalSearch";
 import { ResizeHandle } from "./ResizeHandle";
 import { Sidebar } from "./Sidebar";
@@ -34,7 +35,12 @@ async function writeAutomaticBackup(): Promise<void> {
 		tags: true,
 	});
 	const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
-	const dir = await appDataDir();
+	// app_config_dir, not app_data_dir: on Linux they are different paths and
+	// nothing creates the latter, so writeTextFile used to fail ENOENT and the
+	// §6.4 "Replace" branch was unreachable. src-tauri/src/db.rs create_dir_all's
+	// this one to hold the database, so it is guaranteed to exist. (Writing the
+	// backup beside the database it backs up is also the friendlier place.)
+	const dir = await appConfigDir();
 	await writeTextFile(
 		await join(dir, `bunly-before-replace-${stamp}.json`),
 		JSON.stringify(data, null, 2),
@@ -149,7 +155,7 @@ export function AppShell() {
 						getSyncRuntime()?.engine.resolveFirstSync(choice) ??
 						Promise.resolve()
 					}
-					onResolved={() => {}}
+					onResolved={reloadStoresAfterFirstSync}
 				/>
 			)}
 		</div>
