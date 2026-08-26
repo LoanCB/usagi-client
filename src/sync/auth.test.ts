@@ -2,8 +2,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ALL_MIGRATIONS } from "@/db/migrations";
 import { runMigrations } from "@/db/migrations/run-migrations";
+import { SqliteRepository } from "@/db/sqlite-repository";
 import { BetterSqliteDriver } from "@/test-harness/BetterSqliteDriver";
-import { AuthorizedHttp, signIn } from "./auth";
+import { AuthorizedHttp, signIn, signOut } from "./auth";
 import { getSyncState, setSyncState } from "./state";
 import { ProtocolMismatchError, ReauthRequiredError } from "./types";
 
@@ -245,5 +246,76 @@ describe("AuthorizedHttp", () => {
 		// The server rotates the token on every refresh: a second concurrent
 		// refresh presenting the same old token would be a 401 and a lockout.
 		expect(refreshCalls).toBe(1);
+	});
+});
+
+describe("signOut", () => {
+	it("efface tout l'état de sync et l'outbox, sans toucher aux données métier", async () => {
+		const repo = new SqliteRepository(driver);
+
+		// Données métier + outbox alimentée par les triggers.
+		await repo.createProject({ name: "À conserver" });
+
+		for (const [key, value] of [
+			["server_url", "https://sync.example.com"],
+			["refresh_token", "rt-1"],
+			["cursor", "42"],
+			["user_id", "u-1"],
+			["account_email", "a@example.com"],
+			["first_sync_resolved", "1"],
+			["last_sync_at", "2026-08-26T10:00:00.000Z"],
+			["clock_offset_ms", "1500"],
+		] as const) {
+			await setSyncState(driver, key, value);
+		}
+		await driver.execute(
+			"INSERT INTO sync_quarantine (entity_type, entity_id, direction, reason, quarantined_at) VALUES ('task', 'q1', 'pull', 'decrypt-failed', '2026-08-26T10:00:00.000Z')",
+		);
+
+		await signOut({
+			db: driver,
+			fetchImpl: async () => new Response(null, { status: 204 }),
+			baseUrl: "https://sync.example.com",
+		});
+
+		for (const key of [
+			"server_url",
+			"refresh_token",
+			"cursor",
+			"user_id",
+			"account_email",
+			"first_sync_resolved",
+			"last_sync_at",
+			"clock_offset_ms",
+		] as const) {
+			expect(await getSyncState(driver, key)).toBeNull();
+		}
+		const outbox = await driver.select<{ n: number }>(
+			"SELECT COUNT(*) AS n FROM sync_outbox",
+		);
+		expect(outbox[0].n).toBe(0);
+		const quarantine = await driver.select<{ n: number }>(
+			"SELECT COUNT(*) AS n FROM sync_quarantine",
+		);
+		expect(quarantine[0].n).toBe(0);
+
+		// Le SQLite métier est intact : l'app locale doit survivre entière.
+		expect(await repo.getProjects()).toHaveLength(1);
+	});
+
+	it("efface localement même si le serveur est injoignable", async () => {
+		await setSyncState(driver, "refresh_token", "rt-1");
+		await setSyncState(driver, "server_url", "https://sync.example.com");
+
+		await signOut({
+			db: driver,
+			fetchImpl: async () => {
+				throw new TypeError("network down");
+			},
+			baseUrl: "https://sync.example.com",
+		});
+
+		expect(await getSyncState(driver, "refresh_token")).toBeNull();
+		expect(await getSyncState(driver, "server_url")).toBeNull();
 	});
 });

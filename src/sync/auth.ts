@@ -6,7 +6,12 @@ import {
 } from "@/crypto";
 import type { DbDriver } from "@/db/driver";
 import { type FetchLike, requestJson, SyncHttpError } from "./http";
-import { deleteSyncState, getSyncState, setSyncState } from "./state";
+import {
+	deleteSyncState,
+	getSyncState,
+	type SyncStateKey,
+	setSyncState,
+} from "./state";
 import {
 	CLIENT_PROTOCOL_VERSION,
 	ProtocolMismatchError,
@@ -158,6 +163,20 @@ export async function register(
 	};
 }
 
+/** Every sync_state key signOut clears. Listed rather than "DELETE FROM
+ * sync_state" so a key added later is a deliberate decision here, not a
+ * silent inclusion. */
+const SIGNED_OUT_KEYS: SyncStateKey[] = [
+	"server_url",
+	"cursor",
+	"clock_offset_ms",
+	"refresh_token",
+	"user_id",
+	"account_email",
+	"first_sync_resolved",
+	"last_sync_at",
+];
+
 export async function signOut(deps: {
 	db: DbDriver;
 	fetchImpl: FetchLike;
@@ -179,7 +198,13 @@ export async function signOut(deps: {
 			// server-side revocation just also closes the session remotely.
 		}
 	}
-	await deleteSyncState(deps.db, "refresh_token");
+	// One transaction: a partial wipe would leave a server_url without a
+	// refresh token, which initSync reads as "configured" and retries forever.
+	await deps.db.transaction(async (tx) => {
+		for (const key of SIGNED_OUT_KEYS) await deleteSyncState(tx, key);
+		await tx.execute("DELETE FROM sync_outbox");
+		await tx.execute("DELETE FROM sync_quarantine");
+	});
 }
 
 /**
