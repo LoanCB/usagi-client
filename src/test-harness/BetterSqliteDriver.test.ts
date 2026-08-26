@@ -29,4 +29,33 @@ describe("BetterSqliteDriver", () => {
 		);
 		expect(rows[0]?.foreign_keys).toBe(1);
 	});
+	it("hands every transaction the same driver view", async () => {
+		driver = new BetterSqliteDriver();
+		// Callers key per-connection caches on the object they are given —
+		// getOrCreateDeviceId keys a WeakMap on it. A fresh view per transaction
+		// would miss that cache every time, so tests would exercise an extra read
+		// production never performs.
+		const seen: unknown[] = [];
+		await driver.transaction(async (tx) => {
+			seen.push(tx);
+		});
+		await driver.transaction(async (tx) => {
+			seen.push(tx);
+		});
+		expect(seen[0]).toBe(seen[1]);
+	});
+
+	it("gives a reopened driver its own view, as a restart would", async () => {
+		driver = new BetterSqliteDriver();
+		let first: unknown;
+		await driver.transaction(async (tx) => {
+			first = tx;
+		});
+		const restarted = driver.reopen();
+		let second: unknown;
+		await restarted.transaction(async (tx) => {
+			second = tx;
+		});
+		expect(second).not.toBe(first);
+	});
 });
