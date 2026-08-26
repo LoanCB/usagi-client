@@ -7,7 +7,10 @@ import { BetterSqliteDriver } from "@/test-harness/BetterSqliteDriver";
 import { getSyncRuntime, setSyncContext, startSync, stopSync } from "./runtime";
 import { setSyncState } from "./state";
 
-async function makeContext(fetchSpy?: ReturnType<typeof vi.fn>) {
+async function makeContext(
+	fetchSpy?: ReturnType<typeof vi.fn>,
+	isUnlocked: () => Promise<boolean> = async () => true,
+) {
 	const driver = new BetterSqliteDriver();
 	await runMigrations(driver, ALL_MIGRATIONS);
 	const repo = new SqliteRepository(driver);
@@ -17,7 +20,7 @@ async function makeContext(fetchSpy?: ReturnType<typeof vi.fn>) {
 		fetchImpl:
 			(fetchSpy as unknown as typeof fetch) ??
 			(async () => new Response("{}", { status: 200 })),
-		isUnlocked: async () => true,
+		isUnlocked,
 	});
 	return { driver, repo };
 }
@@ -73,6 +76,32 @@ describe("sync runtime", () => {
 
 		await stopSync();
 		expect(getSyncRuntime()).toBeNull();
+	});
+
+	it("stopSync attend la fin d'un cycle déjà en vol", async () => {
+		let release!: (unlocked: boolean) => void;
+		const gate = new Promise<boolean>((resolve) => {
+			release = resolve;
+		});
+		const { driver } = await makeContext(undefined, () => gate);
+		await setSyncState(driver, "server_url", "https://sync.example.com");
+		await setSyncState(driver, "refresh_token", "rt-1");
+		// scheduler.start() fires a cycle immediately; it is now stuck on the gate.
+		await startSync();
+
+		let stopped = false;
+		const stopping = stopSync().then(() => {
+			stopped = true;
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		// Stopping the scheduler only prevents FUTURE triggers. Returning here
+		// would let sign-out wipe sync_state under a cycle that then rewrites
+		// cursor and last_sync_at over the clean slate (§6.5).
+		expect(stopped).toBe(false);
+
+		release(false);
+		await stopping;
+		expect(stopped).toBe(true);
 	});
 
 	it("un second startSync ne laisse pas deux schedulers derrière lui", async () => {

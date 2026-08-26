@@ -60,8 +60,14 @@ export async function startSync(): Promise<SyncRuntime | null> {
 
 export async function stopSync(): Promise<void> {
 	if (!current) return;
-	current.scheduler.stop();
+	const stopping = current;
+	stopping.scheduler.stop();
 	current = null;
 	// Back to the unwrapped repository: no writes should schedule a sync now.
 	if (context) setRepository(context.repository);
+	// Stopping the scheduler only prevents FUTURE triggers. A cycle already in
+	// flight still writes cursor, clock_offset_ms and last_sync_at — after the
+	// caller's own work if it does not wait, which is how sign-out used to
+	// resurrect a dead cursor (§6.5).
+	await stopping.engine.whenIdle();
 }
