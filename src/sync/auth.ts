@@ -2,6 +2,7 @@ import {
 	beginUnlock,
 	completeUnlock,
 	prepareRegistration,
+	type RegistrationMaterial,
 	toRegisterKeys,
 } from "@/crypto";
 import type { DbDriver } from "@/db/driver";
@@ -26,9 +27,14 @@ import {
 export interface VaultPort {
 	beginUnlock(password: string, authSalt: string): Promise<string>;
 	completeUnlock(wrappedDek: string, userId: string): Promise<void>;
+	prepareRegistration(password: string): Promise<RegistrationMaterial>;
 }
 
-export const tauriVault: VaultPort = { beginUnlock, completeUnlock };
+export const tauriVault: VaultPort = {
+	beginUnlock,
+	completeUnlock,
+	prepareRegistration,
+};
 
 interface AuthDeps {
 	db: DbDriver;
@@ -127,7 +133,7 @@ export async function signIn(
 }
 
 export async function register(
-	deps: Omit<AuthDeps, "vault">,
+	deps: AuthDeps,
 	input: {
 		email: string;
 		password: string;
@@ -137,7 +143,7 @@ export async function register(
 	},
 ): Promise<{ accessToken: string; recoveryPhrase: string }> {
 	await assertProtocol(deps.fetchImpl, deps.baseUrl);
-	const material = await prepareRegistration(input.password);
+	const material = await deps.vault.prepareRegistration(input.password);
 	const login = await requestJson<LoginResponse>(
 		deps.fetchImpl,
 		"POST",
@@ -154,6 +160,12 @@ export async function register(
 			},
 		},
 	);
+	// crypto_prepare_registration is stateless: it mints the material without
+	// loading the DEK. Without this the brand-new account starts locked and the
+	// engine sits on "locked" until the user retypes the password they just
+	// chose. Only the userId the server assigns was missing to open the vault.
+	await deps.vault.beginUnlock(input.password, material.authSalt);
+	await deps.vault.completeUnlock(material.wrappedDek, login.userId);
 	await persistSession(deps.db, deps.baseUrl, input.email, login);
 	// recoveryPhrase is real key material: shown once by the caller (plan 4d),
 	// never persisted, never logged.

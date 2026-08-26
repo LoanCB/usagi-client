@@ -4,7 +4,13 @@ import { ALL_MIGRATIONS } from "@/db/migrations";
 import { runMigrations } from "@/db/migrations/run-migrations";
 import { SqliteRepository } from "@/db/sqlite-repository";
 import { BetterSqliteDriver } from "@/test-harness/BetterSqliteDriver";
-import { AuthorizedHttp, signIn, signOut } from "./auth";
+import {
+	AuthorizedHttp,
+	register,
+	signIn,
+	signOut,
+	type VaultPort,
+} from "./auth";
 import { getSyncState, setSyncState } from "./state";
 import { ProtocolMismatchError, ReauthRequiredError } from "./types";
 
@@ -51,6 +57,7 @@ describe("signIn", () => {
 	const vault = {
 		beginUnlock: vi.fn(async () => "verifier-from-argon2"),
 		completeUnlock: vi.fn(async () => undefined),
+		prepareRegistration: vi.fn(),
 	};
 
 	it("runs prelogin → login → keys → completeUnlock and persists the session", async () => {
@@ -120,6 +127,68 @@ describe("signIn", () => {
 		).rejects.toThrow(ProtocolMismatchError);
 		// Refusal happens before any credential-bearing request leaves.
 		expect(calls.every((c) => c.url.includes("/v1/server-info"))).toBe(true);
+	});
+});
+
+describe("register", () => {
+	it("leaves the vault open: the freshly created account can encrypt right away", async () => {
+		const unlockCalls: Array<{
+			salt: string;
+			wrappedDek: string;
+			userId: string;
+		}> = [];
+		let pendingSalt: string | null = null;
+		const vault: VaultPort = {
+			async beginUnlock(_password, authSalt) {
+				pendingSalt = authSalt;
+				return "verifier-from-vault";
+			},
+			async completeUnlock(wrappedDek, userId) {
+				unlockCalls.push({ salt: pendingSalt ?? "", wrappedDek, userId });
+			},
+			async prepareRegistration(_password) {
+				return {
+					authSalt: "a".repeat(32),
+					authVerifier: "verifier-from-vault",
+					wrappedDek: "wrapped-dek",
+					wrappedDekRecovery: "wrapped-dek-recovery",
+					publicKey: "public-key",
+					wrappedPrivateKey: "wrapped-private-key",
+					kdfParams: { memoryCost: 65536, timeCost: 3, parallelism: 4 },
+					recoveryPhrase: "abandon ability able about above absent absorb",
+				};
+			},
+		};
+
+		const { fetchImpl } = fakeServer({
+			"/v1/server-info": () => json(200, SERVER_INFO),
+			"/v1/auth/register": () =>
+				json(200, {
+					userId: "u-42",
+					workspaceId: "w-1",
+					deviceId: "d-1",
+					accessToken: "at-1",
+					refreshToken: "rt-1",
+				}),
+		});
+
+		const result = await register(
+			{ db: driver, fetchImpl, baseUrl: "https://sync.example.com", vault },
+			{
+				email: "a@example.com",
+				password: "correct horse battery staple",
+				deviceName: "Poste",
+				devicePlatform: "linux",
+			},
+		);
+
+		expect(result.recoveryPhrase).toBeTruthy();
+		// The vault was opened with the salt and wrapped DEK that registration
+		// just minted, under the identity the server assigned.
+		expect(unlockCalls).toHaveLength(1);
+		expect(unlockCalls[0].userId).toBe("u-42");
+		expect(unlockCalls[0].salt).toMatch(/^[0-9a-f]{32}$/);
+		expect(unlockCalls[0].wrappedDek).toBeTruthy();
 	});
 });
 
