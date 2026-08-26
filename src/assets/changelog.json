@@ -8,8 +8,16 @@
 			"changes": {
 				"features": [
 					{
-						"en": "Sync is here: connect to a server from Settings → Sync to keep your tasks up to date across devices. Everything is encrypted on your device before it leaves it. Off by default — nothing changes until you set it up.",
-						"fr": "La synchronisation est là : connectez-vous à un serveur depuis Réglages → Synchronisation pour garder vos tâches à jour sur tous vos appareils. Tout est chiffré sur votre appareil avant de le quitter. Désactivée par défaut — rien ne change tant que vous ne l'activez pas."
+						"en": "Sync is here. Connect the app to a usagi server — your own or someone else's — and your tasks, projects and tags follow you across devices. Everything is encrypted on your device before it leaves it, so the server never sees your data. Set it up under Settings › Sync.",
+						"fr": "La synchronisation arrive. Connectez l'application à un serveur usagi — le vôtre ou celui d'un tiers — et vos tâches, projets et tags vous suivent d'un appareil à l'autre. Tout est chiffré sur votre appareil avant d'en sortir : le serveur ne voit jamais vos données. Rendez-vous dans Réglages › Synchronisation."
+					},
+					{
+						"en": "Creating a sync account gives you a 24-word recovery key. It is shown once and never stored — it is the only way back in if you forget your password, so you are asked to confirm you wrote it down.",
+						"fr": "La création d'un compte de synchronisation fournit une clé de récupération de 24 mots. Elle est affichée une seule fois et n'est jamais enregistrée — c'est le seul moyen de retrouver votre compte si vous oubliez votre mot de passe, d'où la confirmation demandée."
+					},
+					{
+						"en": "When you connect a device that already has tasks to an account that also has some, the app asks whether to merge them or replace what is on this device — and writes an automatic backup to the app's data folder before replacing anything.",
+						"fr": "Lorsqu'un appareil contenant déjà des tâches est connecté à un compte qui en contient aussi, l'application demande s'il faut les fusionner ou remplacer le contenu de cet appareil — et enregistre une sauvegarde automatique dans le dossier de données de l'application avant tout remplacement."
 					},
 					{
 						"en": "Importing a backup now shows a confirmation dialog explaining what merge and replace each do, and warns that replace deletes tasks missing from the backup on all your synced devices, not just this one.",
