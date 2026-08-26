@@ -14,6 +14,10 @@
 				],
 				"fixes": [
 					{
+						"en": "Multi-step writes such as importing a backup or moving a task are now guaranteed to apply completely or not at all, even when several run at the same time. Previously they could be split across database connections, which could leave a write half-applied or make a concurrent one fail.",
+						"fr": "Les écritures en plusieurs étapes comme l'import d'une sauvegarde ou le déplacement d'une tâche s'appliquent désormais entièrement ou pas du tout, même lorsque plusieurs se produisent en même temps. Elles pouvaient auparavant être réparties sur plusieurs connexions à la base, ce qui pouvait laisser une écriture à moitié appliquée ou en faire échouer une autre."
+					},
+					{
 						"en": "Fixed a first sync that could stay stuck forever on a large account: when a project or group was edited after the items inside it, it could arrive later than them and block synchronisation. Such items now keep their project and are reattached once it arrives.",
 						"fr": "Correction d'une première synchronisation qui pouvait rester bloquée indéfiniment sur un compte volumineux : lorsqu'un projet ou un groupe était modifié après les éléments qu'il contient, il pouvait arriver après eux et bloquer la synchronisation. Ces éléments conservent désormais leur projet et y sont rattachés dès son arrivée."
 					}

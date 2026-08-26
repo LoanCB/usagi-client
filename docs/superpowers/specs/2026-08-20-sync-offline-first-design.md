@@ -801,6 +801,25 @@ moteur purge ses propres entrées d'outbox **dans la même transaction** que l'a
 d'un changement distant : c'est inexprimable avec l'interface actuelle. C'est la plus
 grosse lacune d'interface laissée par le plan 1.
 
+> **Ce que `transaction` exige du transport (2026-08-25).** L'interface a été ajoutée par
+> le plan 4c, mais `tauri-plugin-sql` n'a pas d'API de transaction : l'adaptateur envoie
+> `BEGIN`, les statements, puis `COMMIT` comme autant de commandes indépendantes. Deux
+> propriétés du transport sont donc nécessaires, et aucune n'était acquise :
+>
+> 1. **Une seule connexion.** Le plugin ouvre un pool sqlx aux réglages par défaut
+>    (jusqu'à 10 connexions) et prend une connexion **par commande** : rien ne garantit
+>    que les statements d'une même transaction atterrissent sur la même. `src-tauri/src/db.rs`
+>    enregistre donc son propre pool à `max_connections(1)` (sans réaper d'inactivité, qui
+>    remplacerait la connexion entre un `BEGIN` et son `COMMIT`) et le frontend l'atteint
+>    par `Database.get`, jamais `Database.load` — qui reconstruirait le pool par défaut.
+> 2. **Une exclusion côté JS.** Une connexion unique rend les statements sérialisés, pas
+>    contigus : un `execute` émis pendant qu'une transaction est ouverte rejoint cette
+>    transaction (et disparaît avec son rollback), et un second `BEGIN` est refusé. Le
+>    `ConnectionLock` (`src/db/connection-lock.ts`) prend le verrou en exclusif pour une
+>    transaction, en partagé pour un statement isolé ; il est partagé par `Database`, donc
+>    commun au moteur et au repository de l'UI. Corollaire : l'imbrication de transactions
+>    est refusée explicitement plutôt que de bloquer sur le verrou.
+
 ### 9.6 Pièges documentés
 
 - **Reconstruction de table** : toute migration reconstruisant une table synchronisée avec
