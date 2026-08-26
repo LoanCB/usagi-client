@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@/i18n";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -150,7 +150,17 @@ describe("SettingsDialog — garde-fou de la clé de récupération", () => {
 		await user.click(
 			screen.getByRole("button", { name: /^confirm$|^confirmer$/i }),
 		);
+		// Confirming clears the phrase and releases the guard synchronously, but
+		// onComplete then re-reads the session in a floating promise whose setScreen
+		// lands a microtask later — outside the click's act() flush. Pressing Escape
+		// before that settles races the re-render, which is what made this flaky.
+		// Synchronise on both halves: the phrase gone, then the panel settled.
+		await waitFor(() =>
+			expect(screen.queryByText("word1")).not.toBeInTheDocument(),
+		);
+		await screen.findByLabelText(/server address|adresse du serveur/i);
+
 		await user.keyboard("{Escape}");
-		expect(useUIStore.getState().settingsOpen).toBe(false);
+		await waitFor(() => expect(useUIStore.getState().settingsOpen).toBe(false));
 	});
 });
