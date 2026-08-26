@@ -70,6 +70,22 @@ describe("ServerUrlForm", () => {
 		expect(onVerified).toHaveBeenCalled();
 	});
 
+	it("efface l'avertissement « non chiffrée » quand l'URL est modifiée après un test", async () => {
+		const { user } = setup();
+		await user.type(urlField(), "http://localhost:3000");
+		await user.click(testButton());
+		expect(
+			screen.getByText(/not encrypted|n'est pas chiffrée/i),
+		).toBeInTheDocument();
+
+		// Editing to an https URL must not keep claiming the connection is plaintext.
+		await user.clear(urlField());
+		await user.type(urlField(), "https://sync.example.com");
+		expect(
+			screen.queryByText(/not encrypted|n'est pas chiffrée/i),
+		).not.toBeInTheDocument();
+	});
+
 	it("distingue un serveur injoignable d'une réponse non-usagi", async () => {
 		const { user } = setup({
 			probe: vi.fn(async () => {

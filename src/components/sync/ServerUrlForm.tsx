@@ -91,6 +91,8 @@ export function ServerUrlForm({
 					onChange={(e) => {
 						setRaw(e.target.value);
 						setUrlError(null);
+						// The warning describes the URL that was tested, not the one being typed.
+						setInsecure(false);
 						setState({ kind: "idle" });
 					}}
 				/>
