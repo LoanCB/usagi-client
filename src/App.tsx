@@ -114,7 +114,12 @@ export default function App() {
 
 		async function init() {
 			try {
-				const db = await Database.load("sqlite:usagi.db");
+				// `get`, not `load`: the pool is opened in Rust with a single
+				// connection (src-tauri/src/db.rs) so a transaction's statements
+				// cannot land on different connections. `load` would build the
+				// plugin's default multi-connection pool over the same file and
+				// replace that one.
+				const db = Database.get("sqlite:usagi.db");
 				const driver = adaptDatabase(db);
 				await runMigrations(driver, ALL_MIGRATIONS);
 				await backfillSortKeys(driver);
