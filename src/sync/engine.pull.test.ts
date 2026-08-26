@@ -458,6 +458,82 @@ describe("pull → merge → apply", () => {
 		}
 	});
 
+	it("does not purge a live tag when the create pulls BEFORE the rename that freed its name (same page)", async () => {
+		// Both devices know X = "bar".
+		const tagX = await a.repo.createTag({ name: "bar" });
+		await syncMerging(a);
+		await syncMerging(b);
+
+		// A renames X -> "foo" and creates Y = "bar" in one offline burst.
+		await a.repo.updateTag(tagX.id, { name: "foo" });
+		const tagY = await a.repo.createTag({ name: "bar" });
+
+		// dirtied_at is stamped by a SQL trigger at millisecond precision: the
+		// two writes above can land in the SAME millisecond, and the push
+		// ORDER BY (dirtied_at, entity_type, entity_id) then falls back to the
+		// random uuids — about half the time Y pushes (and therefore pulls)
+		// BEFORE the rename that frees its name. Force that adversarial
+		// interleaving deterministically instead of sleeping and hoping; a
+		// fake-timer tick between the two writes would HIDE the race, not
+		// pin it.
+		const [xRow] = await a.driver.select<{ dirtied_at: string }>(
+			"SELECT dirtied_at FROM sync_outbox WHERE entity_id = ?",
+			[tagX.id],
+		);
+		await a.driver.execute(
+			"UPDATE sync_outbox SET dirtied_at = ? WHERE entity_id = ?",
+			[new Date(Date.parse(xRow.dirtied_at) - 1).toISOString(), tagY.id],
+		);
+
+		await syncMerging(a);
+		await syncMerging(b); // applies [Y = "bar", X -> "foo"] in that order
+		await syncMerging(a); // a wrongful tombstone would propagate back here
+
+		for (const d of [a, b]) {
+			const rows = await d.driver.select<{
+				id: string;
+				name: string;
+				purged_at: string | null;
+			}>("SELECT id, name, purged_at FROM tags");
+			expect(rows.filter((r) => r.purged_at !== null)).toEqual([]);
+			expect(rows.find((r) => r.id === tagX.id)?.name).toBe("foo");
+			expect(rows.find((r) => r.id === tagY.id)?.name).toBe("bar");
+		}
+	});
+
+	it("applies a page that SWAPS two tag names, purging neither", async () => {
+		// Both devices know X = "a" and Y = "b".
+		const tagX = await a.repo.createTag({ name: "a" });
+		const tagY = await a.repo.createTag({ name: "b" });
+		await syncMerging(a);
+		await syncMerging(b);
+
+		// A swaps the two names. tags.name is UNIQUE locally too, so the swap
+		// has to pass through a free intermediate; B never observes that middle
+		// state, it just pulls the final X = "b", Y = "a" in ONE page. Whichever
+		// order the two records apply in, the first one lands on a name the
+		// second still holds locally — so unlike the dirtied_at race above,
+		// this one needs no forcing to be adversarial.
+		await a.repo.updateTag(tagY.id, { name: "tmp" });
+		await a.repo.updateTag(tagX.id, { name: "b" });
+		await a.repo.updateTag(tagY.id, { name: "a" });
+
+		await syncMerging(a);
+		await syncMerging(b);
+		await syncMerging(a);
+
+		for (const d of [a, b]) {
+			const rows = await d.driver.select<{
+				id: string;
+				name: string;
+				purged_at: string | null;
+			}>("SELECT id, name, purged_at FROM tags");
+			expect(rows.filter((r) => r.purged_at !== null)).toEqual([]);
+			expect(rows.find((r) => r.id === tagX.id)?.name).toBe("b");
+			expect(rows.find((r) => r.id === tagY.id)?.name).toBe("a");
+		}
+	});
+
 	it("preserves unknown payload fields end to end (§5.4)", async () => {
 		// A future client pushed a task carrying a field this version ignores.
 		const futurePayload = {

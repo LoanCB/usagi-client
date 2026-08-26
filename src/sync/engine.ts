@@ -282,6 +282,7 @@ export class SyncEngine {
 			// §9.5: applied records, quarantine rows, outbox cleanup and the
 			// cursor advance commit or roll back as one unit.
 			await db.transaction(async (tx) => {
+				await this.freeOutgoingTagNames(tx, ordered, serverTimeMs);
 				for (const item of ordered) {
 					// oxlint-disable-next-line react-doctor/async-await-in-loop -- intentional: the applies are ordered SQL statements inside ONE transaction (§9.5) — each item may read state written by an earlier one (a tag inserted before a task links it), so running them concurrently would break both the FK-dependency order and the transaction's atomicity
 					await this.applyOne(tx, item, serverTimeMs, deviceId);
@@ -325,6 +326,51 @@ export class SyncEngine {
 				failure:
 					err instanceof SyntaxError ? "malformed-payload" : "decrypt-failed",
 			};
+		}
+	}
+
+	/**
+	 * Pre-pass over one pull page, before any record applies: the tag
+	 * collision resolver reads LOCAL state, so a record early in the page
+	 * must not resolve against a name that a LATER record in the SAME page
+	 * is about to release (rename away, or tombstone). Concretely: one
+	 * device renames X "bar"→"foo" and creates Y "bar" in the same burst; a
+	 * dirtied_at tie can push — hence pull — Y before X, and applying Y
+	 * against the stale local X (still "bar") would purge a live tag on
+	 * every device. So: every local live tag whose incoming merged name
+	 * differs from its current name is renamed to its own id (the tombstone
+	 * convention, collision-proof) WITHOUT touching its field stamps — the
+	 * merge is stamp-driven (mergePayloads), so the record's own apply
+	 * recomputes the same merged name and overwrites the placeholder later
+	 * in this same transaction. Only live renames qualify: a tag the page
+	 * TOMBSTONES must stay visible to rival scans, because remapping the
+	 * dying duplicate's task links onto its live twin happens precisely when
+	 * that twin's record finds it as a rival (purgeLoserAndRemap). A rename
+	 * landing in a LATER page keeps the (far rarer) stale-snapshot hazard:
+	 * two applies separated by a page boundary cannot see each other.
+	 */
+	private async freeOutgoingTagNames(
+		tx: DbDriver,
+		items: DecryptedRecord[],
+		serverTimeMs: number,
+	): Promise<void> {
+		for (const item of items) {
+			const { record, payload } = item;
+			if (record.entityType !== "tag") continue;
+			// Tombstones must stay findable (see above); a record that will
+			// only be quarantined applies nothing and releases nothing.
+			if (record.purged || item.failure !== null || payload === null) continue;
+			const snapshot = await loadSnapshot(tx, "tag", record.id);
+			if (!snapshot || snapshot.columns.purged_at != null) continue;
+			const finalName = String(
+				mergePayloads(snapshotToPayload("tag", snapshot), payload, serverTimeMs)
+					.payload.name ?? "",
+			);
+			if (finalName === String(snapshot.columns.name ?? "")) continue;
+			await tx.execute("UPDATE tags SET name = ? WHERE id = ?", [
+				record.id,
+				record.id,
+			]);
 		}
 	}
 

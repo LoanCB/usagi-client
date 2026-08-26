@@ -358,6 +358,11 @@ async function purgeLoserAndRemap(
  *
  * Outbox ordering (dirtied_at) guarantees a live tag always arrives before
  * the tombstone of its duplicate, so task assignments survive the remap.
+ *
+ * Within one pull page, freeOutgoingTagNames (engine.ts) has already
+ * released every name the page itself is about to rename away or tombstone,
+ * so a rival found here is genuinely contested — not a stale mid-batch
+ * snapshot of a tag whose own incoming record would dissolve the collision.
  */
 export async function resolveTagNameCollision(
 	tx: DbDriver,
