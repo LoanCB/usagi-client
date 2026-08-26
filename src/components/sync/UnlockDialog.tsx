@@ -32,7 +32,10 @@ export function UnlockDialog({
 	);
 
 	// The component stays mounted across open/close: without this, a failed
-	// attempt (stale error + stale password) would resurface on reopen.
+	// attempt (stale error + stale password) would resurface on reopen. `open`
+	// is a controlled prop that can flip to false from outside (not just via
+	// the handlers below), so syncing on the prop itself is the only place
+	// that catches every path.
 	useEffect(() => {
 		if (!open) {
 			setPassword("");

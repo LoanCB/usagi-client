@@ -120,9 +120,11 @@ export function productionSyncDeps(): SyncPanelDeps {
 		 * token); the password here only re-derives the KEK client-side.
 		 */
 		async unlock(password) {
-			const email = await getSyncState(db, "account_email");
-			const userId = await getSyncState(db, "user_id");
-			const serverUrl = await getSyncState(db, "server_url");
+			const [email, userId, serverUrl] = await Promise.all([
+				getSyncState(db, "account_email"),
+				getSyncState(db, "user_id"),
+				getSyncState(db, "server_url"),
+			]);
 			if (!email || !userId || !serverUrl) {
 				// No session to unlock into is itself a transport-shaped problem
 				// from the dialog's point of view: there is nothing wrong with the
