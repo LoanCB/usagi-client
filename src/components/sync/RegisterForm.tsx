@@ -12,6 +12,10 @@ export interface RegisterFormProps {
 		inviteToken?: string;
 	}) => Promise<string>;
 	onComplete: () => void;
+	/** Raised while the one-shot recovery key is on screen. The account already
+	 * exists by then and the words are stored nowhere, so the host must refuse
+	 * any dismissal that would unmount this form. */
+	onRecoveryPhraseVisible?: (visible: boolean) => void;
 	onSwitchToSignIn?: () => void;
 	random?: () => number;
 }
@@ -19,6 +23,7 @@ export interface RegisterFormProps {
 export function RegisterForm({
 	onSubmit,
 	onComplete,
+	onRecoveryPhraseVisible,
 	onSwitchToSignIn,
 	random,
 }: RegisterFormProps) {
@@ -46,6 +51,7 @@ export function RegisterForm({
 				...(inviteToken.trim() ? { inviteToken: inviteToken.trim() } : {}),
 			});
 			setPhrase(recoveryPhrase);
+			onRecoveryPhraseVisible?.(true);
 		} catch {
 			setFailed(true);
 		} finally {
@@ -61,6 +67,7 @@ export function RegisterForm({
 				onConfirmed={() => {
 					setPhrase(null);
 					setPassword("");
+					onRecoveryPhraseVisible?.(false);
 					onComplete();
 				}}
 			/>
