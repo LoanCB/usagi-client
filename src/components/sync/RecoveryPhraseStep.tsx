@@ -19,6 +19,13 @@ export function RecoveryPhraseStep({
 }: RecoveryPhraseStepProps) {
 	const { t } = useTranslation();
 	const words = useMemo(() => phrase.trim().split(/\s+/), [phrase]);
+	// A recovery phrase may legitimately repeat a word, so the word itself is not
+	// a usable identity — its position is, and that position is also what the user
+	// is asked to confirm. Naming it here keeps it out of the JSX as a bare index.
+	const numbered = useMemo(
+		() => words.map((word, index) => ({ position: index + 1, word })),
+		[words],
+	);
 	// Drawn once per mount: re-drawing on every keystroke would move the target
 	// while the user types into it.
 	const positions = useMemo(
@@ -61,12 +68,10 @@ export function RecoveryPhraseStep({
 					{t("sync.recovery.intro")}
 				</p>
 				<ol className="grid grid-cols-3 gap-x-4 gap-y-1 rounded-md border border-border p-3 text-xs">
-					{words.map((word, index) => (
-						// Position in the recovery phrase is the word's stable identity here.
-						// biome-ignore lint/suspicious/noArrayIndexKey: words never reorder within a fixed phrase
-						<li key={index} className="flex gap-2">
+					{numbered.map(({ position, word }) => (
+						<li key={position} className="flex gap-2">
 							<span className="w-5 shrink-0 text-right text-muted-foreground">
-								{index + 1}
+								{position}
 							</span>
 							<span className="font-mono">{word}</span>
 						</li>

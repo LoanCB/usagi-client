@@ -7,12 +7,7 @@ import {
 } from "@/crypto";
 import type { DbDriver } from "@/db/driver";
 import { type FetchLike, requestJson, SyncHttpError } from "./http";
-import {
-	deleteSyncState,
-	getSyncState,
-	type SyncStateKey,
-	setSyncState,
-} from "./state";
+import { getSyncState, type SyncStateKey, setSyncState } from "./state";
 import {
 	CLIENT_PROTOCOL_VERSION,
 	ProtocolMismatchError,
@@ -233,7 +228,13 @@ export async function signOut(deps: {
 	// and then refuses to build an engine for, or a cursor from the previous
 	// account that silently skips records on the next one (§6.5).
 	await deps.db.transaction(async (tx) => {
-		for (const key of SIGNED_OUT_KEYS) await deleteSyncState(tx, key);
+		// One statement rather than one round trip per key. The list stays
+		// explicit, so adding a SyncStateKey is still a deliberate decision here.
+		const placeholders = SIGNED_OUT_KEYS.map(() => "?").join(", ");
+		await tx.execute(
+			`DELETE FROM sync_state WHERE key IN (${placeholders})`,
+			SIGNED_OUT_KEYS.slice(),
+		);
 		await tx.execute("DELETE FROM sync_outbox");
 		await tx.execute("DELETE FROM sync_quarantine");
 	});

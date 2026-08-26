@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,22 +55,47 @@ export function UnlockDialog({
 	onUnlock,
 }: UnlockDialogProps) {
 	const { t } = useTranslation();
+	const copy = COPY[mode];
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>{t(copy.title)}</DialogTitle>
+				</DialogHeader>
+				{/* Keyed on `open`, so every opening gets a fresh form: a failed
+				    attempt's stale error and typed password cannot resurface on
+				    reopen. The dialog Root stays mounted while `open` toggles, so
+				    React's own remount is what resets the state — and unlike an
+				    effect watching the prop, it catches every path that closes the
+				    dialog, including ones outside this component. */}
+				<UnlockForm
+					key={open ? "open" : "closed"}
+					mode={mode}
+					copy={copy}
+					onUnlock={onUnlock}
+					onDone={() => onOpenChange(false)}
+				/>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+function UnlockForm({
+	mode,
+	copy,
+	onUnlock,
+	onDone,
+}: {
+	mode: UnlockDialogMode;
+	copy: (typeof COPY)[UnlockDialogMode];
+	onUnlock: (password: string) => Promise<void>;
+	onDone: () => void;
+}) {
+	const { t } = useTranslation();
 	const [password, setPassword] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [failure, setFailure] = useState<Failure | null>(null);
-	const copy = COPY[mode];
-
-	// The component stays mounted across open/close: without this, a failed
-	// attempt (stale error + stale password) would resurface on reopen. `open`
-	// is a controlled prop that can flip to false from outside (not just via
-	// the handlers below), so syncing on the prop itself is the only place
-	// that catches every path.
-	useEffect(() => {
-		if (!open) {
-			setPassword("");
-			setFailure(null);
-		}
-	}, [open]);
 
 	async function handleSubmit(e: { preventDefault(): void }) {
 		e.preventDefault();
@@ -81,7 +106,7 @@ export function UnlockDialog({
 			await onUnlock(password);
 			// Drop it as soon as the vault is open: it derives the KEK.
 			setPassword("");
-			onOpenChange(false);
+			onDone();
 		} catch (err) {
 			// Neither an offline user nor one whose session expired has a password
 			// problem: telling them "wrong password" makes them retype a correct
@@ -99,47 +124,34 @@ export function UnlockDialog({
 	}
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>{t(copy.title)}</DialogTitle>
-				</DialogHeader>
-				<form onSubmit={handleSubmit} className="flex flex-col gap-3">
-					<DialogDescription>{t(copy.intro)}</DialogDescription>
-					<div className="flex flex-col gap-1.5">
-						<label className="text-sm" htmlFor={`sync-${mode}-password`}>
-							{t("sync.password")}
-						</label>
-						<Input
-							id={`sync-${mode}-password`}
-							type="password"
-							autoComplete="current-password"
-							value={password}
-							onChange={(e) => {
-								setPassword(e.target.value);
-								setFailure(null);
-							}}
-						/>
-					</div>
-					{failure && (
-						<p className="text-xs text-destructive">
-							{t(FAILURE_KEY[failure])}
-						</p>
-					)}
-					<DialogFooter>
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => onOpenChange(false)}
-						>
-							{t("common.cancel")}
-						</Button>
-						<Button type="submit" disabled={password === "" || busy}>
-							{busy ? t(copy.busy) : t(copy.submit)}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+		<form onSubmit={handleSubmit} className="flex flex-col gap-3">
+			<DialogDescription>{t(copy.intro)}</DialogDescription>
+			<div className="flex flex-col gap-1.5">
+				<label className="text-sm" htmlFor={`sync-${mode}-password`}>
+					{t("sync.password")}
+				</label>
+				<Input
+					id={`sync-${mode}-password`}
+					type="password"
+					autoComplete="current-password"
+					value={password}
+					onChange={(e) => {
+						setPassword(e.target.value);
+						setFailure(null);
+					}}
+				/>
+			</div>
+			{failure && (
+				<p className="text-xs text-destructive">{t(FAILURE_KEY[failure])}</p>
+			)}
+			<DialogFooter>
+				<Button type="button" variant="outline" onClick={onDone}>
+					{t("common.cancel")}
+				</Button>
+				<Button type="submit" disabled={password === "" || busy}>
+					{busy ? t(copy.busy) : t(copy.submit)}
+				</Button>
+			</DialogFooter>
+		</form>
 	);
 }
