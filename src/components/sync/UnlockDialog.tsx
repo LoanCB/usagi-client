@@ -10,6 +10,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { SyncUnlockOfflineError } from "@/sync/types";
 
 export interface UnlockDialogProps {
 	open: boolean;
@@ -26,14 +27,16 @@ export function UnlockDialog({
 	const { t } = useTranslation();
 	const [password, setPassword] = useState("");
 	const [busy, setBusy] = useState(false);
-	const [failed, setFailed] = useState(false);
+	const [failure, setFailure] = useState<"wrong-password" | "offline" | null>(
+		null,
+	);
 
 	// The component stays mounted across open/close: without this, a failed
 	// attempt (stale error + stale password) would resurface on reopen.
 	useEffect(() => {
 		if (!open) {
 			setPassword("");
-			setFailed(false);
+			setFailure(null);
 		}
 	}, [open]);
 
@@ -41,14 +44,18 @@ export function UnlockDialog({
 		e.preventDefault();
 		if (password === "" || busy) return;
 		setBusy(true);
-		setFailed(false);
+		setFailure(null);
 		try {
 			await onUnlock(password);
 			// Drop it as soon as the vault is open: it derives the KEK.
 			setPassword("");
 			onOpenChange(false);
-		} catch {
-			setFailed(true);
+		} catch (err) {
+			// An offline user gets a message that does not accuse their password:
+			// telling them "wrong password" would make them retype a correct one.
+			setFailure(
+				err instanceof SyncUnlockOfflineError ? "offline" : "wrong-password",
+			);
 		} finally {
 			setBusy(false);
 		}
@@ -73,13 +80,17 @@ export function UnlockDialog({
 							value={password}
 							onChange={(e) => {
 								setPassword(e.target.value);
-								setFailed(false);
+								setFailure(null);
 							}}
 						/>
 					</div>
-					{failed && (
+					{failure && (
 						<p className="text-xs text-destructive">
-							{t("sync.unlock.failed")}
+							{t(
+								failure === "offline"
+									? "sync.unlock.offline"
+									: "sync.unlock.failed",
+							)}
 						</p>
 					)}
 					<DialogFooter>

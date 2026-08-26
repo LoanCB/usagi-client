@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import "@/i18n";
+import { SyncUnlockOfflineError } from "@/sync/types";
 import { UnlockDialog } from "./UnlockDialog";
 
 const password = () => screen.getByLabelText(/password|mot de passe/i);
@@ -47,6 +48,31 @@ describe("UnlockDialog", () => {
 		expect(
 			await screen.findByText(/wrong password|mot de passe incorrect/i),
 		).toBeInTheDocument();
+		expect(onOpenChange).not.toHaveBeenCalledWith(false);
+	});
+
+	it("signale une panne réseau honnêtement, sans accuser le mot de passe", async () => {
+		const user = userEvent.setup();
+		const onOpenChange = vi.fn();
+		render(
+			<UnlockDialog
+				open
+				onOpenChange={onOpenChange}
+				onUnlock={vi.fn(async () => {
+					throw new SyncUnlockOfflineError();
+				})}
+			/>,
+		);
+		await user.type(password(), "hunter2hunter2");
+		await user.click(submit());
+		expect(
+			await screen.findByText(
+				/can't reach the server|impossible de joindre le serveur/i,
+			),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByText(/^wrong password\.$|^mot de passe incorrect\.$/i),
+		).not.toBeInTheDocument();
 		expect(onOpenChange).not.toHaveBeenCalledWith(false);
 	});
 

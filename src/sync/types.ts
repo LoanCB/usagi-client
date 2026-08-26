@@ -89,6 +89,19 @@ export class ProtocolMismatchError extends Error {
 	}
 }
 
+/**
+ * Thrown by the production `unlock` dep when the failure was transport-level
+ * (SyncNetworkError, or any fetch that never reached the server) rather than a
+ * rejected password. UnlockDialog branches on this to avoid telling an offline
+ * user their password is wrong.
+ */
+export class SyncUnlockOfflineError extends Error {
+	constructor() {
+		super("offline: could not reach the server to unlock");
+		this.name = "SyncUnlockOfflineError";
+	}
+}
+
 export interface SyncPayload {
 	_v: 1;
 	created_at: string;

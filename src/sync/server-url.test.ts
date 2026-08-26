@@ -56,9 +56,13 @@ describe("normalizeServerUrl", () => {
 
 	it("ne prend pas un sous-domaine trompeur pour un hôte local", () => {
 		// "localhost.attacker.com" n'est PAS localhost.
-		expect(normalizeServerUrl("http://localhost.attacker.com").error).toBe("insecure");
+		expect(normalizeServerUrl("http://localhost.attacker.com").error).toBe(
+			"insecure",
+		);
 		// ".local" doit être un suffixe de label, pas une sous-chaîne.
-		expect(normalizeServerUrl("http://not-local.example.com").error).toBe("insecure");
+		expect(normalizeServerUrl("http://not-local.example.com").error).toBe(
+			"insecure",
+		);
 	});
 
 	it.each(["", "   "])("signale une saisie vide (%p)", (raw) => {
@@ -69,12 +73,14 @@ describe("normalizeServerUrl", () => {
 		});
 	});
 
-	it.each(["ftp://sync.example.com", "https://", "h ttp://x", "://"])(
-		"signale une URL malformée (%s)",
-		(raw) => {
-			const result = normalizeServerUrl(raw);
-			expect(result.url).toBeNull();
-			expect(result.error).toBe("malformed");
-		},
-	);
+	it.each([
+		"ftp://sync.example.com",
+		"https://",
+		"h ttp://x",
+		"://",
+	])("signale une URL malformée (%s)", (raw) => {
+		const result = normalizeServerUrl(raw);
+		expect(result.url).toBeNull();
+		expect(result.error).toBe("malformed");
+	});
 });

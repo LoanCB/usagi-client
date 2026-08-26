@@ -410,6 +410,8 @@ const en = {
 			submit: "Unlock",
 			unlocking: "Unlocking…",
 			failed: "Wrong password.",
+			offline:
+				"Can't reach the server, so your key can't be unwrapped. Check your connection and try again — your password is probably fine.",
 		},
 		banner: {
 			locked: "Sync is paused — unlock to resume.",

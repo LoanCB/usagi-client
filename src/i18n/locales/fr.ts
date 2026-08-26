@@ -418,6 +418,8 @@ const fr: typeof en = {
 			submit: "Déverrouiller",
 			unlocking: "Déverrouillage…",
 			failed: "Mot de passe incorrect.",
+			offline:
+				"Impossible de joindre le serveur, votre clé ne peut donc pas être déchiffrée. Vérifiez votre connexion et réessayez — votre mot de passe est probablement correct.",
 		},
 		banner: {
 			locked: "La synchronisation est en pause — déverrouillez pour reprendre.",

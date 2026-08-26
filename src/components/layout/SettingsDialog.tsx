@@ -23,6 +23,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { ChangelogList } from "@/components/layout/ChangelogList";
 import { ImportConfirmDialog } from "@/components/layout/ImportConfirmDialog";
+import { SyncPanel } from "@/components/sync/SyncPanel";
+import { productionSyncDeps } from "@/components/sync/sync-panel-deps";
 import { ProjectFilter } from "@/components/tasks/ProjectFilter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -52,6 +54,11 @@ import type { ThemeMode } from "@/theme/types";
 
 interface SettingsDialogProps {
 	readonly children: ReactElement;
+	/** Controlled open state, so the sync status banner can open the dialog
+	 * directly on its own tab. Uncontrolled (trigger-only) when omitted — the
+	 * existing Sidebar usage keeps working unchanged. */
+	readonly open?: boolean;
+	readonly onOpenChange?: (open: boolean) => void;
 }
 
 interface TimeSegmentProps {
@@ -1184,14 +1191,23 @@ function ChangelogPanel() {
 	);
 }
 
-export function SettingsDialog({ children }: SettingsDialogProps) {
+export function SettingsDialog({
+	children,
+	open,
+	onOpenChange,
+}: SettingsDialogProps) {
 	const { t } = useTranslation();
 	const [activeTab, setActiveTab] = useState<
-		"general" | "customization" | "notifications" | "data" | "changelog"
+		| "general"
+		| "customization"
+		| "notifications"
+		| "sync"
+		| "data"
+		| "changelog"
 	>("general");
 
 	return (
-		<Dialog>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogTrigger render={children} />
 			<DialogContent className="flex flex-col h-[min(85vh,52rem)] max-h-[525px] sm:max-w-[min(calc(100%-2rem),48rem)]">
 				<DialogHeader className="border-b border-border pb-0">
@@ -1202,6 +1218,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 								["general", t("settings.tabGeneral")],
 								["customization", t("settings.tabCustomization")],
 								["notifications", t("settings.notifications")],
+								["sync", t("sync.tab")],
 								["data", t("data.title")],
 								["changelog", t("changelog.tab")],
 							] as [
@@ -1209,6 +1226,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 									| "general"
 									| "customization"
 									| "notifications"
+									| "sync"
 									| "data"
 									| "changelog"
 								),
@@ -1238,6 +1256,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 					{activeTab === "general" && <GeneralPanel />}
 					{activeTab === "customization" && <CustomizationPanel />}
 					{activeTab === "notifications" && <NotificationsPanel />}
+					{activeTab === "sync" && <SyncPanel deps={productionSyncDeps()} />}
 					{activeTab === "data" && <DataPanel />}
 					{activeTab === "changelog" && <ChangelogPanel />}
 				</div>

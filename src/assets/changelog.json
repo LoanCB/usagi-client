@@ -8,6 +8,10 @@
 			"changes": {
 				"features": [
 					{
+						"en": "Sync is here: connect to a server from Settings → Sync to keep your tasks up to date across devices. Everything is encrypted on your device before it leaves it. Off by default — nothing changes until you set it up.",
+						"fr": "La synchronisation est là : connectez-vous à un serveur depuis Réglages → Synchronisation pour garder vos tâches à jour sur tous vos appareils. Tout est chiffré sur votre appareil avant de le quitter. Désactivée par défaut — rien ne change tant que vous ne l'activez pas."
+					},
+					{
 						"en": "Importing a backup now shows a confirmation dialog explaining what merge and replace each do, and warns that replace deletes tasks missing from the backup on all your synced devices, not just this one.",
 						"fr": "L'import d'une sauvegarde affiche désormais une confirmation qui explique ce que font fusionner et remplacer, et avertit que remplacer supprime les tâches absentes de la sauvegarde sur tous vos appareils synchronisés, pas seulement celui-ci."
 					}

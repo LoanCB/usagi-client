@@ -20,6 +20,17 @@ export function setSyncContext(ctx: SyncContext): void {
 	context = ctx;
 }
 
+/** Read by the production SyncPanelDeps factory, which needs the same db and
+ * fetchImpl App.tsx already built rather than threading them through props
+ * from SettingsDialog and AppShell. */
+export function getSyncContext(): SyncContext {
+	if (!context)
+		throw new Error(
+			"Sync context not initialized. Call setSyncContext() first.",
+		);
+	return context;
+}
+
 export function getSyncRuntime(): SyncRuntime | null {
 	return current;
 }

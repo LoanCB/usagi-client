@@ -51,11 +51,16 @@ interface LoginResponse {
 	refreshToken: string;
 }
 
-interface KeysResponse {
+export interface KeysResponse {
 	wrappedDek: string;
 	wrappedDekRecovery: string;
 	publicKey: string;
 	wrappedPrivateKey: string;
+}
+
+export interface PreloginResponse {
+	salt: string;
+	kdfParams: unknown;
 }
 
 export function getServerInfo(
@@ -63,6 +68,21 @@ export function getServerInfo(
 	baseUrl: string,
 ): Promise<ServerInfo> {
 	return requestJson<ServerInfo>(fetchImpl, "GET", `${baseUrl}/v1/server-info`);
+}
+
+/** Shared by signIn and the standalone unlock flow (re-deriving the DEK for an
+ * already-authenticated session): both need the account's KDF salt. */
+export function prelogin(
+	fetchImpl: FetchLike,
+	baseUrl: string,
+	email: string,
+): Promise<PreloginResponse> {
+	return requestJson<PreloginResponse>(
+		fetchImpl,
+		"POST",
+		`${baseUrl}/v1/auth/prelogin`,
+		{ body: { email } },
+	);
 }
 
 async function assertProtocol(
@@ -99,12 +119,7 @@ export async function signIn(
 	},
 ): Promise<{ accessToken: string }> {
 	await assertProtocol(deps.fetchImpl, deps.baseUrl);
-	const pre = await requestJson<{ salt: string; kdfParams: unknown }>(
-		deps.fetchImpl,
-		"POST",
-		`${deps.baseUrl}/v1/auth/prelogin`,
-		{ body: { email: input.email } },
-	);
+	const pre = await prelogin(deps.fetchImpl, deps.baseUrl, input.email);
 	// kdfParams are returned for forward compatibility; the Rust side pins the
 	// current defaults itself. Revisit when the server ever raises them.
 	const authVerifier = await deps.vault.beginUnlock(input.password, pre.salt);
