@@ -316,6 +316,71 @@ describe("AuthorizedHttp", () => {
 		// refresh presenting the same old token would be a 401 and a lockout.
 		expect(refreshCalls).toBe(1);
 	});
+
+	it("coalesce aussi entre deux instances partageant la même base et la même URL", async () => {
+		await setSyncState(driver, "refresh_token", "refresh-old");
+		let refreshCalls = 0;
+		const { fetchImpl } = fakeServer({
+			"/v1/auth/refresh": () => {
+				refreshCalls++;
+				return json(200, {
+					accessToken: "access-1",
+					refreshToken: "refresh-2",
+				});
+			},
+			"/v1/sync/": (init) =>
+				new Headers(init.headers).get("authorization") === "Bearer access-1"
+					? json(200, { ok: 1 })
+					: json(401, { statusCode: 401 }),
+		});
+		const deps = { db: driver, fetchImpl, baseUrl: "https://s" };
+		// The engine holds one instance and the settings panel another; the
+		// refresh token is a single shared row, so per-instance coalescing is not
+		// enough — the loser's 401 becomes a spurious "sign in again".
+		const engineHttp = new AuthorizedHttp(deps);
+		const panelHttp = new AuthorizedHttp(deps);
+		await Promise.all([
+			engineHttp.request("GET", "/v1/sync/pull?cursor=0"),
+			panelHttp.request("GET", "/v1/sync/pull?cursor=0"),
+		]);
+		expect(refreshCalls).toBe(1);
+		expect(await getSyncState(driver, "refresh_token")).toBe("refresh-2");
+	});
+
+	it("n'inflige pas un refresh coalescé à une autre base", async () => {
+		const other = new BetterSqliteDriver();
+		try {
+			await runMigrations(other, ALL_MIGRATIONS);
+			await setSyncState(driver, "refresh_token", "refresh-a");
+			await setSyncState(other, "refresh_token", "refresh-b");
+			const seen: string[] = [];
+			const { fetchImpl } = fakeServer({
+				"/v1/auth/refresh": (init) => {
+					seen.push(JSON.parse(String(init.body)).refreshToken as string);
+					return json(200, {
+						accessToken: "access-1",
+						refreshToken: "rotated",
+					});
+				},
+				"/v1/sync/": () => json(200, { ok: 1 }),
+			});
+			await Promise.all([
+				new AuthorizedHttp({
+					db: driver,
+					fetchImpl,
+					baseUrl: "https://s",
+				}).request("GET", "/v1/sync/pull?cursor=0"),
+				new AuthorizedHttp({
+					db: other,
+					fetchImpl,
+					baseUrl: "https://s",
+				}).request("GET", "/v1/sync/pull?cursor=0"),
+			]);
+			expect(seen.sort()).toEqual(["refresh-a", "refresh-b"]);
+		} finally {
+			other.close();
+		}
+	});
 });
 
 describe("signOut", () => {

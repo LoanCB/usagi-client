@@ -21,8 +21,9 @@ import {
 } from "./types";
 
 /**
- * The Argon2id work happens in Rust and vitest has no Tauri runtime, so the
- * two vault calls the sign-in path needs are injected as a port.
+ * The Argon2id work happens in Rust and vitest has no Tauri runtime, so every
+ * vault call the auth paths need is injected as a port. Two consumers: the
+ * sign-in and registration flows here, and the panel's standalone unlock.
  */
 export interface VaultPort {
 	beginUnlock(password: string, authSalt: string): Promise<string>;
@@ -225,14 +226,26 @@ export async function signOut(deps: {
 			// server-side revocation just also closes the session remotely.
 		}
 	}
-	// One transaction: a partial wipe would leave a server_url without a
-	// refresh token, which initSync reads as "configured" and retries forever.
+	// One transaction: every key goes or none does. A partial wipe is not just
+	// untidy — the scheduler is stopped before this runs, but an in-flight cycle
+	// (or a later sign-in) writing over half-cleared state would leave a
+	// server_url without a refresh token, which initSync reads as "configured"
+	// and then refuses to build an engine for, or a cursor from the previous
+	// account that silently skips records on the next one (§6.5).
 	await deps.db.transaction(async (tx) => {
 		for (const key of SIGNED_OUT_KEYS) await deleteSyncState(tx, key);
 		await tx.execute("DELETE FROM sync_outbox");
 		await tx.execute("DELETE FROM sync_quarantine");
 	});
 }
+
+/**
+ * In-flight refreshes, per (db, baseUrl) rather than per AuthorizedHttp: the
+ * refresh token is a single shared row, so two instances over the same database
+ * — the engine's and the settings panel's — racing a refresh would burn it, and
+ * the loser's 401 forces a re-login for nothing.
+ */
+const REFRESHING = new WeakMap<DbDriver, Map<string, Promise<string>>>();
 
 /**
  * Bearer plumbing for every authenticated call. The access token lives only in
@@ -243,7 +256,6 @@ export async function signOut(deps: {
  */
 export class AuthorizedHttp {
 	private accessToken: string | null;
-	private refreshing: Promise<string> | null = null;
 
 	constructor(
 		private readonly deps: {
@@ -287,10 +299,19 @@ export class AuthorizedHttp {
 	}
 
 	private refresh(): Promise<string> {
-		this.refreshing ??= this.doRefresh().finally(() => {
-			this.refreshing = null;
+		const { db, baseUrl } = this.deps;
+		const byUrl = REFRESHING.get(db) ?? new Map<string, Promise<string>>();
+		REFRESHING.set(db, byUrl);
+		const inflight =
+			byUrl.get(baseUrl) ??
+			this.doRefresh().finally(() => byUrl.delete(baseUrl));
+		byUrl.set(baseUrl, inflight);
+		// Every participant adopts the rotated token, not just the instance that
+		// happened to win the race.
+		return inflight.then((token) => {
+			this.accessToken = token;
+			return token;
 		});
-		return this.refreshing;
 	}
 
 	private async doRefresh(): Promise<string> {

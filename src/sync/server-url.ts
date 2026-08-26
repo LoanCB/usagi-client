@@ -22,8 +22,9 @@ function isLocalHost(hostname: string): boolean {
 	return (
 		host === "localhost" ||
 		host === "127.0.0.1" ||
+		// URL.hostname keeps the brackets on an IPv6 literal, so "[::1]" is the
+		// only form that ever reaches here.
 		host === "[::1]" ||
-		host === "::1" ||
 		host.endsWith(".localhost") ||
 		host.endsWith(".local")
 	);
