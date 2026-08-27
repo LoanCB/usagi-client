@@ -37,6 +37,7 @@ import { todayIso } from "@/lib/utils";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import { useShortcutsStore } from "@/store/shortcuts";
+import { useSyncStore } from "@/store/sync";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
 import type { Project, Task } from "@/types";
@@ -425,6 +426,12 @@ export function TaskList() {
 		useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
 	);
 
+	// Re-runs when a sync cycle applied rows: the engine writes them straight to
+	// SQLite, so without this a task created on another device stays invisible
+	// until the next launch. Reloading here rather than centrally is what keeps
+	// the active view's filters applied.
+	const syncRevision = useSyncStore((s) => s.revision);
+
 	useEffect(() => {
 		if (selectedProjectId === "tags") return;
 		const repo = getRepository();
@@ -433,7 +440,7 @@ export function TaskList() {
 		} else {
 			loadTasks(repo, { ...activeFilters, projectId: selectedProjectId });
 		}
-	}, [selectedProjectId, activeFilters, loadTasks]);
+	}, [selectedProjectId, activeFilters, loadTasks, syncRevision]);
 
 	const displayedTasks = useMemo(() => {
 		if (sortDir !== null) {

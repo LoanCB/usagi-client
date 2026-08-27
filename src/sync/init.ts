@@ -1,4 +1,4 @@
-import { lock } from "@/crypto";
+import { isUnlocked, lock } from "@/crypto";
 import type { DbDriver } from "@/db/driver";
 import type { TodoRepository } from "@/db/repository";
 import { AuthorizedHttp, getServerInfo } from "./auth";
@@ -27,7 +27,11 @@ export interface SyncRuntime {
 export async function initSync(
 	db: DbDriver,
 	repository: TodoRepository,
-	deps: { fetchImpl: FetchLike; cipher?: RecordCipher },
+	deps: {
+		fetchImpl: FetchLike;
+		cipher?: RecordCipher;
+		isUnlocked?: () => Promise<boolean>;
+	},
 ): Promise<SyncRuntime | null> {
 	const serverUrl = await getSyncState(db, "server_url");
 	if (!serverUrl) return null;
@@ -44,6 +48,7 @@ export async function initSync(
 		transport: new HttpSyncTransport(http, new RequestGate()),
 		cipher: deps.cipher ?? new TauriRecordCipher(),
 		getServerInfo: () => getServerInfo(deps.fetchImpl, serverUrl),
+		isUnlocked: deps.isUnlocked ?? isUnlocked,
 	});
 	engine.onStatus((status) => {
 		// §7 revoked device: a permanent 401 locks the vault and erases the

@@ -316,6 +316,141 @@ const en = {
 		back: "Back",
 		trigger: "Search…",
 	},
+	sync: {
+		title: "Sync",
+		tab: "Sync",
+		intro:
+			"Sync your tasks across devices through a server you choose. Everything is encrypted on this device before it leaves it — the server never sees your data.",
+		serverUrl: "Server address",
+		serverUrlPlaceholder: "https://sync.example.com",
+		testConnection: "Test connection",
+		testing: "Testing…",
+		serverFound: "{{name}} {{version}} — compatible",
+		urlError: {
+			empty: "Enter a server address.",
+			malformed: "This does not look like a valid address.",
+			insecure:
+				"An unencrypted address (http://) is only allowed for localhost, 127.0.0.1 and .local names.",
+		},
+		insecureWarning:
+			"This connection is not encrypted. Only do this on a network you trust.",
+		unreachable:
+			"Could not reach this server. Check the address and your connection.",
+		notUsagi: "This address answered, but it is not a usagi server.",
+		protocolMismatch:
+			"This server speaks protocol version {{server}}, this app speaks {{client}}. Update whichever is older — sync is disabled until they match.",
+		signIn: "Sign in",
+		signingIn: "Signing in…",
+		createAccount: "Create account",
+		creatingAccount: "Creating account…",
+		registrationClosed:
+			"This server does not accept new accounts. Sign in with an existing one.",
+		email: "Email",
+		password: "Password",
+		inviteToken: "Invite token",
+		inviteTokenHint: "Optional — only if the server owner gave you one.",
+		signInFailed: "Wrong email or password.",
+		registerFailed:
+			"Could not create the account. The invite token may be used or expired.",
+		passwordHint:
+			"Choose a strong password. It encrypts everything, and it is never sent to the server — nobody can reset it for you.",
+		recovery: {
+			title: "Your recovery key",
+			intro:
+				"These 24 words are the only way back into your account if you forget your password. Write them down and keep them somewhere safe. They are shown once and never stored.",
+			copy: "Copy",
+			copied: "Copied",
+			continue: "I have written them down",
+			confirmTitle: "Confirm your recovery key",
+			confirmIntro: "Type these three words to confirm you saved the key.",
+			wordLabel: "Word {{position}}",
+			wrongWords: "Those words do not match. Check your copy and try again.",
+			back: "Show the key again",
+			confirm: "Confirm",
+		},
+		status: {
+			label: "Status",
+			idle: "Up to date",
+			syncing: "Syncing…",
+			locked: "Paused — unlock to resume",
+			awaitingFirstSync: "Waiting for your answer",
+			reauthRequired: "Sign in again",
+			protocolMismatch: "Server incompatible",
+		},
+		lastSync: "Last sync",
+		never: "Never",
+		syncNow: "Sync now",
+		account: "Account",
+		defaultDeviceName: "usagi desktop",
+		devices: {
+			title: "Devices",
+			thisDevice: "This device",
+			lastSeen: "Last seen {{when}}",
+			never: "Never seen",
+			revoke: "Revoke",
+			revokeShort: "Revoke",
+			revoking: "Revoking…",
+			revokeConfirmTitle: "Revoke this device?",
+			revokeConfirmMessage:
+				"{{name}} will be signed out and will stop syncing. Its local data stays on it.",
+			revokeFailed: "Could not revoke this device.",
+			loadFailed: "Could not load your devices.",
+			empty: "No other device.",
+		},
+		disconnect: "Disconnect this device",
+		disconnectShort: "Disconnect",
+		disconnecting: "Disconnecting…",
+		disconnectConfirmTitle: "Disconnect from this server?",
+		disconnectConfirmMessage:
+			"Sync stops and this device forgets the account. Your tasks stay on this device, untouched.",
+		disconnectFailed:
+			"Could not disconnect this device. Nothing was changed — try again.",
+		changeServerHint: "Disconnect first to use a different server.",
+		reauth: {
+			title: "Session expired",
+			intro:
+				"This device's session has expired, so the server no longer accepts it. Enter your password to sign in again — your account and server do not change.",
+			action: "Sign in again",
+		},
+		unlock: {
+			title: "Unlock sync",
+			intro:
+				"Your password is needed to decrypt what the server sends. It is never stored, so it is asked again after each restart.",
+			submit: "Unlock",
+			unlocking: "Unlocking…",
+			failed: "Wrong password.",
+			offline:
+				"Can't reach the server, so your key can't be unwrapped. Check your connection and try again — your password is probably fine.",
+			sessionExpired:
+				"Your password is fine — this device's session expired, so the server refused it. Close this and use “Sign in again”.",
+		},
+		banner: {
+			locked: "Sync is paused — unlock to resume.",
+			reauthRequired: "Sync needs you to sign in again.",
+			protocolMismatch:
+				"Sync is disabled: this server is not compatible with this app version.",
+			action: "Open settings",
+		},
+		firstSync: {
+			title: "This account already has data",
+			intro:
+				"This device has tasks, and so does the account. Choose how to combine them — this is asked once.",
+			merge: "Merge",
+			mergeExplanation:
+				"Keep both. Anything present on only one side is kept, and where both changed the same thing, the most recent edit wins.",
+			replace: "Replace",
+			replaceExplanation:
+				"Discard what is on this device and download the account's data instead.",
+			replaceWarning:
+				"The tasks, projects and tags currently on this device will be deleted. A backup is saved to your computer first.",
+			backupSaving: "Saving a backup…",
+			backupFailed:
+				"The backup could not be saved, so nothing was replaced. Try again or choose Merge.",
+			applying: "Applying…",
+			confirm: "Continue",
+			failed: "Could not apply your choice. Nothing was changed.",
+		},
+	},
 };
 
 export default en;

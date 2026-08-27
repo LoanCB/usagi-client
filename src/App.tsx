@@ -17,10 +17,11 @@ import { useProjectStore } from "@/store/projects";
 import { getRepository, setRepository } from "@/store/repository";
 import { useSettingsStore } from "@/store/settings";
 import { useShortcutsStore } from "@/store/shortcuts";
+import { useSyncStore } from "@/store/sync";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import type { FetchLike } from "@/sync/http";
-import { initSync } from "@/sync/init";
+import { setSyncContext, startSync } from "@/sync/runtime";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import type { ChangelogVersion } from "@/types/changelog";
 
@@ -123,13 +124,23 @@ export default function App() {
 				const driver = adaptDatabase(db);
 				await runMigrations(driver, ALL_MIGRATIONS);
 				await backfillSortKeys(driver);
-				setRepository(createRepository(db));
-				// Sync stays entirely inert without a configured server (§6.1);
-				// plan 4d's settings screen is what will ever set server_url.
-				const syncRuntime = await initSync(driver, getRepository(), {
+				const repository = createRepository(db);
+				setRepository(repository);
+				// The panel reconnects and disconnects without a restart, so the
+				// runtime needs to be able to rebuild the engine later.
+				setSyncContext({
+					db: driver,
+					repository,
 					fetchImpl: httpFetch as FetchLike,
 				});
-				if (syncRuntime) setRepository(syncRuntime.repository);
+				// Sync stays entirely inert without a configured server (§6.1):
+				// startSync defers to initSync, which returns null without
+				// server_url — no engine, no request, no timer.
+				const syncRuntime = await startSync();
+				if (syncRuntime) {
+					useSyncStore.getState().attach(syncRuntime.engine);
+					await useSyncStore.getState().refreshLastSync(driver);
+				}
 				setReady(true);
 			} catch (err) {
 				setError(String(err));

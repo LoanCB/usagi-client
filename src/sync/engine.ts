@@ -46,6 +46,14 @@ export interface SyncEngineDeps {
 	transport: SyncTransport;
 	cipher: RecordCipher;
 	getServerInfo: () => Promise<ServerInfo>;
+	/**
+	 * The DEK lives only in Rust memory, so a restart leaves the vault shut
+	 * while server_url and refresh_token survive on disk. Decrypting then
+	 * fails as `decrypt-failed` and quarantines a whole pull page while the
+	 * cursor moves on; encrypting throws straight out of pushPhase. The
+	 * engine has to know, so this port is required, not defaulted.
+	 */
+	isUnlocked: () => Promise<boolean>;
 }
 
 interface DecryptedRecord {
@@ -81,6 +89,8 @@ export class SyncEngine {
 	private running = false;
 	private rerunRequested = false;
 	private protocolChecked = false;
+	/** The cycle currently writing, if any — the handle whenIdle() waits on. */
+	private cycle: Promise<void> | null = null;
 
 	constructor(private readonly deps: SyncEngineDeps) {}
 
@@ -99,6 +109,18 @@ export class SyncEngine {
 		for (const listener of this.listeners) listener(status);
 	}
 
+	/**
+	 * Resolves once no cycle is writing any more, chained reruns included.
+	 * Sign-out waits on this before wiping sync_state: a cycle finishing after
+	 * the wipe would resurrect `cursor` (§6.5). A failing cycle still counts as
+	 * finished — its own caller surfaces the error, this one only needs the
+	 * "no longer writing" moment.
+	 */
+	async whenIdle(): Promise<void> {
+		// oxlint-disable-next-line react-doctor/async-await-in-loop -- intentional: the iterations are strictly dependent. Each await is what reveals whether a rerun chained itself into this.cycle, so there is no set of promises to run concurrently.
+		while (this.cycle) await this.cycle.catch(() => {});
+	}
+
 	/** Pull → merge → push (§4.1), single-flight with rerun coalescing. */
 	async syncNow(): Promise<void> {
 		if (this.running) {
@@ -106,7 +128,28 @@ export class SyncEngine {
 			return;
 		}
 		this.running = true;
+		const cycle = this.runCycle();
+		this.cycle = cycle;
 		try {
+			await cycle;
+		} finally {
+			// A rerun chained from runCycle's finally has already published its own
+			// handle: only clear the slot if it is still ours.
+			if (this.cycle === cycle) this.cycle = null;
+		}
+	}
+
+	private async runCycle(): Promise<void> {
+		try {
+			if (!(await this.deps.isUnlocked())) {
+				// A revoked session locks the vault itself (§7, init.ts), so this
+				// guard fires right after. Reporting "locked" there would lose the
+				// only actionable state and tell the user to unlock — which cannot
+				// help: no password revives a session the server refused. Signing in
+				// again builds a fresh engine, which is what clears this.
+				if (this.status !== "reauth-required") this.setStatus("locked");
+				return;
+			}
 			if (!(await this.ensureProtocol())) return;
 			await this.loadPersistedOffset();
 			this.setStatus("syncing");

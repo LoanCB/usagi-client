@@ -1014,6 +1014,8 @@ export function Sidebar() {
 		setSidebarCollapsed,
 		selectedProjectId,
 		setSelectedProject,
+		settingsOpen,
+		setSettingsOpen,
 	} = useUIStore();
 	const projects = useProjectStore((s) => s.projects);
 	const allCount = useTaskStore((s) => s.allCount);
@@ -1271,7 +1273,7 @@ export function Sidebar() {
 			</ScrollArea>
 
 			<div className="border-t border-sidebar-border px-2 py-2 shrink-0">
-				<SettingsDialog>
+				<SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen}>
 					<button
 						type="button"
 						aria-label={t("settings.title")}

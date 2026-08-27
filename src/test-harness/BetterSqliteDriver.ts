@@ -17,6 +17,16 @@ export class BetterSqliteDriver implements DbDriver {
 	 * adapter serializes would be a test that lies.
 	 */
 	private lock: ConnectionLock;
+	/**
+	 * The view `transaction` hands to its callback, built once per driver exactly
+	 * as production builds it once per adapter (`adaptDatabase`). It has to be
+	 * stable: callers key per-connection caches on the driver object they are
+	 * given — `getOrCreateDeviceId` keys a WeakMap on it — so a fresh view per
+	 * transaction would miss that cache every time and exercise a path
+	 * production never takes. `reopen` returns a new driver, and therefore a new
+	 * view, which is the restart it is meant to model.
+	 */
+	private readonly tx: DbDriver;
 
 	constructor(filename?: string);
 	/**
@@ -32,6 +42,15 @@ export class BetterSqliteDriver implements DbDriver {
 		// be skipped the way a hand-copied list would skip it.
 		this.db = typeof source === "string" ? new Database(source) : source;
 		this.lock = lock ?? new ConnectionLock();
+		// `transaction` holds the lock, so this view must not re-acquire it.
+		this.tx = {
+			execute: (query, bindValues = []) =>
+				this.executeUnlocked(query, bindValues),
+			select: (query, bindValues = []) =>
+				this.selectUnlocked(query, bindValues),
+			transaction: () =>
+				Promise.reject(new Error("nested transactions are not supported")),
+		};
 		// Match tauri-plugin-sql, which enables FK enforcement per connection.
 		this.db.pragma("foreign_keys = ON");
 	}
@@ -100,21 +119,12 @@ export class BetterSqliteDriver implements DbDriver {
 
 	async transaction<T>(work: (tx: DbDriver) => Promise<T>): Promise<T> {
 		const release = await this.lock.acquire("exclusive");
-		// The lock is held, so `work` gets a view that does not re-acquire it.
-		const tx: DbDriver = {
-			execute: (query, bindValues = []) =>
-				this.executeUnlocked(query, bindValues),
-			select: (query, bindValues = []) =>
-				this.selectUnlocked(query, bindValues),
-			transaction: () =>
-				Promise.reject(new Error("nested transactions are not supported")),
-		};
 		try {
 			// better-sqlite3's own `transaction()` helper only wraps synchronous
 			// functions; `work` is async, so drive the statements by hand.
 			this.raw("BEGIN");
 			try {
-				const out = await work(tx);
+				const out = await work(this.tx);
 				this.raw("COMMIT");
 				return out;
 			} catch (error) {

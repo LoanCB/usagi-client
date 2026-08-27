@@ -25,7 +25,11 @@ export interface TestDevice {
 /** A device = a real migrated SQLite (triggers included) + an engine on it. */
 export async function makeDevice(
 	server: FakeSyncServer,
-	opts: { cipher?: FakeRecordCipher; serverInfo?: ServerInfo } = {},
+	opts: {
+		cipher?: FakeRecordCipher;
+		serverInfo?: ServerInfo;
+		isUnlocked?: () => Promise<boolean>;
+	} = {},
 ): Promise<TestDevice> {
 	const driver = new BetterSqliteDriver();
 	await runMigrations(driver, ALL_MIGRATIONS);
@@ -35,6 +39,7 @@ export async function makeDevice(
 		transport: server.transport(),
 		cipher,
 		getServerInfo: async () => opts.serverInfo ?? FAKE_SERVER_INFO,
+		isUnlocked: opts.isUnlocked ?? (async () => true),
 	});
 	return { driver, repo: new SqliteRepository(driver), engine, cipher };
 }

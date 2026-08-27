@@ -2,11 +2,12 @@ import {
 	beginUnlock,
 	completeUnlock,
 	prepareRegistration,
+	type RegistrationMaterial,
 	toRegisterKeys,
 } from "@/crypto";
 import type { DbDriver } from "@/db/driver";
 import { type FetchLike, requestJson, SyncHttpError } from "./http";
-import { deleteSyncState, getSyncState, setSyncState } from "./state";
+import { getSyncState, type SyncStateKey, setSyncState } from "./state";
 import {
 	CLIENT_PROTOCOL_VERSION,
 	ProtocolMismatchError,
@@ -15,15 +16,21 @@ import {
 } from "./types";
 
 /**
- * The Argon2id work happens in Rust and vitest has no Tauri runtime, so the
- * two vault calls the sign-in path needs are injected as a port.
+ * The Argon2id work happens in Rust and vitest has no Tauri runtime, so every
+ * vault call the auth paths need is injected as a port. Two consumers: the
+ * sign-in and registration flows here, and the panel's standalone unlock.
  */
 export interface VaultPort {
 	beginUnlock(password: string, authSalt: string): Promise<string>;
 	completeUnlock(wrappedDek: string, userId: string): Promise<void>;
+	prepareRegistration(password: string): Promise<RegistrationMaterial>;
 }
 
-export const tauriVault: VaultPort = { beginUnlock, completeUnlock };
+export const tauriVault: VaultPort = {
+	beginUnlock,
+	completeUnlock,
+	prepareRegistration,
+};
 
 interface AuthDeps {
 	db: DbDriver;
@@ -40,11 +47,16 @@ interface LoginResponse {
 	refreshToken: string;
 }
 
-interface KeysResponse {
+export interface KeysResponse {
 	wrappedDek: string;
 	wrappedDekRecovery: string;
 	publicKey: string;
 	wrappedPrivateKey: string;
+}
+
+export interface PreloginResponse {
+	salt: string;
+	kdfParams: unknown;
 }
 
 export function getServerInfo(
@@ -52,6 +64,21 @@ export function getServerInfo(
 	baseUrl: string,
 ): Promise<ServerInfo> {
 	return requestJson<ServerInfo>(fetchImpl, "GET", `${baseUrl}/v1/server-info`);
+}
+
+/** Shared by signIn and the standalone unlock flow (re-deriving the DEK for an
+ * already-authenticated session): both need the account's KDF salt. */
+export function prelogin(
+	fetchImpl: FetchLike,
+	baseUrl: string,
+	email: string,
+): Promise<PreloginResponse> {
+	return requestJson<PreloginResponse>(
+		fetchImpl,
+		"POST",
+		`${baseUrl}/v1/auth/prelogin`,
+		{ body: { email } },
+	);
 }
 
 async function assertProtocol(
@@ -88,12 +115,7 @@ export async function signIn(
 	},
 ): Promise<{ accessToken: string }> {
 	await assertProtocol(deps.fetchImpl, deps.baseUrl);
-	const pre = await requestJson<{ salt: string; kdfParams: unknown }>(
-		deps.fetchImpl,
-		"POST",
-		`${deps.baseUrl}/v1/auth/prelogin`,
-		{ body: { email: input.email } },
-	);
+	const pre = await prelogin(deps.fetchImpl, deps.baseUrl, input.email);
 	// kdfParams are returned for forward compatibility; the Rust side pins the
 	// current defaults itself. Revisit when the server ever raises them.
 	const authVerifier = await deps.vault.beginUnlock(input.password, pre.salt);
@@ -122,7 +144,7 @@ export async function signIn(
 }
 
 export async function register(
-	deps: Omit<AuthDeps, "vault">,
+	deps: AuthDeps,
 	input: {
 		email: string;
 		password: string;
@@ -132,7 +154,7 @@ export async function register(
 	},
 ): Promise<{ accessToken: string; recoveryPhrase: string }> {
 	await assertProtocol(deps.fetchImpl, deps.baseUrl);
-	const material = await prepareRegistration(input.password);
+	const material = await deps.vault.prepareRegistration(input.password);
 	const login = await requestJson<LoginResponse>(
 		deps.fetchImpl,
 		"POST",
@@ -149,6 +171,12 @@ export async function register(
 			},
 		},
 	);
+	// crypto_prepare_registration is stateless: it mints the material without
+	// loading the DEK. Without this the brand-new account starts locked and the
+	// engine sits on "locked" until the user retypes the password they just
+	// chose. Only the userId the server assigns was missing to open the vault.
+	await deps.vault.beginUnlock(input.password, material.authSalt);
+	await deps.vault.completeUnlock(material.wrappedDek, login.userId);
 	await persistSession(deps.db, deps.baseUrl, input.email, login);
 	// recoveryPhrase is real key material: shown once by the caller (plan 4d),
 	// never persisted, never logged.
@@ -157,6 +185,20 @@ export async function register(
 		recoveryPhrase: material.recoveryPhrase,
 	};
 }
+
+/** Every sync_state key signOut clears. Listed rather than "DELETE FROM
+ * sync_state" so a key added later is a deliberate decision here, not a
+ * silent inclusion. */
+const SIGNED_OUT_KEYS: SyncStateKey[] = [
+	"server_url",
+	"cursor",
+	"clock_offset_ms",
+	"refresh_token",
+	"user_id",
+	"account_email",
+	"first_sync_resolved",
+	"last_sync_at",
+];
 
 export async function signOut(deps: {
 	db: DbDriver;
@@ -179,8 +221,32 @@ export async function signOut(deps: {
 			// server-side revocation just also closes the session remotely.
 		}
 	}
-	await deleteSyncState(deps.db, "refresh_token");
+	// One transaction: every key goes or none does. A partial wipe is not just
+	// untidy — the scheduler is stopped before this runs, but an in-flight cycle
+	// (or a later sign-in) writing over half-cleared state would leave a
+	// server_url without a refresh token, which initSync reads as "configured"
+	// and then refuses to build an engine for, or a cursor from the previous
+	// account that silently skips records on the next one (§6.5).
+	await deps.db.transaction(async (tx) => {
+		// One statement rather than one round trip per key. The list stays
+		// explicit, so adding a SyncStateKey is still a deliberate decision here.
+		const placeholders = SIGNED_OUT_KEYS.map(() => "?").join(", ");
+		await tx.execute(
+			`DELETE FROM sync_state WHERE key IN (${placeholders})`,
+			SIGNED_OUT_KEYS.slice(),
+		);
+		await tx.execute("DELETE FROM sync_outbox");
+		await tx.execute("DELETE FROM sync_quarantine");
+	});
 }
+
+/**
+ * In-flight refreshes, per (db, baseUrl) rather than per AuthorizedHttp: the
+ * refresh token is a single shared row, so two instances over the same database
+ * — the engine's and the settings panel's — racing a refresh would burn it, and
+ * the loser's 401 forces a re-login for nothing.
+ */
+const REFRESHING = new WeakMap<DbDriver, Map<string, Promise<string>>>();
 
 /**
  * Bearer plumbing for every authenticated call. The access token lives only in
@@ -191,7 +257,6 @@ export async function signOut(deps: {
  */
 export class AuthorizedHttp {
 	private accessToken: string | null;
-	private refreshing: Promise<string> | null = null;
 
 	constructor(
 		private readonly deps: {
@@ -235,10 +300,19 @@ export class AuthorizedHttp {
 	}
 
 	private refresh(): Promise<string> {
-		this.refreshing ??= this.doRefresh().finally(() => {
-			this.refreshing = null;
+		const { db, baseUrl } = this.deps;
+		const byUrl = REFRESHING.get(db) ?? new Map<string, Promise<string>>();
+		REFRESHING.set(db, byUrl);
+		const inflight =
+			byUrl.get(baseUrl) ??
+			this.doRefresh().finally(() => byUrl.delete(baseUrl));
+		byUrl.set(baseUrl, inflight);
+		// Every participant adopts the rotated token, not just the instance that
+		// happened to win the race.
+		return inflight.then((token) => {
+			this.accessToken = token;
+			return token;
 		});
-		return this.refreshing;
 	}
 
 	private async doRefresh(): Promise<string> {

@@ -76,6 +76,7 @@ export const CLIENT_PROTOCOL_VERSION = 1;
 export type SyncStatus =
 	| "idle"
 	| "syncing"
+	| "locked"
 	| "awaiting-first-sync"
 	| "reauth-required"
 	| "protocol-mismatch";
@@ -85,6 +86,33 @@ export class ReauthRequiredError extends Error {}
 export class ProtocolMismatchError extends Error {
 	constructor(public readonly server: ServerInfo) {
 		super("protocol mismatch");
+	}
+}
+
+/**
+ * Thrown by the production `unlock` dep when the failure was transport-level
+ * (SyncNetworkError, or any fetch that never reached the server) rather than a
+ * rejected password. UnlockDialog branches on this to avoid telling an offline
+ * user their password is wrong.
+ */
+export class SyncUnlockOfflineError extends Error {
+	constructor() {
+		super("offline: could not reach the server to unlock");
+		this.name = "SyncUnlockOfflineError";
+	}
+}
+
+/**
+ * Thrown by the production `unlock` dep when the server rejected the session
+ * itself (ReauthRequiredError: the refresh token was revoked or rotated away).
+ * Distinct from both offline and a rejected password — the password is fine and
+ * retyping it can never help, so UnlockDialog must say so and point at
+ * signing in again.
+ */
+export class SyncUnlockReauthError extends Error {
+	constructor() {
+		super("reauth required: the stored session was rejected");
+		this.name = "SyncUnlockReauthError";
 	}
 }
 

@@ -23,6 +23,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { ChangelogList } from "@/components/layout/ChangelogList";
 import { ImportConfirmDialog } from "@/components/layout/ImportConfirmDialog";
+import { SyncPanel } from "@/components/sync/SyncPanel";
+import { productionSyncDeps } from "@/components/sync/sync-panel-deps";
 import { ProjectFilter } from "@/components/tasks/ProjectFilter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -47,11 +49,18 @@ import { cn } from "@/lib/utils";
 import { getRepository } from "@/store/repository";
 import { type NotificationTime, useSettingsStore } from "@/store/settings";
 import { type ShortcutAction, useShortcutsStore } from "@/store/shortcuts";
+import { useUIStore } from "@/store/ui";
 import { useTheme } from "@/theme/ThemeProvider";
 import type { ThemeMode } from "@/theme/types";
+import type { SettingsTab } from "@/types/settings-tab";
 
 interface SettingsDialogProps {
 	readonly children: ReactElement;
+	/** Controlled open state, so the sync status banner can open the dialog
+	 * directly on its own tab. Uncontrolled (trigger-only) when omitted — the
+	 * existing Sidebar usage keeps working unchanged. */
+	readonly open?: boolean;
+	readonly onOpenChange?: (open: boolean) => void;
 }
 
 interface TimeSegmentProps {
@@ -1184,16 +1193,42 @@ function ChangelogPanel() {
 	);
 }
 
-export function SettingsDialog({ children }: SettingsDialogProps) {
+export function SettingsDialog({
+	children,
+	open,
+	onOpenChange,
+}: SettingsDialogProps) {
 	const { t } = useTranslation();
-	const [activeTab, setActiveTab] = useState<
-		"general" | "customization" | "notifications" | "data" | "changelog"
-	>("general");
+	const settingsOpen = useUIStore((s) => s.settingsOpen);
+	const settingsTab = useUIStore((s) => s.settingsTab);
+	const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+	// Raised while the sync panel shows the one-shot recovery key. base-ui
+	// unmounts the portal on close, which would destroy the only copy of it.
+	const [dismissBlocked, setDismissBlocked] = useState(false);
+
+	// Honour the tab whoever opened the dialog asked for. Keyed on settingsOpen
+	// too, so a second banner click after the user wandered off the Sync tab
+	// still lands there.
+	useEffect(() => {
+		if (settingsOpen) setActiveTab(settingsTab);
+	}, [settingsOpen, settingsTab]);
 
 	return (
-		<Dialog>
+		<Dialog
+			open={open}
+			onOpenChange={(next, eventDetails) => {
+				if (!next && dismissBlocked) {
+					eventDetails.cancel();
+					return;
+				}
+				onOpenChange?.(next);
+			}}
+		>
 			<DialogTrigger render={children} />
-			<DialogContent className="flex flex-col h-[min(85vh,52rem)] max-h-[525px] sm:max-w-[min(calc(100%-2rem),48rem)]">
+			<DialogContent
+				showCloseButton={!dismissBlocked}
+				className="flex flex-col h-[min(85vh,52rem)] max-h-[525px] sm:max-w-[min(calc(100%-2rem),48rem)]"
+			>
 				<DialogHeader className="border-b border-border pb-0">
 					<DialogTitle>{t("settings.title")}</DialogTitle>
 					<div className="flex mt-3" role="tablist">
@@ -1202,24 +1237,19 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 								["general", t("settings.tabGeneral")],
 								["customization", t("settings.tabCustomization")],
 								["notifications", t("settings.notifications")],
+								["sync", t("sync.tab")],
 								["data", t("data.title")],
 								["changelog", t("changelog.tab")],
-							] as [
-								(
-									| "general"
-									| "customization"
-									| "notifications"
-									| "data"
-									| "changelog"
-								),
-								string,
-							][]
+							] as [SettingsTab, string][]
 						).map(([id, label]) => (
 							<button
 								key={id}
 								type="button"
 								role="tab"
 								aria-selected={activeTab === id}
+								// Leaving the Sync tab unmounts the panel, which is exactly
+								// what would destroy a recovery key still on screen.
+								disabled={dismissBlocked}
 								onClick={() => setActiveTab(id)}
 								className={cn(
 									"px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors",
@@ -1238,6 +1268,12 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
 					{activeTab === "general" && <GeneralPanel />}
 					{activeTab === "customization" && <CustomizationPanel />}
 					{activeTab === "notifications" && <NotificationsPanel />}
+					{activeTab === "sync" && (
+						<SyncPanel
+							deps={productionSyncDeps()}
+							onDismissBlockedChange={setDismissBlocked}
+						/>
+					)}
 					{activeTab === "data" && <DataPanel />}
 					{activeTab === "changelog" && <ChangelogPanel />}
 				</div>

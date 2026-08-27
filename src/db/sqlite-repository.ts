@@ -239,11 +239,14 @@ export class SqliteRepository implements TodoRepository {
 		now: string,
 		tx: DbDriver = this.db,
 	): Promise<void> {
-		const deviceId = await getOrCreateDeviceId(tx);
-		const prior = await tx.select<{ field_updated_at: string | null }>(
-			`SELECT field_updated_at FROM ${table} WHERE id = ?`,
-			[id],
-		);
+		// Independent: the device id does not depend on the row's prior stamps.
+		const [deviceId, prior] = await Promise.all([
+			getOrCreateDeviceId(tx),
+			tx.select<{ field_updated_at: string | null }>(
+				`SELECT field_updated_at FROM ${table} WHERE id = ?`,
+				[id],
+			),
+		]);
 		await tx.execute(`UPDATE ${table} SET field_updated_at = ? WHERE id = ?`, [
 			stampFields(prior[0]?.field_updated_at ?? null, fields, now, deviceId),
 			id,
@@ -427,9 +430,12 @@ export class SqliteRepository implements TodoRepository {
 			// The cascade blanks deleted_at on every tag under this project — each
 			// one needs its own stamp, or the cascaded delete comes straight back
 			// the moment another device pushes its own stale copy of that tag.
-			for (const tag of tags) {
-				await this._stamp("tags", tag.id, ["deleted_at"], now, tx);
-			}
+			// Concurrent is safe: the ids are distinct so no two stamps touch the
+			// same row, and the single connection serialises them inside the open
+			// transaction either way.
+			await Promise.all(
+				tags.map((tag) => this._stamp("tags", tag.id, ["deleted_at"], now, tx)),
+			);
 			await tx.execute(
 				"UPDATE projects SET deleted_at = ?, updated_at = ? WHERE id = ?",
 				[now, now, id],
@@ -538,9 +544,12 @@ export class SqliteRepository implements TodoRepository {
 				[now, id],
 			);
 			await this._stamp("project_groups", id, ["purged_at", "name"], now, tx);
-			for (const project of detached) {
-				await this._stamp("projects", project.id, ["group_id"], now, tx);
-			}
+			// Distinct ids, so these do not contend; see deleteProject.
+			await Promise.all(
+				detached.map((project) =>
+					this._stamp("projects", project.id, ["group_id"], now, tx),
+				),
+			);
 		});
 	}
 
@@ -1338,13 +1347,15 @@ export class SqliteRepository implements TodoRepository {
 				[now, now, now, ...ids],
 			);
 		}
-		for (const row of rows) {
-			const fields =
-				table === "tasks"
-					? ["purged_at", "deleted_at", "title", "description"]
-					: ["purged_at", "deleted_at", "name"];
-			await this._stamp(table, row.id, fields, now, tx);
-		}
+		// Loop-invariant: the field list depends on the table, not the row.
+		const fields =
+			table === "tasks"
+				? ["purged_at", "deleted_at", "title", "description"]
+				: ["purged_at", "deleted_at", "name"];
+		// Distinct ids, so these do not contend; see deleteProject.
+		await Promise.all(
+			rows.map((row) => this._stamp(table, row.id, fields, now, tx)),
+		);
 	}
 
 	private async _attachTags(taskRows: TaskRow[]): Promise<Task[]> {
