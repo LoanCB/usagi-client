@@ -1,0 +1,146 @@
+# Design spec — Thèmes sombres : Rose Noir & Cosmic Gold
+
+**Date :** 2026-05-19
+**Statut :** approuvé
+
+---
+
+## Contexte
+
+Le projet dispose déjà de quatre thèmes sombres : `dark` (neutre), `contrast` (noir/blanc pur), `dracula` (violet), `ember` (orange feu), `deep-ocean` (teal/cyan). Ce spec couvre l'ajout de deux nouveaux thèmes sombres qui complètent la palette existante.
+
+---
+
+## Thème 1 — `rose-noir` (Cyberpunk / Néon)
+
+**Ambiance :** fond quasi-noir avec teinte magenta subtile, accent rose-magenta néon fluorescent, glassmorphisme aux reflets rose-pink.
+
+### Tokens OKLCH
+
+| Token                          | Valeur                                                                               |
+| ------------------------------ | ------------------------------------------------------------------------------------ |
+| `--background`                 | `oklch(0.07 0.025 345)`                                                              |
+| `--foreground`                 | `oklch(0.97 0.01 345)`                                                               |
+| `--card`                       | `oklch(1 0 0 / 5%)`                                                                  |
+| `--card-foreground`            | `oklch(0.97 0.01 345)`                                                               |
+| `--popover`                    | `oklch(0.13 0.035 345)`                                                              |
+| `--popover-foreground`         | `oklch(0.97 0.01 345)`                                                               |
+| `--primary`                    | `oklch(0.68 0.30 340)`                                                               |
+| `--primary-foreground`         | `oklch(0.07 0.025 345)`                                                              |
+| `--secondary`                  | `oklch(0.17 0.04 340)`                                                               |
+| `--secondary-foreground`       | `oklch(0.97 0.01 345)`                                                               |
+| `--muted`                      | `oklch(0.17 0.04 340)`                                                               |
+| `--muted-foreground`           | `oklch(0.56 0.07 340)`                                                               |
+| `--accent`                     | `oklch(0.68 0.30 340 / 18%)`                                                         |
+| `--accent-foreground`          | `oklch(0.97 0.01 345)`                                                               |
+| `--border`                     | `oklch(1 0 0 / 10%)`                                                                 |
+| `--input`                      | `oklch(1 0 0 / 12%)`                                                                 |
+| `--ring`                       | `oklch(0.68 0.30 340)`                                                               |
+| `--destructive`                | `oklch(0.665 0.213 26)`                                                              |
+| `--chart-1`                    | `oklch(0.68 0.30 340)`                                                               |
+| `--chart-2`                    | `oklch(0.72 0.25 300)`                                                               |
+| `--chart-3`                    | `oklch(0.74 0.22 195)`                                                               |
+| `--chart-4`                    | `oklch(0.65 0.28 15)`                                                                |
+| `--chart-5`                    | `oklch(0.75 0.18 260)`                                                               |
+| `--sidebar`                    | `oklch(0 0 0 / 32%)`                                                                 |
+| `--sidebar-foreground`         | `oklch(0.97 0.01 345)`                                                               |
+| `--sidebar-primary`            | `oklch(0.68 0.30 340)`                                                               |
+| `--sidebar-primary-foreground` | `oklch(0.97 0.01 345)`                                                               |
+| `--sidebar-accent`             | `oklch(0.68 0.30 340 / 15%)`                                                         |
+| `--sidebar-accent-foreground`  | `oklch(0.97 0.01 345)`                                                               |
+| `--sidebar-border`             | `oklch(1 0 0 / 8%)`                                                                  |
+| `--sidebar-ring`               | `oklch(0.68 0.30 340)`                                                               |
+| `--radius`                     | `0.625rem`                                                                           |
+| `--priority-high`              | `oklch(0.665 0.245 15)`                                                              |
+| `--priority-medium`            | `oklch(0.68 0.30 340)`                                                               |
+| `--priority-low`               | `oklch(0.72 0.18 285)`                                                               |
+| `--app-gradient`               | `radial-gradient(ellipse 80% 60% at 20% 20%, #1a0018 0%, #0d0009 45%, #060005 100%)` |
+| `--orb-1-color`                | `rgba(255, 20, 147, 0.40)`                                                           |
+| `--orb-2-color`                | `rgba(200, 0, 200, 0.20)`                                                            |
+| `--orb-3-color`                | `rgba(0, 0, 0, 0.30)`                                                                |
+| `--vignette-end-color`         | `rgba(0, 0, 0, 0.55)`                                                                |
+| `--glass-border-color`         | `rgba(255, 61, 168, 0.14)`                                                           |
+| `--glass-border-hover-color`   | `rgba(255, 61, 168, 0.28)`                                                           |
+
+---
+
+## Thème 2 — `cosmic-gold` (Luxueux / Royal)
+
+**Ambiance :** fond quasi-noir chaud avec teinte ambrée subtile, accent or riche et mat, glassmorphisme doré, palette automnale pour les charts.
+
+### Tokens OKLCH
+
+| Token                          | Valeur                                                                               |
+| ------------------------------ | ------------------------------------------------------------------------------------ |
+| `--background`                 | `oklch(0.08 0.018 65)`                                                               |
+| `--foreground`                 | `oklch(0.97 0.015 80)`                                                               |
+| `--card`                       | `oklch(1 0 0 / 5%)`                                                                  |
+| `--card-foreground`            | `oklch(0.97 0.015 80)`                                                               |
+| `--popover`                    | `oklch(0.13 0.025 65)`                                                               |
+| `--popover-foreground`         | `oklch(0.97 0.015 80)`                                                               |
+| `--primary`                    | `oklch(0.72 0.16 72)`                                                                |
+| `--primary-foreground`         | `oklch(0.08 0.018 65)`                                                               |
+| `--secondary`                  | `oklch(0.17 0.03 65)`                                                                |
+| `--secondary-foreground`       | `oklch(0.97 0.015 80)`                                                               |
+| `--muted`                      | `oklch(0.17 0.03 65)`                                                                |
+| `--muted-foreground`           | `oklch(0.56 0.05 70)`                                                                |
+| `--accent`                     | `oklch(0.72 0.16 72 / 15%)`                                                          |
+| `--accent-foreground`          | `oklch(0.97 0.015 80)`                                                               |
+| `--border`                     | `oklch(1 0 0 / 10%)`                                                                 |
+| `--input`                      | `oklch(1 0 0 / 12%)`                                                                 |
+| `--ring`                       | `oklch(0.72 0.16 72)`                                                                |
+| `--destructive`                | `oklch(0.665 0.213 26)`                                                              |
+| `--chart-1`                    | `oklch(0.72 0.16 72)`                                                                |
+| `--chart-2`                    | `oklch(0.65 0.19 40)`                                                                |
+| `--chart-3`                    | `oklch(0.78 0.14 90)`                                                                |
+| `--chart-4`                    | `oklch(0.60 0.15 55)`                                                                |
+| `--chart-5`                    | `oklch(0.55 0.12 30)`                                                                |
+| `--sidebar`                    | `oklch(0 0 0 / 28%)`                                                                 |
+| `--sidebar-foreground`         | `oklch(0.97 0.015 80)`                                                               |
+| `--sidebar-primary`            | `oklch(0.72 0.16 72)`                                                                |
+| `--sidebar-primary-foreground` | `oklch(0.97 0.015 80)`                                                               |
+| `--sidebar-accent`             | `oklch(0.72 0.16 72 / 12%)`                                                          |
+| `--sidebar-accent-foreground`  | `oklch(0.97 0.015 80)`                                                               |
+| `--sidebar-border`             | `oklch(1 0 0 / 8%)`                                                                  |
+| `--sidebar-ring`               | `oklch(0.72 0.16 72)`                                                                |
+| `--radius`                     | `0.625rem`                                                                           |
+| `--priority-high`              | `oklch(0.665 0.213 26)`                                                              |
+| `--priority-medium`            | `oklch(0.72 0.16 72)`                                                                |
+| `--priority-low`               | `oklch(0.65 0.15 145)`                                                               |
+| `--app-gradient`               | `radial-gradient(ellipse 80% 60% at 20% 20%, #1a1200 0%, #100b00 45%, #060400 100%)` |
+| `--orb-1-color`                | `rgba(212, 160, 23, 0.38)`                                                           |
+| `--orb-2-color`                | `rgba(180, 130, 10, 0.18)`                                                           |
+| `--orb-3-color`                | `rgba(0, 0, 0, 0.30)`                                                                |
+| `--vignette-end-color`         | `rgba(0, 0, 0, 0.50)`                                                                |
+| `--glass-border-color`         | `rgba(212, 160, 23, 0.14)`                                                           |
+| `--glass-border-hover-color`   | `rgba(212, 160, 23, 0.28)`                                                           |
+
+---
+
+## Fichiers à modifier
+
+### Créer
+
+- `src/theme/themes/roseNoir.ts` — définition du thème `rose-noir`
+- `src/theme/themes/cosmicGold.ts` — définition du thème `cosmic-gold`
+
+### Mettre à jour
+
+**`src/theme/ThemeProvider.tsx`**
+
+- Importer `roseNoirTheme` et `cosmicGoldTheme`
+- Ajouter `"rose-noir"` et `"cosmic-gold"` dans `isDarkTheme()`
+- Ajouter les deux cas dans `resolveTheme()`
+
+**`src/components/layout/SettingsDialog.tsx`**
+
+- Étendre `CustomThemeLabelKey` avec `"theme.roseNoir"` et `"theme.cosmicGold"`
+- Ajouter les deux entrées dans `CUSTOM_THEMES` avec leurs couleurs primaires
+
+**`src/i18n/locales/fr.ts`**
+
+- Ajouter `roseNoir: "Rose Noir"` et `cosmicGold: "Or cosmique"` sous la clé `theme`
+
+**`src/i18n/locales/en.ts`**
+
+- Ajouter `roseNoir: "Rose Noir"` et `cosmicGold: "Cosmic Gold"` sous la clé `theme`
