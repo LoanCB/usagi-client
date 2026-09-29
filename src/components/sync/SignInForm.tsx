@@ -6,9 +6,15 @@ import { Input } from "@/components/ui/input";
 export interface SignInFormProps {
 	onSubmit: (input: { email: string; password: string }) => Promise<void>;
 	onSwitchToRegister?: () => void;
+	/** The vault has its own password, which connecting will replace (§4). */
+	replacesLocalPassword?: boolean;
 }
 
-export function SignInForm({ onSubmit, onSwitchToRegister }: SignInFormProps) {
+export function SignInForm({
+	onSubmit,
+	onSwitchToRegister,
+	replacesLocalPassword = false,
+}: SignInFormProps) {
 	const { t } = useTranslation();
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
@@ -67,6 +73,12 @@ export function SignInForm({ onSubmit, onSwitchToRegister }: SignInFormProps) {
 					}}
 				/>
 			</div>
+
+			{replacesLocalPassword && (
+				<p className="text-xs text-muted-foreground">
+					{t("sync.localPasswordReplaced")}
+				</p>
+			)}
 
 			{failed && (
 				<p className="text-xs text-destructive">{t("sync.signInFailed")}</p>

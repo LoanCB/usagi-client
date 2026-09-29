@@ -8,6 +8,16 @@ export type SyncEntityType = "task" | "project" | "tag" | "project_group";
  * local edit replaces that stamp and thereby invalidates the parked value.
  */
 export type PendingRefs = Record<string, { id: string; f: FieldStamp | null }>;
+/** §6.4: which side survives the first sync of a device that already has data. */
+export type FirstSyncChoice = "merge" | "remote" | "local";
+
+/** A live server record, decrypted but never applied (the account backup). */
+export interface RemoteRecord {
+	entityType: SyncEntityType;
+	id: string;
+	payload: SyncPayload;
+}
+
 export const ENTITY_TABLE = {
 	task: "tasks",
 	project: "projects",

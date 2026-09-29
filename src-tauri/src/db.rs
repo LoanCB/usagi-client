@@ -1,4 +1,5 @@
-//! Registers the app's SQLite pool with tauri-plugin-sql.
+//! Registers the app's SQLite pool with tauri-plugin-sql, after the vault
+//! commands (`vault::commands`) have unlocked the key.
 //!
 //! The plugin's own `load` command builds the pool with sqlx defaults, which
 //! means up to 10 connections. That is incompatible with how the JS side
@@ -16,13 +17,10 @@
 //! transaction contiguous on the wire, the lock keeps anyone else's statements
 //! from slipping between them.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
-use tauri::{
-    plugin::{Builder as PluginBuilder, TauriPlugin},
-    AppHandle, Manager, Runtime,
-};
+use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_sql::{DbInstances, DbPool};
 
 /// The connection string the frontend passes to `Database.get`, and the key
@@ -32,11 +30,21 @@ pub const DB_URL: &str = "sqlite:usagi.db";
 /// The file name inside the app config dir, as `path_mapper` in
 /// tauri-plugin-sql derives it from [`DB_URL`]. Kept identical so the pool
 /// opens the database users already have rather than a fresh one beside it.
-const DB_FILE: &str = "usagi.db";
+pub const DB_FILE: &str = "usagi.db";
 
-pub async fn build_pool(path: &Path) -> Result<SqlitePool, sqlx::Error> {
+/// SQLCipher raw-key syntax: the 64 hex chars are used as the key itself, so
+/// SQLCipher skips its own PBKDF2 — Argon2id already stretched the password
+/// that protects this key (src-tauri/src/vault/keys.rs).
+pub fn key_pragma(ldk: &[u8; 32]) -> String {
+    format!("\"x'{}'\"", hex::encode(ldk))
+}
+
+pub async fn build_pool(path: &Path, ldk: &[u8; 32]) -> Result<SqlitePool, sqlx::Error> {
+    // sqlx runs `key` before any other pragma (it reserves the slot in
+    // SqliteConnectOptions::new); SQLCipher refuses every statement until then.
     let options = SqliteConnectOptions::new()
         .filename(path)
+        .pragma("key", key_pragma(ldk))
         .create_if_missing(true);
 
     SqlitePoolOptions::new()
@@ -52,24 +60,21 @@ pub async fn build_pool(path: &Path) -> Result<SqlitePool, sqlx::Error> {
         .await
 }
 
-/// Register the pool as a plugin, not through `Builder::setup`: plugins are
-/// initialized while the app is being built, whereas the setup hook runs after
-/// the window exists — and a window that exists can already be querying.
+/// Open the pool and hand it to tauri-plugin-sql under [`DB_URL`], so the
+/// frontend reaches it with `Database.get` instead of `Database.load` (which
+/// would build a default, multi-connection pool and overwrite this one).
 ///
-/// Must be registered AFTER `tauri_plugin_sql`, which is what creates the
-/// `DbInstances` map this writes into.
-pub fn init<R: Runtime>() -> TauriPlugin<R> {
-    PluginBuilder::new("usagi-db")
-        .setup(|app, _api| register(app))
-        .build()
-}
-
-/// Open the pool and hand it to the plugin under [`DB_URL`], so the frontend
-/// reaches it with `Database.get` instead of `Database.load` (which would
-/// build a default, multi-connection pool and overwrite this one).
-fn register<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
-    let path = database_path(app)?;
-    let pool = tauri::async_runtime::block_on(build_pool(&path))?;
+/// Called by the vault commands once the key is known, never at startup: until
+/// then there is nothing the pool could decrypt. Blocks, so it must run on a
+/// blocking thread (`spawn_blocking`), not inside an async command.
+pub fn open_and_register<R: Runtime>(
+    app: &AppHandle<R>,
+    dir: &Path,
+    ldk: &[u8; 32],
+) -> Result<(), crate::vault::VaultError> {
+    let path = dir.join(DB_FILE);
+    let pool = tauri::async_runtime::block_on(build_pool(&path, ldk))
+        .map_err(|e| crate::vault::VaultError::Io(e.to_string()))?;
     let instances = app.state::<DbInstances>();
     tauri::async_runtime::block_on(async {
         instances
@@ -79,13 +84,6 @@ fn register<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Er
             .insert(DB_URL.to_string(), DbPool::Sqlite(pool));
     });
     Ok(())
-}
-
-fn database_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let mut dir = app.path().app_config_dir()?;
-    std::fs::create_dir_all(&dir)?;
-    dir.push(DB_FILE);
-    Ok(dir)
 }
 
 #[cfg(test)]
@@ -150,7 +148,9 @@ mod tests {
     #[tokio::test]
     async fn the_app_pool_serves_one_connection() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let pool = build_pool(&dir.path().join("one.db")).await.expect("pool");
+        let pool = build_pool(&dir.path().join("one.db"), &KEY)
+            .await
+            .expect("pool");
         let held = pool.acquire().await.expect("first conn");
         assert!(
             pool.try_acquire().is_none(),
@@ -164,7 +164,7 @@ mod tests {
     #[tokio::test]
     async fn a_rollback_undoes_every_statement_of_the_transaction() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let pool = build_pool(&dir.path().join("rollback.db"))
+        let pool = build_pool(&dir.path().join("rollback.db"), &KEY)
             .await
             .expect("pool");
         sqlx::query("CREATE TABLE t (id TEXT PRIMARY KEY)")
@@ -190,7 +190,7 @@ mod tests {
     #[tokio::test]
     async fn a_commit_keeps_every_statement_of_the_transaction() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let pool = build_pool(&dir.path().join("commit.db"))
+        let pool = build_pool(&dir.path().join("commit.db"), &KEY)
             .await
             .expect("pool");
         sqlx::query("CREATE TABLE t (id TEXT PRIMARY KEY)")
@@ -210,5 +210,86 @@ mod tests {
         sqlx::query("COMMIT").execute(&pool).await.expect("commit");
 
         assert_eq!(scalar_count(&pool).await, 2);
+    }
+
+    const KEY: [u8; 32] = [7u8; 32];
+
+    #[tokio::test]
+    async fn sqlcipher_is_the_linked_sqlite() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let pool = build_pool(&dir.path().join("k.db"), &KEY)
+            .await
+            .expect("pool");
+        let version: String = sqlx::query_scalar("PRAGMA cipher_version")
+            .fetch_one(&pool)
+            .await
+            .expect("stock SQLite has no cipher_version pragma");
+        assert!(!version.is_empty());
+    }
+
+    #[tokio::test]
+    async fn the_file_on_disk_is_not_plain_sqlite() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("k.db");
+        let pool = build_pool(&path, &KEY).await.expect("pool");
+        sqlx::query("CREATE TABLE t (id TEXT PRIMARY KEY)")
+            .execute(&pool)
+            .await
+            .expect("create");
+        sqlx::query("INSERT INTO t (id) VALUES ('secret-title')")
+            .execute(&pool)
+            .await
+            .expect("insert");
+        pool.close().await;
+
+        let bytes = std::fs::read(&path).expect("read");
+        assert_ne!(&bytes[..16], b"SQLite format 3\0");
+        assert!(!bytes.windows(12).any(|w| w == b"secret-title"));
+    }
+
+    #[tokio::test]
+    async fn a_wrong_key_cannot_read_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("k.db");
+        let pool = build_pool(&path, &KEY).await.expect("pool");
+        sqlx::query("CREATE TABLE t (id TEXT PRIMARY KEY)")
+            .execute(&pool)
+            .await
+            .expect("create");
+        pool.close().await;
+
+        // Depending on the pragmas sqlx runs at connect, the failure surfaces
+        // either while connecting or on the first read; both are a refusal.
+        let refused = match build_pool(&path, &[8u8; 32]).await {
+            Err(_) => true,
+            Ok(other) => sqlx::query("SELECT COUNT(*) FROM t")
+                .fetch_one(&other)
+                .await
+                .is_err(),
+        };
+        assert!(refused);
+    }
+
+    #[tokio::test]
+    async fn the_right_key_reopens_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("k.db");
+        let pool = build_pool(&path, &KEY).await.expect("pool");
+        sqlx::query("CREATE TABLE t (id TEXT PRIMARY KEY)")
+            .execute(&pool)
+            .await
+            .expect("create");
+        sqlx::query("INSERT INTO t (id) VALUES ('a')")
+            .execute(&pool)
+            .await
+            .expect("insert");
+        pool.close().await;
+
+        let again = build_pool(&path, &KEY).await.expect("reopen");
+        let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM t")
+            .fetch_one(&again)
+            .await
+            .expect("count");
+        assert_eq!(n, 1);
     }
 }

@@ -29,6 +29,10 @@ serde_json = "1"
 # The pool built in `db.rs` is handed to tauri-plugin-sql, so both must resolve
 # to the same `sqlx` crate rather than two copies of it.
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+# Swaps the SQLite that sqlx (and so tauri-plugin-sql) links for SQLCipher:
+# cargo unifies features, so every crate in the tree gets the encrypted build.
+# The version must stay on the one sqlx 0.8 resolves (see Cargo.lock).
+libsqlite3-sys = { version = "0.30", features = ["bundled-sqlcipher-vendored-openssl"] }
 # Verified by compilation, not from memory: argon2 has no stable 0.6 (release
 # candidates only), and x25519-dalek 3.0 gates StaticSecret behind a feature.
 # `zeroize` is explicit because neither crate enables it by default: argon2 then
@@ -46,6 +50,12 @@ zeroize = { version = "1.9.0", features = ["derive"] }
 getrandom = "0.4.3"
 base64 = "0.22"
 hex = "0.4"
+# The "no password" mode keeps the database key in the OS credential store
+# (Keychain / Credential Manager / Secret Service), never in a file.
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+
+# Serialises the vault commands (see vault/commands.rs).
+tokio = { version = "1", features = ["sync"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RecoveryPhraseStep } from "./RecoveryPhraseStep";
+import { registerErrorMessage } from "./register-error";
 
 export interface RegisterFormProps {
 	/** Resolves with the 24-word recovery phrase returned by register(). */
@@ -17,6 +18,11 @@ export interface RegisterFormProps {
 	 * any dismissal that would unmount this form. */
 	onRecoveryPhraseVisible?: (visible: boolean) => void;
 	onSwitchToSignIn?: () => void;
+	/** The server has open registration off: an invite token is then the only
+	 * way to create an account, so the form refuses to submit without one. */
+	inviteRequired?: boolean;
+	/** The vault has its own password, which connecting will replace (§4). */
+	replacesLocalPassword?: boolean;
 	random?: () => number;
 }
 
@@ -25,6 +31,8 @@ export function RegisterForm({
 	onComplete,
 	onRecoveryPhraseVisible,
 	onSwitchToSignIn,
+	inviteRequired = false,
+	replacesLocalPassword = false,
 	random,
 }: RegisterFormProps) {
 	const { t } = useTranslation();
@@ -32,18 +40,22 @@ export function RegisterForm({
 	const [password, setPassword] = useState("");
 	const [inviteToken, setInviteToken] = useState("");
 	const [busy, setBusy] = useState(false);
-	const [failed, setFailed] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 	// Real key material: it lives here only between registering and confirming,
 	// and is dropped the moment the user confirms. Never persisted, never logged.
 	const [phrase, setPhrase] = useState<string | null>(null);
 
-	const ready = email.trim() !== "" && password !== "" && !busy;
+	const ready =
+		email.trim() !== "" &&
+		password !== "" &&
+		(!inviteRequired || inviteToken.trim() !== "") &&
+		!busy;
 
 	async function handleSubmit(e: { preventDefault(): void }) {
 		e.preventDefault();
 		if (!ready) return;
 		setBusy(true);
-		setFailed(false);
+		setError(null);
 		try {
 			const recoveryPhrase = await onSubmit({
 				email: email.trim(),
@@ -52,8 +64,8 @@ export function RegisterForm({
 			});
 			setPhrase(recoveryPhrase);
 			onRecoveryPhraseVisible?.(true);
-		} catch {
-			setFailed(true);
+		} catch (err) {
+			setError(registerErrorMessage(t, err, inviteToken.trim() !== ""));
 		} finally {
 			setBusy(false);
 		}
@@ -88,7 +100,7 @@ export function RegisterForm({
 					onChange={(e) => {
 						setEmail(e.target.value);
 						// The error describes credentials that were submitted, not ones being edited.
-						setFailed(false);
+						setError(null);
 					}}
 				/>
 			</div>
@@ -103,7 +115,7 @@ export function RegisterForm({
 					value={password}
 					onChange={(e) => {
 						setPassword(e.target.value);
-						setFailed(false);
+						setError(null);
 					}}
 				/>
 				<p className="text-xs text-muted-foreground">
@@ -120,17 +132,25 @@ export function RegisterForm({
 					value={inviteToken}
 					onChange={(e) => {
 						setInviteToken(e.target.value);
-						setFailed(false);
+						setError(null);
 					}}
 				/>
 				<p className="text-xs text-muted-foreground">
-					{t("sync.inviteTokenHint")}
+					{t(
+						inviteRequired
+							? "sync.inviteTokenRequiredHint"
+							: "sync.inviteTokenHint",
+					)}
 				</p>
 			</div>
 
-			{failed && (
-				<p className="text-xs text-destructive">{t("sync.registerFailed")}</p>
+			{replacesLocalPassword && (
+				<p className="text-xs text-muted-foreground">
+					{t("sync.localPasswordReplaced")}
+				</p>
 			)}
+
+			{error && <p className="text-xs text-destructive">{error}</p>}
 
 			<div className="flex items-center justify-between gap-2">
 				{onSwitchToSignIn ? (

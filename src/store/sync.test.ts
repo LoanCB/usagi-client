@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { DbDriver } from "@/db/driver";
 import type { SyncEngine } from "@/sync/engine";
 import type { SyncStatus } from "@/sync/types";
 import { useSyncStore } from "./sync";
@@ -23,6 +24,21 @@ function fakeEngine(initial: SyncStatus = "idle") {
 	};
 }
 
+/** A sync_state holding only last_sync_at, which the test can move forward. */
+function fakeDb(initial: string | null = null) {
+	let lastSyncAt = initial;
+	return {
+		db: {
+			select: vi.fn(async () => (lastSyncAt ? [{ value: lastSyncAt }] : [])),
+		} as unknown as DbDriver,
+		setLastSyncAt(value: string) {
+			lastSyncAt = value;
+		},
+	};
+}
+
+const { db } = fakeDb();
+
 describe("useSyncStore", () => {
 	beforeEach(() => {
 		useSyncStore.getState().detach();
@@ -34,13 +50,13 @@ describe("useSyncStore", () => {
 
 	it("adopte le statut courant du moteur dès l'attachement", () => {
 		const { engine } = fakeEngine("locked");
-		useSyncStore.getState().attach(engine);
+		useSyncStore.getState().attach(engine, db);
 		expect(useSyncStore.getState().status).toBe("locked");
 	});
 
 	it("suit les transitions émises par le moteur", () => {
 		const { engine, emit } = fakeEngine("idle");
-		useSyncStore.getState().attach(engine);
+		useSyncStore.getState().attach(engine, db);
 		emit("syncing");
 		expect(useSyncStore.getState().status).toBe("syncing");
 		emit("reauth-required");
@@ -49,7 +65,7 @@ describe("useSyncStore", () => {
 
 	it("se désabonne à detach et repasse à null", () => {
 		const { engine, emit, listenerCount } = fakeEngine("idle");
-		useSyncStore.getState().attach(engine);
+		useSyncStore.getState().attach(engine, db);
 		useSyncStore.getState().detach();
 		expect(listenerCount()).toBe(0);
 		expect(useSyncStore.getState().status).toBeNull();
@@ -60,15 +76,15 @@ describe("useSyncStore", () => {
 	it("ne laisse pas fuir l'abonnement au moteur précédent", () => {
 		const first = fakeEngine("idle");
 		const second = fakeEngine("idle");
-		useSyncStore.getState().attach(first.engine);
-		useSyncStore.getState().attach(second.engine);
+		useSyncStore.getState().attach(first.engine, db);
+		useSyncStore.getState().attach(second.engine, db);
 		expect(first.listenerCount()).toBe(0);
 		first.emit("protocol-mismatch");
 		expect(useSyncStore.getState().status).toBe("idle");
 	});
 	it("signale un cycle terminé pour que les vues se rechargent", async () => {
 		const { engine, emit } = fakeEngine("idle");
-		useSyncStore.getState().attach(engine);
+		useSyncStore.getState().attach(engine, db);
 		const before = useSyncStore.getState().revision;
 
 		// Un cycle complet : le moteur a écrit dans SQLite sans passer par le
@@ -80,7 +96,7 @@ describe("useSyncStore", () => {
 
 	it("ne signale rien quand le cycle s'arrête avant d'appliquer", () => {
 		const { engine, emit } = fakeEngine("idle");
-		useSyncStore.getState().attach(engine);
+		useSyncStore.getState().attach(engine, db);
 		const before = useSyncStore.getState().revision;
 
 		// Coffre verrouillé, session expirée, protocole incompatible : le cycle
@@ -98,7 +114,7 @@ describe("useSyncStore", () => {
 
 	it("garde un compteur monotone à travers detach", () => {
 		const { engine, emit } = fakeEngine("idle");
-		useSyncStore.getState().attach(engine);
+		useSyncStore.getState().attach(engine, db);
 		emit("syncing");
 		emit("idle");
 		const afterCycle = useSyncStore.getState().revision;
@@ -108,5 +124,47 @@ describe("useSyncStore", () => {
 		// ferait recharger les vues pour rien à la reconnexion suivante.
 		useSyncStore.getState().detach();
 		expect(useSyncStore.getState().revision).toBe(afterCycle);
+	});
+
+	it("lit la dernière synchronisation dès l'attachement", async () => {
+		const { engine } = fakeEngine("idle");
+		const store = fakeDb("2026-09-28T10:00:00.000Z");
+		useSyncStore.getState().attach(engine, store.db);
+		await vi.waitFor(() =>
+			expect(useSyncStore.getState().lastSyncAt).toBe(
+				"2026-09-28T10:00:00.000Z",
+			),
+		);
+	});
+
+	it("relit la dernière synchronisation à la fin de chaque cycle", async () => {
+		const { engine, emit } = fakeEngine("idle");
+		const store = fakeDb();
+		useSyncStore.getState().attach(engine, store.db);
+
+		// Un cycle lancé par le moteur lui-même (première sync après « fusionner »,
+		// minuterie) : personne d'autre ne relira last_sync_at pour l'UI.
+		emit("syncing");
+		store.setLastSyncAt("2026-09-28T11:00:00.000Z");
+		emit("idle");
+		await vi.waitFor(() =>
+			expect(useSyncStore.getState().lastSyncAt).toBe(
+				"2026-09-28T11:00:00.000Z",
+			),
+		);
+	});
+
+	it("ignore une lecture qui revient après detach", async () => {
+		const { engine } = fakeEngine("idle");
+		let resolve: (rows: { value: string }[]) => void = () => {};
+		const slowDb = {
+			select: () => new Promise((r) => (resolve = r)),
+		} as unknown as DbDriver;
+		useSyncStore.getState().attach(engine, slowDb);
+		useSyncStore.getState().detach();
+		resolve([{ value: "2026-09-28T12:00:00.000Z" }]);
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(useSyncStore.getState().lastSyncAt).toBeNull();
 	});
 });

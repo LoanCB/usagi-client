@@ -11,7 +11,7 @@ use super::recovery::{generate_recovery_phrase, recovery_kek_from_phrase};
 use super::wrap::{open, seal, AAD_DEK, AAD_DEK_RECOVERY, AAD_PRIVATE_KEY};
 use super::CryptoError;
 
-#[derive(Serialize, Clone, Copy, Debug)]
+#[derive(Serialize, serde::Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct KdfParams {
     pub memory_cost: u32,

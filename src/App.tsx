@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChangelogDialog } from "@/components/layout/ChangelogDialog";
 import { UpdateBanner } from "@/components/layout/UpdateBanner";
+import { VaultGate } from "@/components/vault/VaultGate";
 import { adaptDatabase, createRepository } from "@/db";
 import { backfillSortKeys } from "@/db/backfill-sort-keys";
 import { ALL_MIGRATIONS } from "@/db/migrations";
@@ -22,8 +23,10 @@ import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import type { FetchLike } from "@/sync/http";
 import { setSyncContext, startSync } from "@/sync/runtime";
+import { getSyncState } from "@/sync/state";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import type { ChangelogVersion } from "@/types/changelog";
+import { unlockSync } from "@/vault";
 
 export function AppContent() {
 	const loadTasks = useTaskStore((s) => s.loadTasks);
@@ -101,7 +104,7 @@ export function AppContent() {
 	);
 }
 
-export default function App() {
+function AppBoot() {
 	const { t } = useTranslation();
 	const [ready, setReady] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -133,13 +136,24 @@ export default function App() {
 					repository,
 					fetchImpl: httpFetch as FetchLike,
 				});
+				// The sync vault opens from the DEK sealed in this (now decrypted)
+				// database: no server round trip, no second password prompt.
+				const [localDek, userId] = await Promise.all([
+					getSyncState(driver, "local_dek"),
+					getSyncState(driver, "user_id"),
+				]);
+				if (localDek && userId) {
+					await unlockSync(localDek, userId).catch(() => {
+						// A stale blob leaves sync on "locked", where the existing
+						// unlock dialog still works; the app itself stays usable.
+					});
+				}
 				// Sync stays entirely inert without a configured server (§6.1):
 				// startSync defers to initSync, which returns null without
 				// server_url — no engine, no request, no timer.
 				const syncRuntime = await startSync();
 				if (syncRuntime) {
-					useSyncStore.getState().attach(syncRuntime.engine);
-					await useSyncStore.getState().refreshLastSync(driver);
+					useSyncStore.getState().attach(syncRuntime.engine, driver);
 				}
 				setReady(true);
 			} catch (err) {
@@ -165,9 +179,15 @@ export default function App() {
 		);
 	}
 
+	return <AppContent />;
+}
+
+export default function App() {
 	return (
 		<ThemeProvider>
-			<AppContent />
+			<VaultGate>
+				<AppBoot />
+			</VaultGate>
 		</ThemeProvider>
 	);
 }

@@ -27,6 +27,12 @@ const deps: SyncPanelDeps = {
 	syncNow: vi.fn(async () => {}),
 	listDevices: vi.fn(async () => []),
 	revokeDevice: vi.fn(async () => {}),
+	vaultStatus: vi.fn(async () => ({
+		state: "keychain" as const,
+		migrating: false,
+		syncBound: false,
+		brokenReason: null,
+	})),
 };
 
 // The panel itself is exercised by SyncPanel.test.tsx; here only the host's

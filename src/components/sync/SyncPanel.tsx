@@ -4,6 +4,7 @@ import { useSyncStore } from "@/store/sync";
 import type { SyncDevice } from "@/sync/devices-types";
 import { SyncNetworkError } from "@/sync/http";
 import { type ServerInfo, SyncUnlockOfflineError } from "@/sync/types";
+import type { VaultStatus } from "@/vault/types";
 import { ConnectedPanel } from "./ConnectedPanel";
 import { RegisterForm } from "./RegisterForm";
 import { ServerUrlForm } from "./ServerUrlForm";
@@ -36,6 +37,7 @@ export interface SyncPanelDeps {
 	syncNow: () => Promise<void>;
 	listDevices: () => Promise<SyncDevice[]>;
 	revokeDevice: (id: string) => Promise<void>;
+	vaultStatus: () => Promise<VaultStatus>;
 }
 
 type Screen =
@@ -64,6 +66,25 @@ export function SyncPanel({
 	const [screen, setScreen] = useState<Screen>({ kind: "loading" });
 	const [unlocking, setUnlocking] = useState(false);
 	const [reauthing, setReauthing] = useState(false);
+	const [replacesLocalPassword, setReplacesLocalPassword] = useState(false);
+
+	const vaultStatus = deps.vaultStatus;
+	useEffect(() => {
+		let cancelled = false;
+		vaultStatus().then(
+			(status) => {
+				if (!cancelled)
+					setReplacesLocalPassword(
+						status.state === "password" && !status.syncBound,
+					);
+			},
+			// No status means no notice: it is advice, not a guard.
+			() => {},
+		);
+		return () => {
+			cancelled = true;
+		};
+	}, [vaultStatus]);
 
 	const loadSession = deps.loadSession;
 	useEffect(() => {
@@ -167,6 +188,7 @@ export function SyncPanel({
 					{screen.mode === "sign-in" ? (
 						<>
 							<SignInForm
+								replacesLocalPassword={replacesLocalPassword}
 								onSubmit={async ({ email, password }) => {
 									await deps.signIn({ serverUrl: screen.url, email, password });
 									setScreen({
@@ -174,10 +196,10 @@ export function SyncPanel({
 										session: { accountEmail: email, serverUrl: screen.url },
 									});
 								}}
-								onSwitchToRegister={
-									screen.info.registrationEnabled
-										? () => setScreen({ ...screen, mode: "register" })
-										: undefined
+								// Closed registration still admits invitees, so the way to
+								// the register form (where the token goes) stays open.
+								onSwitchToRegister={() =>
+									setScreen({ ...screen, mode: "register" })
 								}
 							/>
 							{!screen.info.registrationEnabled && (
@@ -188,6 +210,7 @@ export function SyncPanel({
 						</>
 					) : (
 						<RegisterForm
+							replacesLocalPassword={replacesLocalPassword}
 							onSubmit={({ email, password, inviteToken }) =>
 								deps.register({
 									serverUrl: screen.url,
@@ -196,6 +219,7 @@ export function SyncPanel({
 									inviteToken,
 								})
 							}
+							inviteRequired={!screen.info.registrationEnabled}
 							onRecoveryPhraseVisible={onDismissBlockedChange}
 							onComplete={() => {
 								// persistSession has just written account_email to sync_state:

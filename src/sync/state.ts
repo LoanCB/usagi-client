@@ -13,7 +13,9 @@ export type SyncStateKey =
 	| "user_id"
 	| "account_email"
 	| "first_sync_resolved"
-	| "last_sync_at";
+	| "last_sync_at"
+	// The account DEK sealed under the local database key (vault_bind_account).
+	| "local_dek";
 
 export async function getSyncState(
 	db: DbDriver,

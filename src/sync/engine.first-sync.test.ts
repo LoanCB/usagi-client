@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	makeDevice,
 	syncMerging,
@@ -54,10 +54,10 @@ describe("first sync (§6.4)", () => {
 		}
 	});
 
-	it("replace: local data is wiped, never pushed, and the account is re-downloaded", async () => {
+	it("remote: local data is wiped, never pushed, and the account is re-downloaded", async () => {
 		await b.engine.syncNow();
 		const seqBefore = server.seqCounter;
-		await b.engine.resolveFirstSync("replace");
+		await b.engine.resolveFirstSync("remote");
 		// Nothing of B's abandoned data ever reached the server (§6.4: the
 		// outbox is emptied before the first push).
 		expect(server.seqCounter).toBe(seqBefore);
@@ -93,5 +93,62 @@ describe("first sync (§6.4)", () => {
 		expect(d.engine.getStatus()).toBe("idle");
 		expect(emptyServer.dump()).toHaveLength(1);
 		d.driver.close();
+	});
+
+	it("local: the account ends up holding only this device's data, on every device", async () => {
+		await b.engine.syncNow();
+		await b.engine.resolveFirstSync("local");
+		await a.engine.syncNow();
+		for (const d of [a, b]) {
+			const titles = await d.driver.select<{ title: string }>(
+				"SELECT title FROM tasks WHERE purged_at IS NULL",
+			);
+			expect(titles).toEqual([{ title: "local on B" }]);
+		}
+		const live = server.dump().filter((r) => !r.purged);
+		expect(live).toHaveLength(1);
+		expect(b.engine.getStatus()).toBe("idle");
+	});
+
+	it("local: pushes every local row, even one the outbox had forgotten", async () => {
+		await b.driver.execute("DELETE FROM sync_outbox");
+		await b.engine.syncNow();
+		await b.engine.resolveFirstSync("local");
+		const c = await makeDevice(server);
+		await c.engine.syncNow();
+		const titles = await c.driver.select<{ title: string }>(
+			"SELECT title FROM tasks WHERE purged_at IS NULL",
+		);
+		expect(titles).toEqual([{ title: "local on B" }]);
+		c.driver.close();
+	});
+
+	it("local: an interrupted attempt leaves the question open and a retry finishes the job", async () => {
+		await b.engine.syncNow();
+		const push = vi.spyOn(server, "push").mockImplementationOnce(() => {
+			throw new Error("network down");
+		});
+		await expect(b.engine.resolveFirstSync("local")).rejects.toThrow();
+		expect(await getSyncState(b.driver, "first_sync_resolved")).toBeNull();
+		push.mockRestore();
+
+		await b.engine.resolveFirstSync("local");
+		await a.engine.syncNow();
+		const titles = await a.driver.select<{ title: string }>(
+			"SELECT title FROM tasks WHERE purged_at IS NULL",
+		);
+		expect(titles).toEqual([{ title: "local on B" }]);
+	});
+
+	it("exports the account's live records, decrypted, without applying them", async () => {
+		await b.engine.syncNow();
+		const remote = await b.engine.exportRemote();
+		expect(remote.map((r) => [r.entityType, r.payload.title])).toEqual([
+			["task", "from the account"],
+		]);
+		const titles = await b.driver.select<{ title: string }>(
+			"SELECT title FROM tasks WHERE purged_at IS NULL",
+		);
+		expect(titles).toEqual([{ title: "local on B" }]);
 	});
 });

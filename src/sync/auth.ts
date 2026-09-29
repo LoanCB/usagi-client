@@ -6,6 +6,7 @@ import {
 	toRegisterKeys,
 } from "@/crypto";
 import type { DbDriver } from "@/db/driver";
+import { bindAccount } from "@/vault";
 import { type FetchLike, requestJson, SyncHttpError } from "./http";
 import { getSyncState, type SyncStateKey, setSyncState } from "./state";
 import {
@@ -23,12 +24,14 @@ import {
 export interface VaultPort {
 	beginUnlock(password: string, authSalt: string): Promise<string>;
 	completeUnlock(wrappedDek: string, userId: string): Promise<void>;
+	bindAccount(wrappedDekRecovery: string): Promise<string>;
 	prepareRegistration(password: string): Promise<RegistrationMaterial>;
 }
 
 export const tauriVault: VaultPort = {
 	beginUnlock,
 	completeUnlock,
+	bindAccount,
 	prepareRegistration,
 };
 
@@ -98,11 +101,13 @@ async function persistSession(
 	baseUrl: string,
 	email: string,
 	login: LoginResponse,
+	localDek?: string,
 ): Promise<void> {
 	await setSyncState(db, "refresh_token", login.refreshToken);
 	await setSyncState(db, "user_id", login.userId);
 	await setSyncState(db, "account_email", email);
 	await setSyncState(db, "server_url", baseUrl);
+	if (localDek !== undefined) await setSyncState(db, "local_dek", localDek);
 }
 
 export async function signIn(
@@ -139,7 +144,8 @@ export async function signIn(
 		{ accessToken: login.accessToken },
 	);
 	await deps.vault.completeUnlock(keys.wrappedDek, login.userId);
-	await persistSession(deps.db, deps.baseUrl, input.email, login);
+	const localDek = await deps.vault.bindAccount(keys.wrappedDekRecovery);
+	await persistSession(deps.db, deps.baseUrl, input.email, login, localDek);
 	return { accessToken: login.accessToken };
 }
 
@@ -177,7 +183,12 @@ export async function register(
 	// chose. Only the userId the server assigns was missing to open the vault.
 	await deps.vault.beginUnlock(input.password, material.authSalt);
 	await deps.vault.completeUnlock(material.wrappedDek, login.userId);
-	await persistSession(deps.db, deps.baseUrl, input.email, login);
+	// The account already exists server-side: a local bind error must not
+	// swallow its only recovery phrase. The panel's next unlock binds again.
+	const localDek = await deps.vault
+		.bindAccount(material.wrappedDekRecovery)
+		.catch(() => undefined);
+	await persistSession(deps.db, deps.baseUrl, input.email, login, localDek);
 	// recoveryPhrase is real key material: shown once by the caller (plan 4d),
 	// never persisted, never logged.
 	return {
@@ -198,6 +209,7 @@ const SIGNED_OUT_KEYS: SyncStateKey[] = [
 	"account_email",
 	"first_sync_resolved",
 	"last_sync_at",
+	"local_dek",
 ];
 
 export async function signOut(deps: {
@@ -235,9 +247,36 @@ export async function signOut(deps: {
 			`DELETE FROM sync_state WHERE key IN (${placeholders})`,
 			SIGNED_OUT_KEYS.slice(),
 		);
+		await forgetSessionTombstones(tx);
+		// After the tombstone deletes: their triggers just re-filled the outbox.
 		await tx.execute("DELETE FROM sync_outbox");
 		await tx.execute("DELETE FROM sync_quarantine");
 	});
+}
+
+/**
+ * A tombstone row only means something to the session that produced it. Kept
+ * across a sign-out, it outlives the live version of the same record at the
+ * next merge (§5.2) and deletes, on every device, data another device has
+ * since re-asserted. Deletions made while signed out create fresh tombstones
+ * and still propagate. A purged project or group that a live row still
+ * references stays: foreign keys forbid removing it.
+ */
+async function forgetSessionTombstones(tx: DbDriver): Promise<void> {
+	await tx.execute("DELETE FROM tasks WHERE purged_at IS NOT NULL");
+	await tx.execute(
+		"DELETE FROM task_tags WHERE tag_id IN (SELECT id FROM tags WHERE purged_at IS NOT NULL)",
+	);
+	await tx.execute("DELETE FROM tags WHERE purged_at IS NOT NULL");
+	await tx.execute(
+		`DELETE FROM projects WHERE purged_at IS NOT NULL
+		   AND id NOT IN (SELECT project_id FROM tasks WHERE project_id IS NOT NULL)
+		   AND id NOT IN (SELECT project_id FROM tags WHERE project_id IS NOT NULL)`,
+	);
+	await tx.execute(
+		`DELETE FROM project_groups WHERE purged_at IS NOT NULL
+		   AND id NOT IN (SELECT group_id FROM projects WHERE group_id IS NOT NULL)`,
+	);
 }
 
 /**

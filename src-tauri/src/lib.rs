@@ -31,6 +31,7 @@ fn send_app_notification(app: tauri::AppHandle, title: String, body: String) -> 
 
 pub mod crypto;
 pub mod db;
+pub mod vault;
 
 #[cfg(desktop)]
 mod updater;
@@ -42,12 +43,12 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_sql::Builder::new().build())
-        // After the sql plugin: it owns the `DbInstances` map this writes the
-        // single-connection pool into. See src-tauri/src/db.rs.
-        .plugin(db::init());
+        // Still owns the `DbInstances` map the vault commands write the
+        // single-connection pool into after unlock. See src-tauri/src/db.rs.
+        .plugin(tauri_plugin_sql::Builder::new().build());
 
     let builder = builder.manage(std::sync::Mutex::new(crypto::state::CryptoState::default()));
+    let builder = builder.setup(|app| vault::commands::manage(app.handle()));
 
     #[cfg(desktop)]
     let builder = builder
@@ -67,6 +68,20 @@ pub fn run() {
             crypto::state::crypto_encrypt_record,
             crypto::state::crypto_decrypt_record,
             crypto::state::crypto_prepare_key_rotation,
+            vault::commands::vault_status,
+            vault::commands::vault_setup_keychain,
+            vault::commands::vault_setup_password,
+            vault::commands::vault_unlock_keychain,
+            vault::commands::vault_unlock_password,
+            vault::commands::vault_unlock_recovery,
+            vault::commands::vault_set_password,
+            vault::commands::vault_change_password,
+            vault::commands::vault_remove_password,
+            vault::commands::vault_bind_account,
+            vault::commands::vault_unbind_account,
+            vault::commands::vault_unlock_sync,
+            vault::commands::vault_seal_backup,
+            vault::commands::vault_open_backup,
         ]);
 
     #[cfg(not(desktop))]
@@ -81,6 +96,20 @@ pub fn run() {
         crypto::state::crypto_encrypt_record,
         crypto::state::crypto_decrypt_record,
         crypto::state::crypto_prepare_key_rotation,
+        vault::commands::vault_status,
+        vault::commands::vault_setup_keychain,
+        vault::commands::vault_setup_password,
+        vault::commands::vault_unlock_keychain,
+        vault::commands::vault_unlock_password,
+        vault::commands::vault_unlock_recovery,
+        vault::commands::vault_set_password,
+        vault::commands::vault_change_password,
+        vault::commands::vault_remove_password,
+        vault::commands::vault_bind_account,
+        vault::commands::vault_unbind_account,
+        vault::commands::vault_unlock_sync,
+        vault::commands::vault_seal_backup,
+        vault::commands::vault_open_backup,
     ]);
 
     builder

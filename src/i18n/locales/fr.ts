@@ -170,6 +170,7 @@ const fr: typeof en = {
 		overdueTaskBody: "Date d'échéance dépassée",
 	},
 	settings: {
+		tabSecurity: "Sécurité",
 		title: "Paramètres",
 		appearance: "Apparence",
 		language: "Langue",
@@ -253,6 +254,8 @@ const fr: typeof en = {
 	},
 	data: {
 		title: "Données",
+		exportPlaintextWarning:
+			"Les fichiers exportés ne sont pas chiffrés. Rangez-les en lieu sûr.",
 		exportSection: "Exporter",
 		importSection: "Importer",
 		exportTasksGroup: "Tâches",
@@ -348,15 +351,24 @@ const fr: typeof en = {
 		createAccount: "Créer un compte",
 		creatingAccount: "Création du compte…",
 		registrationClosed:
-			"Ce serveur n'accepte pas de nouveaux comptes. Connectez-vous avec un compte existant.",
+			"Ce serveur n'accepte de nouveaux comptes qu'avec un jeton d'invitation fourni par son propriétaire.",
+		localPasswordReplaced:
+			"Votre mot de passe local sera remplacé par celui du compte : Bunly demandera ensuite le mot de passe du compte au démarrage.",
 		email: "Adresse e-mail",
 		password: "Mot de passe",
 		inviteToken: "Jeton d'invitation",
 		inviteTokenHint:
 			"Facultatif — seulement si le propriétaire du serveur vous en a fourni un.",
+		inviteTokenRequiredHint:
+			"Obligatoire — demandez-en un au propriétaire du serveur.",
 		signInFailed: "Adresse e-mail ou mot de passe incorrect.",
-		registerFailed:
-			"Impossible de créer le compte. Le jeton d'invitation est peut-être déjà utilisé ou expiré.",
+		registerEmailTaken:
+			"Un compte existe déjà avec cette adresse e-mail sur ce serveur. Connectez-vous plutôt.",
+		registerInviteInvalid:
+			"Ce jeton d'invitation est invalide, déjà utilisé ou expiré. Demandez-en un nouveau au propriétaire du serveur.",
+		registerTooManyAttempts:
+			"Trop de tentatives. Patientez un instant, puis réessayez.",
+		registerFailed: "Impossible de créer le compte. Réessayez.",
 		passwordHint:
 			"Choisissez un mot de passe solide. Il chiffre tout, et il n'est jamais transmis au serveur — personne ne peut le réinitialiser à votre place.",
 		recovery: {
@@ -443,21 +455,85 @@ const fr: typeof en = {
 			title: "Ce compte contient déjà des données",
 			intro:
 				"Cet appareil contient des tâches, et le compte aussi. Choisissez comment les combiner — la question n'est posée qu'une fois.",
-			merge: "Fusionner",
+			merge: "Fusionner les deux",
 			mergeExplanation:
 				"Tout conserver. Ce qui n'existe que d'un côté est gardé, et lorsque les deux ont modifié la même chose, la modification la plus récente l'emporte.",
-			replace: "Remplacer",
-			replaceExplanation:
+			remote: "Garder uniquement les données du compte",
+			remoteExplanation:
 				"Abandonner le contenu de cet appareil et télécharger à la place les données du compte.",
-			replaceWarning:
+			remoteWarning:
 				"Les tâches, projets et tags actuellement sur cet appareil seront supprimés. Une sauvegarde est enregistrée sur votre ordinateur au préalable.",
+			local: "Garder uniquement les données de cet appareil",
+			localExplanation:
+				"Remplacer les données du compte par le contenu de cet appareil.",
+			localWarning:
+				"Les tâches, projets et tags du compte seront supprimés du serveur, et de vos autres appareils à leur prochaine synchronisation. Une sauvegarde du compte est enregistrée sur votre ordinateur au préalable.",
+			localAcknowledge:
+				"Je comprends que les données du compte seront supprimées partout",
 			backupSaving: "Enregistrement d'une sauvegarde…",
 			backupFailed:
-				"La sauvegarde n'a pas pu être enregistrée, rien n'a donc été remplacé. Réessayez ou choisissez Fusionner.",
+				"La sauvegarde n'a pas pu être enregistrée, rien n'a donc été supprimé. Réessayez ou choisissez Fusionner les deux.",
 			applying: "Application…",
 			confirm: "Continuer",
 			failed: "Impossible d'appliquer votre choix. Rien n'a été modifié.",
 		},
+	},
+	vault: {
+		setupTitle: "Protéger vos données",
+		setupIntro:
+			"Bunly chiffre tout ce qu'il enregistre sur cet appareil. Choisissez un mot de passe pour le déverrouiller, ou laissez cet appareil le faire pour vous.",
+		legacyNotice: "Vos données existantes vont désormais être chiffrées.",
+		password: "Mot de passe",
+		confirmPassword: "Confirmer le mot de passe",
+		mismatch: "Les mots de passe ne correspondent pas.",
+		protect: "Protéger par un mot de passe",
+		noPassword: "Continuer sans mot de passe",
+		noPasswordHint:
+			"La clé est conservée dans le trousseau de cet ordinateur. Toute personne utilisant votre session peut ouvrir Bunly, et si l'entrée du trousseau est perdue, vos données le sont aussi.",
+		working: "Chiffrement…",
+		unlockTitle: "Bunly est verrouillé",
+		unlock: "Déverrouiller",
+		unlocking: "Déverrouillage…",
+		wrongSecret: "Cela n'a pas fonctionné. Vérifiez votre saisie et réessayez.",
+		forgot: "Mot de passe oublié ?",
+		recoverTitle: "Déverrouiller avec la clé de récupération",
+		recoverIntro:
+			"Saisissez votre clé de récupération de 24 mots, puis choisissez un nouveau mot de passe.",
+		recoverSyncHint:
+			"La clé de récupération de votre compte de synchronisation fonctionne aussi. Le mot de passe du compte reste inchangé sur le serveur.",
+		recoveryPhrase: "Clé de récupération",
+		newPassword: "Nouveau mot de passe",
+		recover: "Déverrouiller et définir le mot de passe",
+		back: "Retour",
+		keychainDenied:
+			"Bunly n'a pas pu lire sa clé dans le trousseau. Autorisez l'accès, puis réessayez.",
+		keychainWriteDenied:
+			"Bunly n'a pas pu enregistrer sa clé dans le trousseau. Autorisez l'accès, puis réessayez.",
+		retry: "Réessayer",
+		migrationFailed:
+			"Le chiffrement de vos données a échoué. Rien n'est perdu — vos données sont intactes. Réessayez.",
+		brokenTitle: "Vos données ne peuvent pas être ouvertes",
+		brokenKeyMissing:
+			"La clé de cet appareil n'est plus dans le trousseau. Sans elle, les données chiffrées sont illisibles.",
+		brokenVaultMissing:
+			"Le fichier qui déverrouille vos données (vault.json) est introuvable.",
+		brokenCorrupt:
+			"Le fichier qui déverrouille vos données (vault.json) est endommagé.",
+		genericError: "Une erreur est survenue : {{detail}}",
+		securityKeychain:
+			"Pas de mot de passe : le trousseau de cet appareil déverrouille Bunly au démarrage.",
+		securityPassword: "Bunly demande votre mot de passe au démarrage.",
+		securitySynced:
+			"Votre mot de passe est celui de votre compte de synchronisation. Un appareil synchronisé le demande toujours.",
+		setPassword: "Définir un mot de passe",
+		changePassword: "Changer le mot de passe",
+		removePassword: "Supprimer le mot de passe",
+		currentPassword: "Mot de passe actuel",
+		save: "Enregistrer",
+		cancel: "Annuler",
+		saved: "Enregistré.",
+		accountPasswordLater:
+			"Le changement du mot de passe du compte de synchronisation n'est pas encore disponible.",
 	},
 };
 

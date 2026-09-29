@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import "@/i18n";
+import { SyncHttpError } from "@/sync/http";
 import { RegisterForm } from "./RegisterForm";
 
 const PHRASE = Array.from({ length: 24 }, (_, i) => `word${i + 1}`).join(" ");
@@ -47,6 +48,26 @@ describe("RegisterForm", () => {
 			password: "correct horse battery staple",
 			inviteToken: "inv-123",
 		});
+	});
+
+	it("exige le jeton d'invitation quand le serveur l'impose", async () => {
+		const user = userEvent.setup();
+		render(
+			<RegisterForm
+				onSubmit={vi.fn(async () => PHRASE)}
+				onComplete={vi.fn()}
+				inviteRequired
+				random={FIXED}
+			/>,
+		);
+		await user.type(email(), "a@example.com");
+		await user.type(password(), "correct horse battery staple");
+		expect(submit()).toBeDisabled();
+		await user.type(
+			screen.getByLabelText(/invite token|jeton d'invitation/i),
+			"inv-123",
+		);
+		expect(submit()).toBeEnabled();
 	});
 
 	it("ne termine qu'après confirmation de la clé", async () => {
@@ -148,6 +169,27 @@ describe("RegisterForm", () => {
 		await user.type(password(), "x");
 		expect(
 			screen.queryByText(/could not create|impossible de créer/i),
+		).not.toBeInTheDocument();
+	});
+
+	it("dit que l'adresse est déjà prise plutôt que d'accuser le jeton", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn(async () => {
+			throw new SyncHttpError(409, null, null, "Account already exists");
+		});
+		render(
+			<RegisterForm onSubmit={onSubmit} onComplete={vi.fn()} random={FIXED} />,
+		);
+		await user.type(email(), "a@example.com");
+		await user.type(password(), "correct horse battery staple");
+		await user.click(submit());
+		expect(
+			await screen.findByText(
+				/already exists with this email|existe déjà avec cette adresse/i,
+			),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByText(/invalid, already used|invalide, déjà utilisé/i),
 		).not.toBeInTheDocument();
 	});
 });

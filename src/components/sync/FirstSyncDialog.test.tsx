@@ -19,9 +19,17 @@ function setup(
 }
 
 const chooseMerge = () =>
-	screen.getByRole("button", { name: /^merge$|^fusionner$/i });
-const chooseReplace = () =>
-	screen.getByRole("button", { name: /^replace$|^remplacer$/i });
+	screen.getByRole("button", { name: /^merge both$|^fusionner les deux$/i });
+const chooseRemote = () =>
+	screen.getByRole("button", {
+		name: /only the account's data|uniquement les données du compte/i,
+	});
+const chooseLocal = () =>
+	screen.getByRole("button", {
+		name: /only this device's data|uniquement les données de cet appareil/i,
+	});
+const acknowledge = () =>
+	screen.getByRole("checkbox", { name: /i understand|je comprends/i });
 const confirm = () =>
 	screen.getByRole("button", { name: /^continue$|^continuer$/i });
 
@@ -41,7 +49,7 @@ describe("FirstSyncDialog", () => {
 		expect(props.onResolved).toHaveBeenCalledTimes(1);
 	});
 
-	it("écrit la sauvegarde AVANT de remplacer", async () => {
+	it("sauvegarde cet appareil AVANT de ne garder que le compte", async () => {
 		const order: string[] = [];
 		const { props, user } = setup({
 			backup: vi.fn(async () => {
@@ -51,9 +59,10 @@ describe("FirstSyncDialog", () => {
 				order.push("resolve");
 			}),
 		});
-		await user.click(chooseReplace());
+		await user.click(chooseRemote());
 		await user.click(confirm());
-		await waitFor(() => expect(props.resolve).toHaveBeenCalledWith("replace"));
+		await waitFor(() => expect(props.resolve).toHaveBeenCalledWith("remote"));
+		expect(props.backup).toHaveBeenCalledWith("remote");
 		expect(order).toEqual(["backup", "resolve"]);
 	});
 
@@ -63,7 +72,7 @@ describe("FirstSyncDialog", () => {
 				throw new Error("disk full");
 			}),
 		});
-		await user.click(chooseReplace());
+		await user.click(chooseRemote());
 		await user.click(confirm());
 		expect(
 			await screen.findByText(
@@ -74,9 +83,9 @@ describe("FirstSyncDialog", () => {
 		expect(props.onResolved).not.toHaveBeenCalled();
 	});
 
-	it("avertit explicitement de la destruction avant de remplacer", async () => {
+	it("avertit explicitement de la destruction locale", async () => {
 		const { user } = setup();
-		await user.click(chooseReplace());
+		await user.click(chooseRemote());
 		expect(
 			screen.getByText(/will be deleted|seront supprimés/i),
 		).toBeInTheDocument();
@@ -105,7 +114,7 @@ describe("FirstSyncDialog", () => {
 				throw new Error("disk full");
 			}),
 		});
-		await user.click(chooseReplace());
+		await user.click(chooseRemote());
 		await user.click(confirm());
 		expect(
 			await screen.findByText(
@@ -135,7 +144,7 @@ describe("FirstSyncDialog", () => {
 
 		// Changing the choice is a fresh attempt: the previous failure no longer
 		// describes what would happen on confirm.
-		await user.click(chooseReplace());
+		await user.click(chooseRemote());
 		expect(
 			screen.queryByText(/could not apply|impossible d'appliquer/i),
 		).not.toBeInTheDocument();
@@ -148,5 +157,60 @@ describe("FirstSyncDialog", () => {
 		expect(
 			screen.queryByRole("button", { name: /cancel|annuler/i }),
 		).not.toBeInTheDocument();
+	});
+
+	it("avertit que « cet appareil seulement » efface le compte partout", async () => {
+		const { user } = setup();
+		await user.click(chooseLocal());
+		expect(
+			screen.getByText(/other devices|autres appareils/i),
+		).toBeInTheDocument();
+	});
+
+	it("exige une confirmation explicite avant d'effacer le compte", async () => {
+		const { props, user } = setup();
+		await user.click(chooseLocal());
+		expect(confirm()).toBeDisabled();
+		await user.click(acknowledge());
+		expect(confirm()).toBeEnabled();
+		await user.click(chooseMerge());
+		await user.click(chooseLocal());
+		// Switching away and back is a fresh decision: acknowledge again.
+		expect(confirm()).toBeDisabled();
+		expect(props.resolve).not.toHaveBeenCalled();
+	});
+
+	it("sauvegarde le compte AVANT de ne garder que cet appareil", async () => {
+		const order: string[] = [];
+		const { props, user } = setup({
+			backup: vi.fn(async (choice: string) => {
+				order.push(`backup:${choice}`);
+			}),
+			resolve: vi.fn(async (choice: string) => {
+				order.push(`resolve:${choice}`);
+			}),
+		});
+		await user.click(chooseLocal());
+		await user.click(acknowledge());
+		await user.click(confirm());
+		await waitFor(() => expect(props.onResolved).toHaveBeenCalled());
+		expect(order).toEqual(["backup:local", "resolve:local"]);
+	});
+
+	it("n'efface pas le compte si sa sauvegarde échoue", async () => {
+		const { props, user } = setup({
+			backup: vi.fn(async () => {
+				throw new Error("offline");
+			}),
+		});
+		await user.click(chooseLocal());
+		await user.click(acknowledge());
+		await user.click(confirm());
+		expect(
+			await screen.findByText(
+				/backup could not be saved|sauvegarde n'a pas pu/i,
+			),
+		).toBeInTheDocument();
+		expect(props.resolve).not.toHaveBeenCalled();
 	});
 });

@@ -2,6 +2,7 @@ import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Dialog,
 	DialogContent,
@@ -11,12 +12,14 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import type { FirstSyncChoice } from "@/sync/types";
 
 export interface FirstSyncDialogProps {
 	open: boolean;
-	/** Writes the automatic JSON backup. Rejecting MUST abort a replace. */
-	backup: () => Promise<void>;
-	resolve: (choice: "merge" | "replace") => Promise<void>;
+	/** Backs up whatever the destructive choice is about to erase: this
+	 * device for "remote", the account for "local". Rejecting MUST abort it. */
+	backup: (choice: Exclude<FirstSyncChoice, "merge">) => Promise<void>;
+	resolve: (choice: FirstSyncChoice) => Promise<void>;
 	onResolved: () => void;
 }
 
@@ -29,13 +32,16 @@ export function FirstSyncDialog({
 	onResolved,
 }: FirstSyncDialogProps) {
 	const { t } = useTranslation();
-	const [choice, setChoice] = useState<"merge" | "replace">("merge");
+	const [choice, setChoice] = useState<FirstSyncChoice>("merge");
+	// "local" erases the account on every device: the user must say so.
+	const [acknowledged, setAcknowledged] = useState(false);
 	const [phase, setPhase] = useState<Phase>("choosing");
 	const [backupFailed, setBackupFailed] = useState(false);
 	const [applyFailed, setApplyFailed] = useState(false);
 
-	function selectChoice(option: "merge" | "replace") {
+	function selectChoice(option: FirstSyncChoice) {
 		setChoice(option);
+		setAcknowledged(false);
 		// A stale "backup could not be saved" would be misleading under Merge,
 		// which never backs up; and switching away from a failed attempt is a
 		// fresh try, so drop both error states on any change of mind.
@@ -47,12 +53,12 @@ export function FirstSyncDialog({
 		setBackupFailed(false);
 		setApplyFailed(false);
 
-		if (choice === "replace") {
+		if (choice !== "merge") {
 			setPhase("backing-up");
 			try {
-				await backup();
+				await backup(choice);
 			} catch {
-				// §6.4: the backup is what makes "replace" recoverable. Without it
+				// §6.4: the backup is what makes a destructive choice recoverable. Without it
 				// the destructive branch must not run at all.
 				setBackupFailed(true);
 				setPhase("choosing");
@@ -83,14 +89,14 @@ export function FirstSyncDialog({
 				</DialogHeader>
 				<DialogDescription>{t("sync.firstSync.intro")}</DialogDescription>
 
-				<div className="flex gap-2">
-					{(["merge", "replace"] as const).map((option) => (
+				<div className="flex flex-col gap-2">
+					{(["merge", "remote", "local"] as const).map((option) => (
 						<Button
 							key={option}
 							type="button"
 							variant={choice === option ? "default" : "outline"}
 							disabled={busy}
-							className={cn("flex-1")}
+							className={cn("justify-start")}
 							onClick={() => selectChoice(option)}
 						>
 							{t(`sync.firstSync.${option}`)}
@@ -102,11 +108,25 @@ export function FirstSyncDialog({
 					{t(`sync.firstSync.${choice}Explanation`)}
 				</p>
 
-				{choice === "replace" && (
+				{choice !== "merge" && (
 					<p className="flex items-center gap-1.5 text-xs text-destructive">
 						<AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-						{t("sync.firstSync.replaceWarning")}
+						{t(`sync.firstSync.${choice}Warning`)}
 					</p>
+				)}
+				{choice === "local" && (
+					<label
+						htmlFor="first-sync-acknowledge"
+						className="flex items-center gap-2 text-xs"
+					>
+						<Checkbox
+							id="first-sync-acknowledge"
+							checked={acknowledged}
+							disabled={busy}
+							onCheckedChange={(checked) => setAcknowledged(checked === true)}
+						/>
+						{t("sync.firstSync.localAcknowledge")}
+					</label>
 				)}
 
 				{backupFailed && (
@@ -121,7 +141,11 @@ export function FirstSyncDialog({
 				)}
 
 				<DialogFooter>
-					<Button type="button" disabled={busy} onClick={handleConfirm}>
+					<Button
+						type="button"
+						disabled={busy || (choice === "local" && !acknowledged)}
+						onClick={handleConfirm}
+					>
 						{phase === "backing-up"
 							? t("sync.firstSync.backupSaving")
 							: phase === "applying"

@@ -18,44 +18,51 @@ interface SyncStore {
 	 * is why this is a signal rather than a central reload.
 	 */
 	revision: number;
-	attach(engine: SyncEngine): void;
+	/** Also takes the db: the engine writes last_sync_at itself at the end of
+	 * every cycle, including the ones it starts on its own (timer, first sync
+	 * after a merge), so only the store is in a position to re-read it. */
+	attach(engine: SyncEngine, db: DbDriver): void;
 	detach(): void;
-	refreshLastSync(db: DbDriver): Promise<void>;
 }
 
 // Kept outside the store: it is a subscription handle, not rendered state, and
 // leaking it would keep a dead engine's listener alive across a reconnect.
 let unsubscribe: (() => void) | null = null;
+// Bumped on every attach/detach so a last_sync_at read that resolves late
+// cannot write a previous session's value into the current one.
+let generation = 0;
 
-export const useSyncStore = create<SyncStore>((set) => ({
+export const useSyncStore = create<SyncStore>((set, get) => ({
 	status: null,
 	lastSyncAt: null,
 	revision: 0,
 
-	attach(engine) {
+	attach(engine, db) {
 		unsubscribe?.();
-		unsubscribe = engine.onStatus((status) =>
+		const current = ++generation;
+		const refreshLastSync = async () => {
+			const lastSyncAt = await getSyncState(db, "last_sync_at");
+			if (current === generation) set({ lastSyncAt });
+		};
+		unsubscribe = engine.onStatus((status) => {
+			// Only a cycle that ran to completion can have applied rows. Leaving
+			// "syncing" for locked/reauth-required/protocol-mismatch means it
+			// stopped early, so there is nothing new to show.
+			const completed = get().status === "syncing" && status === "idle";
 			set((prev) => ({
 				status,
-				// Only a cycle that ran to completion can have applied rows. Leaving
-				// "syncing" for locked/reauth-required/protocol-mismatch means it
-				// stopped early, so there is nothing new to show.
-				revision:
-					prev.status === "syncing" && status === "idle"
-						? prev.revision + 1
-						: prev.revision,
-			})),
-		);
+				revision: completed ? prev.revision + 1 : prev.revision,
+			}));
+			if (completed) void refreshLastSync();
+		});
 		set({ status: engine.getStatus() });
+		void refreshLastSync();
 	},
 
 	detach() {
 		unsubscribe?.();
 		unsubscribe = null;
+		generation++;
 		set({ status: null, lastSyncAt: null });
-	},
-
-	async refreshLastSync(db) {
-		set({ lastSyncAt: await getSyncState(db, "last_sync_at") });
 	},
 }));

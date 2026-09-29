@@ -14,6 +14,12 @@ pub struct CryptoState {
     /// Held only between begin_unlock and complete_unlock, so a sign-in pays
     /// for Argon2id once rather than on both sides of the network round trip.
     pending_master_key: Option<[u8; 32]>,
+    /// The salt `begin_unlock` was given, kept for the bind material.
+    pending_salt: Option<String>,
+    /// Set by `complete_unlock`: what `vault_bind_account` needs to re-wrap the
+    /// local database key under the account password without a second
+    /// Argon2id pass. Consumed once, dropped on lock.
+    bind: Option<(crate::vault::keys::Key, String)>,
     dek: Option<[u8; 32]>,
     user_id: Option<String>,
 }
@@ -28,6 +34,7 @@ impl CryptoState {
         // Drop any half-finished attempt before starting another.
         self.clear_pending();
         let mut master_key = derive_master_key(password, auth_salt)?;
+        self.pending_salt = Some(auth_salt.to_owned());
         let verifier = derive_auth_verifier(&master_key);
         // `[u8; 32]` is Copy: the assignment leaves this binding intact, so the
         // local has to be scrubbed too — same hazard `complete_unlock` guards.
@@ -41,11 +48,39 @@ impl CryptoState {
         // a copy would leave the master key sitting in memory.
         let mut master_key = self.pending_master_key.take().ok_or(CryptoError::Locked)?;
         let mut kek = derive_kek(&master_key);
+        let local_kek = crate::vault::keys::local_kek_from_master(&master_key);
+        let salt = self.pending_salt.take().unwrap_or_default();
         master_key.zeroize();
 
         let opened = open(&kek, AAD_DEK, wrapped_dek);
         kek.zeroize();
-        self.store_dek(opened?, user_id)
+        self.store_dek(opened?, user_id)?;
+        self.bind = Some((local_kek, salt));
+        Ok(())
+    }
+
+    pub fn take_bind_material(
+        &mut self,
+    ) -> Result<(crate::vault::keys::Key, String, [u8; 32]), CryptoError> {
+        let dek = self.dek.ok_or(CryptoError::Locked)?;
+        let (kek, salt) = self.bind.take().ok_or(CryptoError::Locked)?;
+        Ok((kek, salt, dek))
+    }
+
+    /// Puts back material taken for a bind that then failed, so the caller can
+    /// retry without signing in again. Ignored once the state is locked.
+    pub fn restore_bind(&mut self, kek: crate::vault::keys::Key, salt: String) {
+        if self.dek.is_some() {
+            self.bind = Some((kek, salt));
+        }
+    }
+
+    /// Unlock from the DEK the local vault sealed, with no password involved.
+    pub fn unlock_with_dek(&mut self, dek: [u8; 32], user_id: &str) {
+        // Scrubs a previous DEK and drops bind material that belonged to it.
+        self.lock();
+        self.dek = Some(dek);
+        self.user_id = Some(user_id.to_owned());
     }
 
     pub fn unlock_with_recovery(
@@ -66,9 +101,11 @@ impl CryptoState {
             dek.zeroize();
         }
         self.user_id = None;
+        self.bind = None;
     }
 
     fn clear_pending(&mut self) {
+        self.pending_salt = None;
         if let Some(mut mk) = self.pending_master_key.take() {
             mk.zeroize();
         }
@@ -214,6 +251,82 @@ pub fn crypto_prepare_key_rotation(
 mod tests {
     use super::*;
     use crate::crypto::account::prepare_registration;
+
+    #[test]
+    fn a_completed_unlock_leaves_bind_material_once() {
+        let m = prepare_registration("correct horse").unwrap();
+        let mut state = CryptoState::default();
+        state.begin_unlock("correct horse", &m.auth_salt).unwrap();
+        state.complete_unlock(&m.wrapped_dek, "user-1").unwrap();
+
+        let (local_kek, salt, dek) = state.take_bind_material().unwrap();
+        assert_eq!(salt, m.auth_salt);
+        assert_eq!(dek, dek_and_user(&state).unwrap().0);
+        let master =
+            crate::crypto::derive::derive_master_key("correct horse", &m.auth_salt).unwrap();
+        assert_eq!(
+            *local_kek,
+            *crate::vault::keys::local_kek_from_master(&master)
+        );
+        // Consumed: a second bind cannot reuse it.
+        assert_eq!(state.take_bind_material().unwrap_err(), CryptoError::Locked);
+    }
+
+    #[test]
+    fn locking_drops_bind_material() {
+        let m = prepare_registration("correct horse").unwrap();
+        let mut state = CryptoState::default();
+        state.begin_unlock("correct horse", &m.auth_salt).unwrap();
+        state.complete_unlock(&m.wrapped_dek, "user-1").unwrap();
+        state.lock();
+        assert_eq!(state.take_bind_material().unwrap_err(), CryptoError::Locked);
+    }
+
+    #[test]
+    fn a_local_dek_unlocks_the_sync_vault() {
+        let mut state = CryptoState::default();
+        state.unlock_with_dek([3u8; 32], "user-9");
+        assert_eq!(
+            dek_and_user(&state).unwrap(),
+            ([3u8; 32], "user-9".to_string())
+        );
+    }
+
+    #[test]
+    fn restored_bind_material_can_be_taken_again() {
+        let m = prepare_registration("correct horse").unwrap();
+        let mut state = CryptoState::default();
+        state.begin_unlock("correct horse", &m.auth_salt).unwrap();
+        state.complete_unlock(&m.wrapped_dek, "user-1").unwrap();
+        let (kek, salt, dek) = state.take_bind_material().unwrap();
+        state.restore_bind(kek, salt.clone());
+        let (_, salt2, dek2) = state.take_bind_material().unwrap();
+        assert_eq!((salt2, dek2), (salt, dek));
+    }
+
+    #[test]
+    fn restoring_into_a_locked_state_is_ignored() {
+        let mut state = CryptoState::default();
+        state.restore_bind(crate::vault::keys::generate_ldk(), "s".into());
+        assert_eq!(state.take_bind_material().unwrap_err(), CryptoError::Locked);
+    }
+
+    #[test]
+    fn a_local_dek_unlock_drops_stale_bind_material() {
+        let m = prepare_registration("correct horse").unwrap();
+        let mut state = CryptoState::default();
+        state.begin_unlock("correct horse", &m.auth_salt).unwrap();
+        state.complete_unlock(&m.wrapped_dek, "user-1").unwrap();
+        state.unlock_with_dek([5u8; 32], "user-2");
+        assert_eq!(state.take_bind_material().unwrap_err(), CryptoError::Locked);
+    }
+
+    #[test]
+    fn a_failed_begin_unlock_keeps_no_salt() {
+        let mut state = CryptoState::default();
+        assert!(state.begin_unlock("pw", "not-a-valid-salt").is_err());
+        assert!(state.pending_salt.is_none());
+    }
 
     #[test]
     fn starts_locked() {

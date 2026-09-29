@@ -36,8 +36,10 @@ import {
 	DialogTrigger,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { SecurityPanel } from "@/components/vault/SecurityPanel";
 import type { ImportGaps } from "@/db/import-resolution";
 import { useUpdaterContext } from "@/hooks/useUpdater";
+import { readBackupText, SEALED_BACKUP_EXTENSION } from "@/lib/backup-file";
 import { getDisplayVersions } from "@/lib/changelog";
 import {
 	type ExportData,
@@ -53,6 +55,7 @@ import { useUIStore } from "@/store/ui";
 import { useTheme } from "@/theme/ThemeProvider";
 import type { ThemeMode } from "@/theme/types";
 import type { SettingsTab } from "@/types/settings-tab";
+import { openBackup } from "@/vault";
 
 interface SettingsDialogProps {
 	readonly children: ReactElement;
@@ -984,11 +987,17 @@ function DataPanel() {
 		dataDispatch({ type: "clearError" });
 		const path = await open({
 			multiple: false,
-			filters: [{ name: "JSON", extensions: ["json"] }],
+			filters: [
+				{ name: "Bunly", extensions: ["json", SEALED_BACKUP_EXTENSION] },
+			],
 		});
 		if (!path || Array.isArray(path)) return;
 		try {
-			const raw = await readTextFile(path);
+			const raw = await readBackupText(
+				path,
+				await readTextFile(path),
+				openBackup,
+			);
 			const parsed = JSON.parse(raw) as ExportData;
 			if (
 				parsed.version !== 1 ||
@@ -1086,6 +1095,9 @@ function DataPanel() {
 						>
 							{t("data.export")}
 						</Button>
+						<p className="text-xs text-muted-foreground">
+							{t("data.exportPlaintextWarning")}
+						</p>
 					</div>
 
 					{/* Card Import */}
@@ -1238,6 +1250,7 @@ export function SettingsDialog({
 								["customization", t("settings.tabCustomization")],
 								["notifications", t("settings.notifications")],
 								["sync", t("sync.tab")],
+								["security", t("settings.tabSecurity")],
 								["data", t("data.title")],
 								["changelog", t("changelog.tab")],
 							] as [SettingsTab, string][]
@@ -1264,7 +1277,9 @@ export function SettingsDialog({
 					</div>
 				</DialogHeader>
 
-				<div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+				{/* Bleed into the dialog's p-4 so the scrollbar and focus rings get a
+				    gutter instead of overlapping or being clipped by overflow. */}
+				<div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-4 px-4">
 					{activeTab === "general" && <GeneralPanel />}
 					{activeTab === "customization" && <CustomizationPanel />}
 					{activeTab === "notifications" && <NotificationsPanel />}
@@ -1273,6 +1288,9 @@ export function SettingsDialog({
 							deps={productionSyncDeps()}
 							onDismissBlockedChange={setDismissBlocked}
 						/>
+					)}
+					{activeTab === "security" && (
+						<SecurityPanel onDismissBlockedChange={setDismissBlocked} />
 					)}
 					{activeTab === "data" && <DataPanel />}
 					{activeTab === "changelog" && <ChangelogPanel />}
