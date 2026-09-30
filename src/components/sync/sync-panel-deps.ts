@@ -5,6 +5,7 @@ import { useSyncStore } from "@/store/sync";
 import {
 	AuthorizedHttp,
 	getServerInfo,
+	type KeysResponse,
 	prelogin,
 	register as registerAccount,
 	signIn as signInAccount,
@@ -20,12 +21,13 @@ import {
 	startSync,
 	stopSync,
 } from "@/sync/runtime";
-import { getSyncState } from "@/sync/state";
+import { getSyncState, setSyncState } from "@/sync/state";
 import {
 	ReauthRequiredError,
 	SyncUnlockOfflineError,
 	SyncUnlockReauthError,
 } from "@/sync/types";
+import { tauriVaultApi, unbindAccount } from "@/vault";
 import type { SyncPanelDeps, SyncSession } from "./SyncPanel";
 
 /** No @tauri-apps/plugin-os in this project: derive a best-effort platform
@@ -49,9 +51,9 @@ function defaultDeviceName(): string {
 /** startSync already rebuilds the engine from sync_state and calls
  * setRepository internally (see runtime.ts); attach the store to it so the
  * status banner and panel see the fresh engine right after sign-in/register. */
-async function startAndAttach(): Promise<void> {
+async function startAndAttach(db: DbDriver): Promise<void> {
 	const runtime = await startSync();
-	if (runtime) useSyncStore.getState().attach(runtime.engine);
+	if (runtime) useSyncStore.getState().attach(runtime.engine, db);
 }
 
 async function requireBaseUrl(db: DbDriver): Promise<string> {
@@ -105,7 +107,7 @@ function buildSyncDeps({ db, fetchImpl }: SyncContext): SyncPanelDeps {
 			// The stored access/refresh pair is brand new: drop the instance that
 			// still carries the dead session's token.
 			authorized = null;
-			await startAndAttach();
+			await startAndAttach(db);
 		},
 
 		async register({ serverUrl, email, password, inviteToken }) {
@@ -120,7 +122,7 @@ function buildSyncDeps({ db, fetchImpl }: SyncContext): SyncPanelDeps {
 				},
 			);
 			authorized = null;
-			await startAndAttach();
+			await startAndAttach(db);
 			return result.recoveryPhrase;
 		},
 
@@ -138,6 +140,8 @@ function buildSyncDeps({ db, fetchImpl }: SyncContext): SyncPanelDeps {
 			await lock();
 			authorized = null;
 			await signOutAccount({ db, fetchImpl, baseUrl });
+			// The data stays encrypted; only the account's way in to it goes.
+			await unbindAccount();
 			useSyncStore.getState().detach();
 		},
 
@@ -159,13 +163,11 @@ function buildSyncDeps({ db, fetchImpl }: SyncContext): SyncPanelDeps {
 				// password the user just typed.
 				throw new SyncUnlockOfflineError();
 			}
+			let keys: KeysResponse;
 			try {
 				const pre = await prelogin(fetchImpl, serverUrl, email);
 				await tauriVault.beginUnlock(password, pre.salt);
-				const keys = await http(serverUrl).request<{ wrappedDek: string }>(
-					"GET",
-					"/v1/keys",
-				);
+				keys = await http(serverUrl).request<KeysResponse>("GET", "/v1/keys");
 				await vaultCompleteUnlock(keys.wrappedDek, userId);
 			} catch (err) {
 				// A revoked refresh token rejects the key fetch with a 401 that has
@@ -176,12 +178,18 @@ function buildSyncDeps({ db, fetchImpl }: SyncContext): SyncPanelDeps {
 				if (err instanceof SyncNetworkError) throw new SyncUnlockOfflineError();
 				throw err;
 			}
+			// Binds accounts signed in before local encryption existed, and
+			// re-seals a local_dek left stale by a DEK rotation elsewhere. Best
+			// effort: the DEK is already open, and the next unlock retries.
+			try {
+				const localDek = await tauriVault.bindAccount(keys.wrappedDekRecovery);
+				await setSyncState(db, "local_dek", localDek);
+			} catch {}
 			await getSyncRuntime()?.engine.syncNow();
 		},
 
 		async syncNow() {
 			await getSyncRuntime()?.engine.syncNow();
-			await useSyncStore.getState().refreshLastSync(db);
 		},
 
 		async listDevices() {
@@ -193,6 +201,8 @@ function buildSyncDeps({ db, fetchImpl }: SyncContext): SyncPanelDeps {
 			const baseUrl = await requireBaseUrl(db);
 			await revokeDevice(http(baseUrl), id);
 		},
+
+		vaultStatus: () => tauriVaultApi.status(),
 	};
 }
 

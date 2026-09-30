@@ -26,6 +26,8 @@ import { getSyncState, setSyncState } from "./state";
 import {
 	CLIENT_PROTOCOL_VERSION,
 	CursorOutOfRangeError,
+	ENTITY_TABLE,
+	type FirstSyncChoice,
 	MAX_PLAINTEXT_BYTES,
 	PUSH_MAX_CHANGES,
 	type PulledRecord,
@@ -33,6 +35,7 @@ import {
 	type PushChange,
 	ReauthRequiredError,
 	type RecordCipher,
+	type RemoteRecord,
 	type ServerInfo,
 	SYNC_PULL_LIMIT,
 	type SyncEntityType,
@@ -82,6 +85,28 @@ const APPLY_ORDER_RANK: Record<SyncEntityType, number> = {
 	tag: 2,
 	task: 3,
 };
+
+/**
+ * A new session starts with whatever the outbox forgot: sign-out empties it
+ * (§6.5) but keeps the rows, so data written before would never be pushed.
+ * Rows identical to the server's are dropped from the outbox again by the
+ * pull that follows (applyOne's echo cleanup). Entries already queued keep
+ * their dirtied_at: it orders the push and guards concurrent writes.
+ */
+async function queueLocalRows(
+	tx: DbDriver,
+	{ liveOnly }: { liveOnly: boolean },
+): Promise<void> {
+	const now = nowIso();
+	const where = liveOnly ? " WHERE purged_at IS NULL" : "";
+	for (const type of Object.keys(ENTITY_TABLE) as SyncEntityType[]) {
+		// oxlint-disable-next-line react-doctor/async-await-in-loop -- intentional: sequential statements inside one transaction
+		await tx.execute(
+			`INSERT OR IGNORE INTO sync_outbox (entity_type, entity_id, dirtied_at) SELECT ?, id, ? FROM ${ENTITY_TABLE[type]}${where}`,
+			[type, now],
+		);
+	}
+}
 
 export class SyncEngine {
 	private status: SyncStatus = "idle";
@@ -191,19 +216,102 @@ export class SyncEngine {
 		}
 	}
 
+	/** Every live record on the server, as (type, id), plus the cursor after them. */
+	private async scanRemote(): Promise<{
+		live: PulledRecord[];
+		cursor: number;
+	}> {
+		const live: PulledRecord[] = [];
+		let cursor = 0;
+		for (;;) {
+			// oxlint-disable-next-line react-doctor/async-await-in-loop -- intentional: each page's cursor comes from the previous response
+			const page = await this.deps.transport.pull(cursor, SYNC_PULL_LIMIT);
+			// A later page can tombstone a record an earlier page listed as live.
+			for (const record of page.records) {
+				const index = live.findIndex(
+					(r) => r.entityType === record.entityType && r.id === record.id,
+				);
+				if (index !== -1) live.splice(index, 1);
+				if (!record.purged) live.push(record);
+			}
+			cursor = page.nextCursor;
+			if (!page.hasMore) return { live, cursor };
+		}
+	}
+
+	/** The account's live records, decrypted — for the backup taken before
+	 * "local" erases them. Nothing is applied and the cursor does not move. */
+	async exportRemote(): Promise<RemoteRecord[]> {
+		const { live } = await this.scanRemote();
+		const decrypted = await Promise.all(live.map((r) => this.decryptOne(r)));
+		const out: RemoteRecord[] = [];
+		for (const { record, payload, failure } of decrypted) {
+			// A record this device cannot read cannot be backed up either; better
+			// to refuse than to hand the user a backup missing silent pieces.
+			if (failure !== null || payload === null) {
+				throw new Error(
+					`cannot back up ${record.entityType} ${record.id}: ${failure}`,
+				);
+			}
+			out.push({ entityType: record.entityType, id: record.id, payload });
+		}
+		return out;
+	}
+
 	/**
-	 * §6.4 — the answer to the first-sync question, called by the 4d dialog.
+	 * §6.4 "keep only this device": tombstone every live server record this
+	 * device does not hold, then queue every local row for the push that
+	 * follows. first_sync_resolved is only set once the tombstones are on the
+	 * server, so an interrupted attempt leaves the question open, and the retry
+	 * redoes both steps — each is idempotent.
+	 */
+	private async takeOverAccount(): Promise<void> {
+		const db = this.deps.db;
+		const { live, cursor } = await this.scanRemote();
+		const types = Object.keys(ENTITY_TABLE) as SyncEntityType[];
+		const local = new Set<string>();
+		const rows = await Promise.all(
+			types.map((type) =>
+				db.select<{ id: string }>(`SELECT id FROM ${ENTITY_TABLE[type]}`),
+			),
+		);
+		types.forEach((type, i) => {
+			for (const row of rows[i]) local.add(`${type} ${row.id}`);
+		});
+		const tombstones: PushChange[] = live
+			.filter((r) => !local.has(`${r.entityType} ${r.id}`))
+			.map((r) => ({ entityType: r.entityType, id: r.id, purged: true }));
+		for (let i = 0; i < tombstones.length; i += PUSH_MAX_CHANGES) {
+			// oxlint-disable-next-line react-doctor/async-await-in-loop -- intentional: batches go out in order so a failure stops the rest
+			await this.deps.transport.push(tombstones.slice(i, i + PUSH_MAX_CHANGES));
+		}
+		await db.transaction(async (tx) => {
+			// Every local row must overwrite its server counterpart, tombstones
+			// included.
+			await queueLocalRows(tx, { liveOnly: false });
+			// The scan's end, not past the tombstones: a record another device
+			// pushed meanwhile must still be pulled. Our own tombstones come back
+			// in that pull and are no-ops.
+			await setSyncState(tx, "cursor", String(cursor));
+			await setSyncState(tx, "first_sync_resolved", "1");
+		});
+	}
+
+	/**
+	 * §6.4 — the answer to the first-sync question, called by the dialog.
 	 * merge: flag and run a normal cycle, the per-field LWW reconciles.
-	 * replace: wipe the five local tables PHYSICALLY (nothing was ever pushed,
+	 * remote: wipe the five local tables PHYSICALLY (nothing was ever pushed,
 	 * so there is nothing to tombstone), and empty the outbox LAST inside the
 	 * same transaction — the deletes re-fill it through the triggers, and an
 	 * outbox emptied first would push the abandoned data right back up: the
-	 * exact silent union §6.4 exists to prevent. The automatic JSON backup
-	 * before "replace" belongs to the 4d dialog, upstream of this call.
+	 * exact silent union §6.4 exists to prevent.
+	 * local: see takeOverAccount.
+	 * The automatic backup before a destructive choice belongs to the dialog,
+	 * upstream of this call.
 	 */
-	async resolveFirstSync(choice: "merge" | "replace"): Promise<void> {
+	async resolveFirstSync(choice: FirstSyncChoice): Promise<void> {
 		const db = this.deps.db;
-		if (choice === "replace") {
+		if (choice === "remote") {
 			await db.transaction(async (tx) => {
 				await tx.execute("DELETE FROM task_tags");
 				await tx.execute("DELETE FROM tasks");
@@ -213,8 +321,13 @@ export class SyncEngine {
 				await tx.execute("DELETE FROM sync_outbox");
 				await setSyncState(tx, "first_sync_resolved", "1");
 			});
+		} else if (choice === "local") {
+			await this.takeOverAccount();
 		} else {
-			await setSyncState(db, "first_sync_resolved", "1");
+			await db.transaction(async (tx) => {
+				await queueLocalRows(tx, { liveOnly: true });
+				await setSyncState(tx, "first_sync_resolved", "1");
+			});
 		}
 		this.setStatus("idle");
 		await this.syncNow();
@@ -492,7 +605,10 @@ export class SyncEngine {
 		);
 		const localNonEmpty = (counts[0]?.n ?? 0) > 0;
 		if (!localNonEmpty || page.records.length === 0) {
-			await setSyncState(db, "first_sync_resolved", "1");
+			await db.transaction(async (tx) => {
+				if (localNonEmpty) await queueLocalRows(tx, { liveOnly: true });
+				await setSyncState(tx, "first_sync_resolved", "1");
+			});
 			return false;
 		}
 		// §6.4: both sides have data. A naïve merge-push would read as silent

@@ -57,6 +57,7 @@ describe("signIn", () => {
 	const vault = {
 		beginUnlock: vi.fn(async () => "verifier-from-argon2"),
 		completeUnlock: vi.fn(async () => undefined),
+		bindAccount: vi.fn(async () => "sealed-local-dek"),
 		prepareRegistration: vi.fn(),
 	};
 
@@ -103,6 +104,13 @@ describe("signIn", () => {
 		expect(await getSyncState(driver, "server_url")).toBe(
 			"https://sync.example",
 		);
+		// The keys response's recovery wrapping ("r") goes to the vault, strictly
+		// after completeUnlock: bind consumes what completeUnlock left behind.
+		expect(vault.bindAccount).toHaveBeenCalledWith("r");
+		expect(vault.completeUnlock.mock.invocationCallOrder[0]).toBeLessThan(
+			vault.bindAccount.mock.invocationCallOrder[0],
+		);
+		expect(await getSyncState(driver, "local_dek")).toBe("sealed-local-dek");
 		// The login body carries the derived verifier, never the password.
 		const loginCall = calls.find((c) => c.url.includes("/v1/auth/login"));
 		expect(loginCall?.init.body).not.toContain("pw");
@@ -138,6 +146,7 @@ describe("register", () => {
 			userId: string;
 		}> = [];
 		let pendingSalt: string | null = null;
+		let boundWith: string | null = null;
 		const vault: VaultPort = {
 			async beginUnlock(_password, authSalt) {
 				pendingSalt = authSalt;
@@ -145,6 +154,10 @@ describe("register", () => {
 			},
 			async completeUnlock(wrappedDek, userId) {
 				unlockCalls.push({ salt: pendingSalt ?? "", wrappedDek, userId });
+			},
+			async bindAccount(wrappedDekRecovery) {
+				boundWith = wrappedDekRecovery;
+				return "sealed-local-dek";
 			},
 			async prepareRegistration(_password) {
 				return {
@@ -189,6 +202,58 @@ describe("register", () => {
 		expect(unlockCalls[0].userId).toBe("u-42");
 		expect(unlockCalls[0].salt).toMatch(/^[0-9a-f]{32}$/);
 		expect(unlockCalls[0].wrappedDek).toBeTruthy();
+		expect(boundWith).toBe("wrapped-dek-recovery");
+		expect(await getSyncState(driver, "local_dek")).toBe("sealed-local-dek");
+	});
+
+	it("keeps the session and returns the recovery phrase when binding the vault fails", async () => {
+		const vault: VaultPort = {
+			beginUnlock: vi.fn(async () => "verifier"),
+			completeUnlock: vi.fn(async () => {}),
+			bindAccount: vi.fn(async () => {
+				throw { code: "io", detail: "disk full" };
+			}),
+			prepareRegistration: vi.fn(async () => ({
+				authSalt: "a".repeat(32),
+				authVerifier: "verifier",
+				wrappedDek: "wrapped-dek",
+				wrappedDekRecovery: "wrapped-dek-recovery",
+				publicKey: "public-key",
+				wrappedPrivateKey: "wrapped-private-key",
+				kdfParams: { memoryCost: 65536, timeCost: 3, parallelism: 4 },
+				recoveryPhrase: "abandon ability able about above absent absorb",
+			})),
+		};
+		const { fetchImpl } = fakeServer({
+			"/v1/server-info": () => json(200, SERVER_INFO),
+			"/v1/auth/register": () =>
+				json(200, {
+					userId: "u-42",
+					workspaceId: "w-1",
+					deviceId: "d-1",
+					accessToken: "at-1",
+					refreshToken: "rt-1",
+				}),
+		});
+
+		const result = await register(
+			{ db: driver, fetchImpl, baseUrl: "https://sync.example.com", vault },
+			{
+				email: "a@example.com",
+				password: "correct horse battery staple",
+				deviceName: "Poste",
+				devicePlatform: "linux",
+			},
+		);
+
+		// The account exists server-side by now: losing its only recovery
+		// phrase to a local bind error would be unrecoverable.
+		expect(result.recoveryPhrase).toBe(
+			"abandon ability able about above absent absorb",
+		);
+		expect(await getSyncState(driver, "refresh_token")).toBe("rt-1");
+		expect(await getSyncState(driver, "user_id")).toBe("u-42");
+		expect(await getSyncState(driver, "local_dek")).toBeNull();
 	});
 });
 
@@ -384,6 +449,17 @@ describe("AuthorizedHttp", () => {
 });
 
 describe("signOut", () => {
+	it("forgets the sealed DEK with the rest of the session", async () => {
+		await setSyncState(driver, "refresh_token", "rt");
+		await setSyncState(driver, "local_dek", "sealed-local-dek");
+		await signOut({
+			db: driver,
+			fetchImpl: async () => new Response(null, { status: 204 }),
+			baseUrl: "https://sync.example",
+		});
+		expect(await getSyncState(driver, "local_dek")).toBeNull();
+	});
+
 	it("efface tout l'état de sync et l'outbox, sans toucher aux données métier", async () => {
 		const repo = new SqliteRepository(driver);
 

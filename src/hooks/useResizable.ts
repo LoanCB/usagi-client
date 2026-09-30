@@ -37,10 +37,13 @@ export function useResizable({
 	const [isDragging, setIsDragging] = useState(false);
 
 	const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
+	// Mirrors the latest width so mouseup can persist it without a side effect inside a state updater.
+	const latestWidth = useRef(width);
 
 	const onMouseDown = useCallback(
 		(e: React.MouseEvent) => {
 			dragState.current = { startX: e.clientX, startWidth: width };
+			latestWidth.current = width;
 			setIsDragging(true);
 			document.body.style.cursor = "col-resize";
 			document.body.style.userSelect = "none";
@@ -58,6 +61,7 @@ export function useResizable({
 				maxWidth,
 				Math.max(minWidth, dragState.current.startWidth + delta),
 			);
+			latestWidth.current = newWidth;
 			setWidth(newWidth);
 		}
 
@@ -66,10 +70,7 @@ export function useResizable({
 			document.body.style.cursor = "";
 			document.body.style.userSelect = "";
 			if (dragState.current) {
-				setWidth((w) => {
-					localStorage.setItem(storageKey, String(w));
-					return w;
-				});
+				localStorage.setItem(storageKey, String(latestWidth.current));
 			}
 			dragState.current = null;
 		}

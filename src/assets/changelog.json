@@ -8,16 +8,24 @@
 			"changes": {
 				"features": [
 					{
+						"en": "Your data is now encrypted on your device. On first launch, choose a password — with a 24-word recovery key in case you forget it — or let your computer's keychain unlock Bunly for you. You can add, change or remove the password later under Settings › Security. A device connected to sync always asks for your account password at startup.",
+						"fr": "Vos données sont désormais chiffrées sur votre appareil. Au premier lancement, choisissez un mot de passe — avec une clé de récupération de 24 mots en cas d'oubli — ou laissez le trousseau de votre ordinateur déverrouiller Bunly pour vous. Vous pouvez ajouter, changer ou supprimer le mot de passe plus tard dans Réglages › Sécurité. Un appareil connecté à la synchronisation demande toujours le mot de passe du compte au démarrage."
+					},
+					{
 						"en": "Sync is here. Connect the app to a usagi server — your own or someone else's — and your tasks, projects and tags follow you across devices. Everything is encrypted on your device before it leaves it, so the server never sees your data. Set it up under Settings › Sync.",
 						"fr": "La synchronisation arrive. Connectez l'application à un serveur usagi — le vôtre ou celui d'un tiers — et vos tâches, projets et tags vous suivent d'un appareil à l'autre. Tout est chiffré sur votre appareil avant d'en sortir : le serveur ne voit jamais vos données. Rendez-vous dans Réglages › Synchronisation."
+					},
+					{
+						"en": "Servers that are closed to open sign-up still let you create an account with an invite token from their owner.",
+						"fr": "Les serveurs fermés aux inscriptions libres permettent toujours de créer un compte avec un jeton d'invitation fourni par leur propriétaire."
 					},
 					{
 						"en": "Creating a sync account gives you a 24-word recovery key. It is shown once and never stored — it is the only way back in if you forget your password, so you are asked to confirm you wrote it down.",
 						"fr": "La création d'un compte de synchronisation fournit une clé de récupération de 24 mots. Elle est affichée une seule fois et n'est jamais enregistrée — c'est le seul moyen de retrouver votre compte si vous oubliez votre mot de passe, d'où la confirmation demandée."
 					},
 					{
-						"en": "When you connect a device that already has tasks to an account that also has some, the app asks whether to merge them or replace what is on this device — and writes an automatic backup next to the app's database, in its configuration folder, before replacing anything.",
-						"fr": "Lorsqu'un appareil contenant déjà des tâches est connecté à un compte qui en contient aussi, l'application demande s'il faut les fusionner ou remplacer le contenu de cet appareil — et enregistre une sauvegarde automatique à côté de la base de données de l'application, dans son dossier de configuration, avant tout remplacement."
+						"en": "When you connect a device that already has tasks to an account that also has some, the app asks whether to merge both, keep only the account's data, or keep only this device's data — and writes an automatic backup of whatever is about to be deleted next to the app's database, in its configuration folder, first. Keeping only this device's data also removes the account's data from your other devices, so it asks you to confirm.",
+						"fr": "Lorsqu'un appareil contenant déjà des tâches est connecté à un compte qui en contient aussi, l'application demande s'il faut fusionner les deux, garder uniquement les données du compte ou garder uniquement celles de cet appareil — et enregistre d'abord une sauvegarde automatique de ce qui va être supprimé, à côté de la base de données de l'application, dans son dossier de configuration. Garder uniquement les données de cet appareil supprime aussi celles du compte sur vos autres appareils : une confirmation est donc demandée."
 					},
 					{
 						"en": "Importing a backup now shows a confirmation dialog explaining what merge and replace each do, and warns that replace deletes tasks missing from the backup on all your synced devices, not just this one.",
@@ -25,6 +33,14 @@
 					}
 				],
 				"fixes": [
+					{
+						"en": "Icon-only buttons (calendar navigation, tag editing, time pickers in Settings) now have accessible names for screen readers.",
+						"fr": "Les boutons à icône seule (navigation du calendrier, édition des tags, sélecteurs d'heure des Réglages) ont désormais un nom accessible pour les lecteurs d'écran."
+					},
+					{
+						"en": "In Settings, the scrollbar no longer overlaps the content and text fields are no longer cut off at the edges.",
+						"fr": "Dans les Réglages, la barre de défilement ne chevauche plus le contenu et les champs de saisie ne sont plus rognés sur les bords."
+					},
 					{
 						"en": "Multi-step writes such as importing a backup or moving a task are now guaranteed to apply completely or not at all, even when several run at the same time. Previously they could be split across database connections, which could leave a write half-applied or make a concurrent one fail.",
 						"fr": "Les écritures en plusieurs étapes comme l'import d'une sauvegarde ou le déplacement d'une tâche s'appliquent désormais entièrement ou pas du tout, même lorsque plusieurs se produisent en même temps. Elles pouvaient auparavant être réparties sur plusieurs connexions à la base, ce qui pouvait laisser une écriture à moitié appliquée ou en faire échouer une autre."

@@ -25,7 +25,12 @@ const h = vi.hoisted(() => {
 		prelogin: vi.fn(async () => ({ salt: "salt", kdfParams: {} })),
 		listDevices: vi.fn(async () => []),
 		revokeDevice: vi.fn(async () => {}),
-		request: vi.fn(async () => ({ wrappedDek: "wrapped" })),
+		request: vi.fn(async () => ({
+			wrappedDek: "wrapped",
+			wrappedDekRecovery: "wrapped-recovery",
+		})),
+		bindAccount: vi.fn(async () => "sealed-local-dek"),
+		setSyncState: vi.fn(async () => {}),
 	};
 });
 
@@ -34,6 +39,13 @@ vi.mock("@/crypto", () => ({
 	completeUnlock: h.completeUnlock,
 	beginUnlock: h.beginUnlock,
 	prepareRegistration: vi.fn(),
+}));
+
+vi.mock("@/vault", () => ({
+	tauriVaultApi: { status: vi.fn() },
+	unbindAccount: vi.fn(async () => {
+		h.calls.push("unbindAccount");
+	}),
 }));
 
 vi.mock("@/sync/auth", () => {
@@ -53,6 +65,7 @@ vi.mock("@/sync/auth", () => {
 		tauriVault: {
 			beginUnlock: h.beginUnlock,
 			completeUnlock: h.completeUnlock,
+			bindAccount: h.bindAccount,
 			prepareRegistration: vi.fn(),
 		},
 	};
@@ -67,6 +80,7 @@ vi.mock("@/sync/state", () => ({
 	getSyncState: vi.fn(
 		async (_db: unknown, key: string) => h.state[key] ?? null,
 	),
+	setSyncState: h.setSyncState,
 }));
 
 let context: { db: object; repository: object; fetchImpl: unknown };
@@ -93,7 +107,10 @@ beforeEach(() => {
 		account_email: "a@example.com",
 		user_id: "user-1",
 	};
-	h.request.mockResolvedValue({ wrappedDek: "wrapped" });
+	h.request.mockResolvedValue({
+		wrappedDek: "wrapped",
+		wrappedDekRecovery: "wrapped-recovery",
+	});
 	freshContext();
 });
 
@@ -117,7 +134,12 @@ describe("signOut", () => {
 		await productionSyncDeps().signOut();
 		// signOutAccount POSTs /v1/auth/logout first and can hang; a scheduler
 		// still live during that window rewrites cursor after the wipe commits.
-		expect(h.calls).toEqual(["stopSync", "lock", "signOutAccount"]);
+		expect(h.calls).toEqual([
+			"stopSync",
+			"lock",
+			"signOutAccount",
+			"unbindAccount",
+		]);
 	});
 
 	it("détache le store de synchronisation", async () => {
@@ -152,5 +174,30 @@ describe("unlock", () => {
 		await expect(
 			productionSyncDeps().unlock("correct-password"),
 		).rejects.toBeInstanceOf(SyncUnlockReauthError);
+	});
+
+	it("lie le coffre local au compte et range la DEK scellée", async () => {
+		// An account signed in before local encryption existed was never bound;
+		// after a DEK rotation elsewhere the stored local_dek is stale too.
+		await productionSyncDeps().unlock("correct-password");
+		expect(h.bindAccount).toHaveBeenCalledWith("wrapped-recovery");
+		expect(h.bindAccount.mock.invocationCallOrder[0]).toBeGreaterThan(
+			h.completeUnlock.mock.invocationCallOrder[0],
+		);
+		expect(h.setSyncState).toHaveBeenCalledWith(
+			context.db,
+			"local_dek",
+			"sealed-local-dek",
+		);
+	});
+
+	it("ne fait pas échouer le déverrouillage quand la liaison du coffre échoue", async () => {
+		// The DEK is already loaded: reporting a local bind error as a wrong
+		// password would make the user retype a correct one.
+		h.bindAccount.mockRejectedValueOnce({ code: "io" });
+		await expect(
+			productionSyncDeps().unlock("correct-password"),
+		).resolves.toBeUndefined();
+		expect(h.setSyncState).not.toHaveBeenCalled();
 	});
 });

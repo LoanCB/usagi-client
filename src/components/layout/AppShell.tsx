@@ -9,14 +9,18 @@ import { SyncStatusBanner } from "@/components/sync/SyncStatusBanner";
 import { TagManager } from "@/components/tags/TagManager";
 import { useOrbParallax } from "@/hooks/useOrbParallax";
 import { useResizable } from "@/hooks/useResizable";
-import { exportData } from "@/lib/dataTransfer";
+import { automaticBackupName } from "@/lib/backup-file";
+import { type ExportData, exportData } from "@/lib/dataTransfer";
 import { isMac } from "@/lib/utils";
 import { getRepository } from "@/store/repository";
 import { useSearchStore } from "@/store/search";
 import { useSettingsStore } from "@/store/settings";
 import { useSyncStore } from "@/store/sync";
 import { useUIStore } from "@/store/ui";
+import { remoteToExportData } from "@/sync/remote-export";
 import { getSyncRuntime } from "@/sync/runtime";
+import type { FirstSyncChoice } from "@/sync/types";
+import { sealBackup } from "@/vault";
 import {
 	reloadStoresAfterFirstSync,
 	reloadStoresAfterSync,
@@ -27,26 +31,43 @@ import { Sidebar } from "./Sidebar";
 import { TaskDetail } from "./TaskDetail";
 import { TaskList } from "./TaskList";
 
-/** §6.4: the first-sync "replace" choice is destructive, so a backup must
- * exist before it runs — and it must be automatic, with no save dialog. */
-async function writeAutomaticBackup(): Promise<void> {
-	const data = await exportData(getRepository(), {
+/** §6.4: the destructive first-sync choices erase data, so a backup of what
+ * they erase must exist first — automatic, with no save dialog. */
+async function writeAutomaticBackup(
+	choice: Exclude<FirstSyncChoice, "merge">,
+): Promise<void> {
+	// app_config_dir, not app_data_dir: on Linux they are different paths and
+	// nothing creates the latter, so writeTextFile used to fail ENOENT and the
+	// §6.4 "Replace" branch was unreachable. src-tauri/src/db.rs create_dir_all's
+	// this one to hold the database, so it is guaranteed to exist.
+	const [data, dir] = await Promise.all([
+		choice === "remote" ? exportThisDevice() : exportAccount(),
+		appConfigDir(),
+	]);
+	// Sealed in Rust under the database key: a plaintext copy beside the
+	// encrypted database would undo the encryption.
+	await writeTextFile(
+		await join(dir, automaticBackupName(new Date())),
+		await sealBackup(JSON.stringify(data)),
+	);
+}
+
+function exportThisDevice(): Promise<ExportData> {
+	return exportData(getRepository(), {
 		activeTasks: true,
 		completedTasks: true,
 		archivedTasks: true,
 		projects: true,
 		tags: true,
 	});
-	const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
-	// app_config_dir, not app_data_dir: on Linux they are different paths and
-	// nothing creates the latter, so writeTextFile used to fail ENOENT and the
-	// §6.4 "Replace" branch was unreachable. src-tauri/src/db.rs create_dir_all's
-	// this one to hold the database, so it is guaranteed to exist. (Writing the
-	// backup beside the database it backs up is also the friendlier place.)
-	const dir = await appConfigDir();
-	await writeTextFile(
-		await join(dir, `bunly-before-replace-${stamp}.json`),
-		JSON.stringify(data, null, 2),
+}
+
+async function exportAccount(): Promise<ExportData> {
+	const engine = getSyncRuntime()?.engine;
+	if (!engine) throw new Error("sync is not running");
+	return remoteToExportData(
+		await engine.exportRemote(),
+		new Date().toISOString(),
 	);
 }
 

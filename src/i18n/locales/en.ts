@@ -12,6 +12,8 @@ const en = {
 		colorOption: "Color {{color}}",
 		iconOption: "Icon {{name}}",
 		resizePanel: "Resize panel",
+		increase: "Increase",
+		decrease: "Decrease",
 	},
 	nav: {
 		views: "Views",
@@ -29,6 +31,8 @@ const en = {
 	calendar: {
 		month: "Month",
 		week: "Week",
+		previous: "Previous",
+		next: "Next",
 		noTasks: "No tasks for this day",
 		newTask: "New task for this day",
 		closeDay: "Close day detail",
@@ -168,6 +172,7 @@ const en = {
 		overdueTaskBody: "Due date has passed",
 	},
 	settings: {
+		tabSecurity: "Security",
 		title: "Settings",
 		appearance: "Appearance",
 		language: "Language",
@@ -251,6 +256,8 @@ const en = {
 	},
 	data: {
 		title: "Data",
+		exportPlaintextWarning:
+			"Exported files are not encrypted. Keep them somewhere safe.",
 		exportSection: "Export",
 		importSection: "Import",
 		exportTasksGroup: "Tasks",
@@ -344,14 +351,22 @@ const en = {
 		createAccount: "Create account",
 		creatingAccount: "Creating account…",
 		registrationClosed:
-			"This server does not accept new accounts. Sign in with an existing one.",
+			"New accounts on this server need an invite token from its owner.",
+		localPasswordReplaced:
+			"Your local password will be replaced by your account's: Bunly will then ask for the account password at startup.",
 		email: "Email",
 		password: "Password",
 		inviteToken: "Invite token",
 		inviteTokenHint: "Optional — only if the server owner gave you one.",
+		inviteTokenRequiredHint: "Required — ask the server owner for one.",
 		signInFailed: "Wrong email or password.",
-		registerFailed:
-			"Could not create the account. The invite token may be used or expired.",
+		registerEmailTaken:
+			"An account already exists with this email on this server. Sign in instead.",
+		registerInviteInvalid:
+			"This invite token is invalid, already used or expired. Ask the server owner for a new one.",
+		registerTooManyAttempts:
+			"Too many attempts. Wait a moment, then try again.",
+		registerFailed: "Could not create the account. Try again.",
 		passwordHint:
 			"Choose a strong password. It encrypts everything, and it is never sent to the server — nobody can reset it for you.",
 		recovery: {
@@ -435,21 +450,84 @@ const en = {
 			title: "This account already has data",
 			intro:
 				"This device has tasks, and so does the account. Choose how to combine them — this is asked once.",
-			merge: "Merge",
+			merge: "Merge both",
 			mergeExplanation:
 				"Keep both. Anything present on only one side is kept, and where both changed the same thing, the most recent edit wins.",
-			replace: "Replace",
-			replaceExplanation:
+			remote: "Keep only the account's data",
+			remoteExplanation:
 				"Discard what is on this device and download the account's data instead.",
-			replaceWarning:
+			remoteWarning:
 				"The tasks, projects and tags currently on this device will be deleted. A backup is saved to your computer first.",
+			local: "Keep only this device's data",
+			localExplanation:
+				"Replace the account's data with what is on this device.",
+			localWarning:
+				"The account's tasks, projects and tags will be deleted from the server, and from your other devices at their next sync. A backup of the account is saved to your computer first.",
+			localAcknowledge:
+				"I understand the account's data will be deleted everywhere",
 			backupSaving: "Saving a backup…",
 			backupFailed:
-				"The backup could not be saved, so nothing was replaced. Try again or choose Merge.",
+				"The backup could not be saved, so nothing was deleted. Try again or choose Merge both.",
 			applying: "Applying…",
 			confirm: "Continue",
 			failed: "Could not apply your choice. Nothing was changed.",
 		},
+	},
+	vault: {
+		setupTitle: "Protect your data",
+		setupIntro:
+			"Bunly encrypts everything it stores on this device. Choose a password to unlock it, or let this device unlock it for you.",
+		legacyNotice: "Your existing data will now be encrypted.",
+		password: "Password",
+		confirmPassword: "Confirm password",
+		mismatch: "The passwords do not match.",
+		protect: "Protect with a password",
+		noPassword: "Continue without a password",
+		noPasswordHint:
+			"The key is kept in this computer's keychain. Anyone using your session can open Bunly, and if the keychain entry is lost, so is your data.",
+		working: "Encrypting…",
+		unlockTitle: "Bunly is locked",
+		unlock: "Unlock",
+		unlocking: "Unlocking…",
+		wrongSecret: "That did not work. Check what you typed and try again.",
+		forgot: "Forgot your password?",
+		recoverTitle: "Unlock with your recovery key",
+		recoverIntro:
+			"Enter your 24-word recovery key, then choose a new password.",
+		recoverSyncHint:
+			"Your sync account's recovery key works too. Your account password stays the same on the server.",
+		recoveryPhrase: "Recovery key",
+		newPassword: "New password",
+		recover: "Unlock and set password",
+		back: "Back",
+		keychainDenied:
+			"Bunly could not read its key from the keychain. Allow access, then try again.",
+		keychainWriteDenied:
+			"Bunly could not save its key in the keychain. Allow access, then try again.",
+		retry: "Try again",
+		migrationFailed:
+			"Encrypting your data failed. Nothing was lost — your data is untouched. Try again.",
+		brokenTitle: "Your data cannot be opened",
+		brokenKeyMissing:
+			"This device's key is no longer in the keychain. Without it the encrypted data cannot be read.",
+		brokenVaultMissing:
+			"The file that unlocks your data (vault.json) is missing.",
+		brokenCorrupt: "The file that unlocks your data (vault.json) is damaged.",
+		genericError: "Something went wrong: {{detail}}",
+		securityKeychain:
+			"No password: this device's keychain unlocks Bunly at startup.",
+		securityPassword: "Bunly asks for your password at startup.",
+		securitySynced:
+			"Your password is your sync account's. A synced device always asks for it.",
+		setPassword: "Set a password",
+		changePassword: "Change password",
+		removePassword: "Remove password",
+		currentPassword: "Current password",
+		save: "Save",
+		cancel: "Cancel",
+		saved: "Saved.",
+		accountPasswordLater:
+			"Changing your sync account's password is not available yet.",
 	},
 };
 

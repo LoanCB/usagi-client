@@ -1,0 +1,16 @@
+export function VaultCard({
+	title,
+	children,
+}: {
+	title: string;
+	children: React.ReactNode;
+}) {
+	return (
+		<div className="flex min-h-screen items-center justify-center bg-background p-4">
+			<div className="flex w-full max-w-sm flex-col gap-4 rounded-xl bg-popover p-6 text-sm ring-1 ring-foreground/10">
+				<h1 className="text-base font-semibold">{title}</h1>
+				{children}
+			</div>
+		</div>
+	);
+}

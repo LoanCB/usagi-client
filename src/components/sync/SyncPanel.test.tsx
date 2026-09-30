@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@/i18n";
 import { useSyncStore } from "@/store/sync";
 import type { ServerInfo } from "@/sync/types";
+import type { VaultStatus } from "@/vault/types";
 import { SyncPanel, type SyncPanelDeps } from "./SyncPanel";
 
 const OPEN_SERVER: ServerInfo = {
@@ -18,6 +19,13 @@ const CLOSED_SERVER: ServerInfo = {
 	registrationEnabled: false,
 };
 
+const KEYCHAIN_VAULT: VaultStatus = {
+	state: "keychain",
+	migrating: false,
+	syncBound: false,
+	brokenReason: null,
+};
+
 function makeDeps(overrides: Partial<SyncPanelDeps> = {}): SyncPanelDeps {
 	return {
 		loadSession: vi.fn(async () => null),
@@ -29,6 +37,7 @@ function makeDeps(overrides: Partial<SyncPanelDeps> = {}): SyncPanelDeps {
 		syncNow: vi.fn(async () => {}),
 		listDevices: vi.fn(async () => []),
 		revokeDevice: vi.fn(async () => {}),
+		vaultStatus: vi.fn(async () => KEYCHAIN_VAULT),
 		...overrides,
 	};
 }
@@ -64,7 +73,7 @@ describe("SyncPanel", () => {
 		).toBeInTheDocument();
 	});
 
-	it("cache la création de compte quand le serveur la refuse", async () => {
+	it("garde la création de compte sur invitation quand l'inscription est fermée", async () => {
 		const user = userEvent.setup();
 		render(
 			<SyncPanel
@@ -78,14 +87,15 @@ describe("SyncPanel", () => {
 		await user.click(testButton());
 		await screen.findByLabelText(/^password$|^mot de passe$/i);
 		expect(
-			screen.queryByRole("button", {
+			screen.getByText(/need an invite token|jeton d'invitation/i),
+		).toBeInTheDocument();
+		await user.click(
+			screen.getByRole("button", {
 				name: /^create account$|^créer un compte$/i,
 			}),
-		).not.toBeInTheDocument();
+		);
 		expect(
-			screen.getByText(
-				/does not accept new accounts|n'accepte pas de nouveaux comptes/i,
-			),
+			await screen.findByText(/^required|^obligatoire/i),
 		).toBeInTheDocument();
 	});
 
@@ -262,5 +272,59 @@ describe("SyncPanel", () => {
 			await screen.findByLabelText(/server address|adresse du serveur/i),
 		).toBeInTheDocument();
 		expect(deps.signOut).toHaveBeenCalledTimes(1);
+	});
+
+	describe("mot de passe local remplacé par celui du compte (§4)", () => {
+		const NOTICE =
+			/local password will be replaced|mot de passe local sera remplacé/i;
+
+		async function reachCredentials(deps: SyncPanelDeps) {
+			const user = userEvent.setup();
+			render(<SyncPanel deps={deps} />);
+			await user.type(
+				await screen.findByLabelText(/server address|adresse du serveur/i),
+				"https://sync.example.com",
+			);
+			await user.click(testButton());
+			await screen.findByLabelText(/^password$|^mot de passe$/i);
+			return user;
+		}
+
+		it("prévient sur la connexion et l'inscription quand le coffre a son propre mot de passe", async () => {
+			const user = await reachCredentials(
+				makeDeps({
+					vaultStatus: vi.fn(async () => ({
+						...KEYCHAIN_VAULT,
+						state: "password" as const,
+					})),
+				}),
+			);
+			expect(await screen.findByText(NOTICE)).toBeInTheDocument();
+			await user.click(
+				screen.getByRole("button", {
+					name: /^create account$|^créer un compte$/i,
+				}),
+			);
+			await screen.findByLabelText(/invite token|jeton d'invitation/i);
+			expect(screen.getByText(NOTICE)).toBeInTheDocument();
+		});
+
+		it("ne prévient pas en mode trousseau", async () => {
+			const vaultStatus = vi.fn(async () => KEYCHAIN_VAULT);
+			await reachCredentials(makeDeps({ vaultStatus }));
+			await waitFor(() => expect(vaultStatus).toHaveBeenCalled());
+			expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
+		});
+
+		it("ne prévient pas quand le coffre est déjà lié à un compte", async () => {
+			const vaultStatus = vi.fn(async () => ({
+				...KEYCHAIN_VAULT,
+				state: "password" as const,
+				syncBound: true,
+			}));
+			await reachCredentials(makeDeps({ vaultStatus }));
+			await waitFor(() => expect(vaultStatus).toHaveBeenCalled());
+			expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
+		});
 	});
 });

@@ -242,6 +242,7 @@ export function TagManager() {
 							variant="ghost"
 							className="h-7 w-7 shrink-0"
 							onClick={commitEdit}
+							aria-label={t("common.save")}
 						>
 							<Check className="h-3.5 w-3.5" />
 						</Button>
@@ -250,6 +251,7 @@ export function TagManager() {
 							variant="ghost"
 							className="h-7 w-7 shrink-0"
 							onClick={() => editDispatch({ type: "close" })}
+							aria-label={t("common.cancel")}
 						>
 							<X className="h-3.5 w-3.5" />
 						</Button>

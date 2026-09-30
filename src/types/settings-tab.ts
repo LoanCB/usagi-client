@@ -5,6 +5,7 @@ export const SETTINGS_TABS = [
 	"customization",
 	"notifications",
 	"sync",
+	"security",
 	"data",
 	"changelog",
 ] as const;
