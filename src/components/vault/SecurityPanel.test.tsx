@@ -1,7 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@/i18n";
+import type { TodoRepository } from "@/db/repository";
+import { setRepository } from "@/store/repository";
+import { useSettingsStore } from "@/store/settings";
 import type { VaultApi, VaultStatus } from "@/vault";
 import { SecurityPanel } from "./SecurityPanel";
 
@@ -33,6 +36,14 @@ function api(
 	};
 }
 const button = (name: RegExp) => screen.findByRole("button", { name });
+const autoLock = () => screen.findByLabelText(/auto-lock|verrouillage auto/i);
+const setSetting = vi.fn().mockResolvedValue(undefined);
+
+beforeEach(() => {
+	setSetting.mockClear();
+	setRepository({ setSetting } as unknown as TodoRepository);
+	useSettingsStore.setState({ autoLockMinutes: 0 });
+});
 
 describe("SecurityPanel", () => {
 	it("offers only 'set a password' in keychain mode", async () => {
@@ -314,5 +325,35 @@ describe("SecurityPanel", () => {
 				/could not save its key|n'a pas pu enregistrer sa clé/i,
 			),
 		).toBeInTheDocument();
+	});
+
+	it("saves the chosen auto-lock delay", async () => {
+		const user = userEvent.setup();
+		render(<SecurityPanel api={api({ state: "password" })} />);
+		await user.selectOptions(await autoLock(), "15");
+		expect(setSetting).toHaveBeenCalledWith("auto_lock_minutes", "15");
+		expect(useSettingsStore.getState().autoLockMinutes).toBe(15);
+	});
+
+	it("disables auto-lock in keychain mode", async () => {
+		render(<SecurityPanel api={api({ state: "keychain" })} />);
+		expect(await autoLock()).toBeDisabled();
+	});
+
+	it("turns auto-lock off when the password is removed", async () => {
+		const user = userEvent.setup();
+		useSettingsStore.setState({ autoLockMinutes: 5 });
+		render(<SecurityPanel api={api({ state: "password" })} />);
+		await user.click(
+			await button(/remove password|supprimer le mot de passe/i),
+		);
+		await user.type(screen.getByLabelText(/current|actuel/i), "pw");
+		await user.click(
+			screen.getByRole("button", { name: /^save$|^enregistrer$/i }),
+		);
+		await waitFor(() =>
+			expect(setSetting).toHaveBeenCalledWith("auto_lock_minutes", "0"),
+		);
+		expect(useSettingsStore.getState().autoLockMinutes).toBe(0);
 	});
 });

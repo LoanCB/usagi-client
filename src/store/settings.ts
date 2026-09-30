@@ -58,6 +58,9 @@ interface SettingsStore {
 	): Promise<void>;
 	betaChannel: boolean;
 	setBetaChannel(repo: TodoRepository, enabled: boolean): Promise<void>;
+	// Minutes of inactivity before the UI locks; 0 means never.
+	autoLockMinutes: number;
+	setAutoLockMinutes(repo: TodoRepository, minutes: number): Promise<void>;
 	// Latest changelog version the user has been shown (null until first launch).
 	lastSeenChangelogVersion: string | null;
 	setLastSeenChangelogVersion(
@@ -84,6 +87,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 	quickAddTagsVisible: true,
 	priorityBackgroundVisible: false,
 	betaChannel: false,
+	autoLockMinutes: 0,
 	lastSeenChangelogVersion: null,
 
 	async loadSettings(repo) {
@@ -108,6 +112,11 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 		const priorityBackgroundVisible =
 			raw.priority_background_visible === "true";
 		const betaChannel = raw.beta_channel === "true";
+		const parsedAutoLock = Number(raw.auto_lock_minutes);
+		const autoLockMinutes =
+			Number.isFinite(parsedAutoLock) && parsedAutoLock > 0
+				? parsedAutoLock
+				: 0;
 		const lastSeenChangelogVersion = raw.last_seen_changelog_version ?? null;
 		set({
 			notificationsEnabled,
@@ -124,6 +133,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 			quickAddTagsVisible,
 			priorityBackgroundVisible,
 			betaChannel,
+			autoLockMinutes,
 			lastSeenChangelogVersion,
 		});
 	},
@@ -196,6 +206,11 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 	async setBetaChannel(repo, enabled) {
 		await repo.setSetting("beta_channel", String(enabled));
 		set({ betaChannel: enabled });
+	},
+
+	async setAutoLockMinutes(repo, minutes) {
+		await repo.setSetting("auto_lock_minutes", String(minutes));
+		set({ autoLockMinutes: minutes });
 	},
 
 	async setLastSeenChangelogVersion(repo, version) {

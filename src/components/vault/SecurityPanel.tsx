@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 import { RecoveryPhraseStep } from "@/components/sync/RecoveryPhraseStep";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getRepository } from "@/store/repository";
+import { useSettingsStore } from "@/store/settings";
 import { tauriVaultApi, type VaultApi, type VaultStatus } from "@/vault";
+import { AutoLockSetting } from "./AutoLockSetting";
 import type { SecurityForm } from "./types";
 import { vaultErrorMessage } from "./vaultErrorMessage";
 
@@ -31,6 +34,8 @@ export function SecurityPanel({
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [loadAttempt, setLoadAttempt] = useState(0);
 	const [saved, setSaved] = useState(false);
+	const autoLockMinutes = useSettingsStore((s) => s.autoLockMinutes);
+	const setAutoLockMinutes = useSettingsStore((s) => s.setAutoLockMinutes);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: loadAttempt re-runs the load on retry
 	useEffect(() => {
@@ -93,6 +98,10 @@ export function SecurityPanel({
 				setSaved(true);
 			} else if (form === "remove") {
 				await api.removePassword(current);
+				// Without a password there is nothing to unlock with.
+				if (autoLockMinutes > 0) {
+					await setAutoLockMinutes(getRepository(), 0);
+				}
 				setSaved(true);
 			}
 			setForm(null);
@@ -184,6 +193,8 @@ export function SecurityPanel({
 					</>
 				)}
 			</div>
+
+			<AutoLockSetting disabled={keychain} />
 
 			{form && (
 				<form

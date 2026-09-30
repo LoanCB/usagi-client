@@ -8,7 +8,8 @@ interface UnlockScreenProps {
 	busy: boolean;
 	error: string | null;
 	onUnlock: (password: string) => void;
-	onForgot: () => void;
+	/** Omitted on the idle lock, where recovery is not offered. */
+	onForgot?: () => void;
 }
 
 export function UnlockScreen({
@@ -46,9 +47,11 @@ export function UnlockScreen({
 					{busy ? t("vault.unlocking") : t("vault.unlock")}
 				</Button>
 			</form>
-			<Button type="button" variant="ghost" size="sm" onClick={onForgot}>
-				{t("vault.forgot")}
-			</Button>
+			{onForgot && (
+				<Button type="button" variant="ghost" size="sm" onClick={onForgot}>
+					{t("vault.forgot")}
+				</Button>
+			)}
 		</VaultCard>
 	);
 }

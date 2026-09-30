@@ -8,6 +8,10 @@
 			"changes": {
 				"features": [
 					{
+						"en": "You can now have Bunly lock itself after a period of inactivity (1 to 60 minutes) and ask for your password again. It is off by default — set it under Settings › Security once your data is protected by a password.",
+						"fr": "Bunly peut désormais se verrouiller après une période d'inactivité (de 1 à 60 minutes) et redemander votre mot de passe. Désactivé par défaut — à régler dans Réglages › Sécurité une fois vos données protégées par un mot de passe."
+					},
+					{
 						"en": "Your data is now encrypted on your device. On first launch, choose a password — with a 24-word recovery key in case you forget it — or let your computer's keychain unlock Bunly for you. You can add, change or remove the password later under Settings › Security. A device connected to sync always asks for your account password at startup.",
 						"fr": "Vos données sont désormais chiffrées sur votre appareil. Au premier lancement, choisissez un mot de passe — avec une clé de récupération de 24 mots en cas d'oubli — ou laissez le trousseau de votre ordinateur déverrouiller Bunly pour vous. Vous pouvez ajouter, changer ou supprimer le mot de passe plus tard dans Réglages › Sécurité. Un appareil connecté à la synchronisation demande toujours le mot de passe du compte au démarrage."
 					},

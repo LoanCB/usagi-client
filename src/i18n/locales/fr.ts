@@ -538,6 +538,14 @@ const fr: typeof en = {
 		saved: "Enregistré.",
 		accountPasswordLater:
 			"Le changement du mot de passe du compte de synchronisation n'est pas encore disponible.",
+		autoLockTitle: "Verrouillage automatique",
+		autoLockHint:
+			"Verrouille Bunly et redemande votre mot de passe après une période d'inactivité.",
+		autoLockNever: "Jamais",
+		autoLockMinutes_one: "{{count}} minute",
+		autoLockMinutes_other: "{{count}} minutes",
+		autoLockNeedsPassword:
+			"Le verrouillage automatique est disponible une fois un mot de passe défini.",
 	},
 };
 

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChangelogDialog } from "@/components/layout/ChangelogDialog";
 import { UpdateBanner } from "@/components/layout/UpdateBanner";
+import { AutoLock } from "@/components/vault/AutoLock";
 import { VaultGate } from "@/components/vault/VaultGate";
 import { adaptDatabase, createRepository } from "@/db";
 import { backfillSortKeys } from "@/db/backfill-sort-keys";
@@ -179,7 +180,11 @@ function AppBoot() {
 		);
 	}
 
-	return <AppContent />;
+	return (
+		<AutoLock>
+			<AppContent />
+		</AutoLock>
+	);
 }
 
 export default function App() {

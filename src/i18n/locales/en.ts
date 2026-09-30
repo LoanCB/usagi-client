@@ -528,6 +528,13 @@ const en = {
 		saved: "Saved.",
 		accountPasswordLater:
 			"Changing your sync account's password is not available yet.",
+		autoLockTitle: "Auto-lock",
+		autoLockHint:
+			"Lock Bunly and ask for your password after a period of inactivity.",
+		autoLockNever: "Never",
+		autoLockMinutes_one: "{{count}} minute",
+		autoLockMinutes_other: "{{count}} minutes",
+		autoLockNeedsPassword: "Auto-lock is available once you set a password.",
 	},
 };
 
