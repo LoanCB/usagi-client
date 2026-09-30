@@ -84,8 +84,8 @@ mod memory {
         pub fn set_delete_denied(&self, denied: bool) {
             self.delete_denied.store(denied, Ordering::SeqCst);
         }
-        pub fn len(&self) -> usize {
-            self.entries.lock().unwrap().len()
+        pub fn is_empty(&self) -> bool {
+            self.entries.lock().unwrap().is_empty()
         }
         pub fn contains(&self, vault_id: &str) -> bool {
             self.entries.lock().unwrap().contains_key(vault_id)

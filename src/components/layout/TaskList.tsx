@@ -432,6 +432,7 @@ export function TaskList() {
 	// the active view's filters applied.
 	const syncRevision = useSyncStore((s) => s.revision);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: syncRevision is the re-run trigger described above, not a value the effect reads
 	useEffect(() => {
 		if (selectedProjectId === "tags") return;
 		const repo = getRepository();

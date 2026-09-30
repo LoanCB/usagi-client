@@ -768,7 +768,7 @@ mod tests {
         std::fs::create_dir(d.path().join(crate::vault::migrate::ENC_FILE)).unwrap();
         assert!(v.setup_keychain().await.is_err());
         assert_eq!(v.status().state, "legacy-plaintext");
-        assert_eq!(v.keys.len(), 0);
+        assert!(v.keys.is_empty());
     }
 
     #[tokio::test]
