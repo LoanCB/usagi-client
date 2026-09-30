@@ -8,7 +8,8 @@ import { reducer } from "./reducer";
 import { SetupScreen } from "./SetupScreen";
 import type { KeychainAccess } from "./types";
 import { UnlockScreen } from "./UnlockScreen";
-import { VaultCard, vaultErrorMessage } from "./VaultMessage";
+import { VaultCard } from "./VaultMessage";
+import { vaultErrorMessage } from "./vaultErrorMessage";
 
 interface VaultGateProps {
 	api?: VaultApi;

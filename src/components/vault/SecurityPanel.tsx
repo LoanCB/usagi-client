@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { tauriVaultApi, type VaultApi, type VaultStatus } from "@/vault";
 import type { SecurityForm } from "./types";
-import { vaultErrorMessage } from "./VaultMessage";
+import { vaultErrorMessage } from "./vaultErrorMessage";
 
 interface SecurityPanelProps {
 	api?: VaultApi;

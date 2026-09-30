@@ -75,6 +75,7 @@ interface TimeSegmentProps {
 }
 
 function TimeSegment({ field, value, step, onAdj, onSet }: TimeSegmentProps) {
+	const { t } = useTranslation();
 	const [draft, setDraft] = useState<string | null>(null);
 	const max = field === "hour" ? 23 : 59;
 
@@ -89,6 +90,7 @@ function TimeSegment({ field, value, step, onAdj, onSet }: TimeSegmentProps) {
 			<button
 				type="button"
 				onClick={() => onAdj(step)}
+				aria-label={t("common.increase")}
 				className="h-4 w-5 flex items-center justify-center text-muted-foreground/50 hover:text-foreground transition-colors"
 			>
 				<ChevronUp className="h-3 w-3" />
@@ -128,6 +130,7 @@ function TimeSegment({ field, value, step, onAdj, onSet }: TimeSegmentProps) {
 			<button
 				type="button"
 				onClick={() => onAdj(-step)}
+				aria-label={t("common.decrease")}
 				className="h-4 w-5 flex items-center justify-center text-muted-foreground/50 hover:text-foreground transition-colors"
 			>
 				<ChevronDown className="h-3 w-3" />

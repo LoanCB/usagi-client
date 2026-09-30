@@ -12,6 +12,8 @@ const en = {
 		colorOption: "Color {{color}}",
 		iconOption: "Icon {{name}}",
 		resizePanel: "Resize panel",
+		increase: "Increase",
+		decrease: "Decrease",
 	},
 	nav: {
 		views: "Views",
@@ -29,6 +31,8 @@ const en = {
 	calendar: {
 		month: "Month",
 		week: "Week",
+		previous: "Previous",
+		next: "Next",
 		noTasks: "No tasks for this day",
 		newTask: "New task for this day",
 		closeDay: "Close day detail",

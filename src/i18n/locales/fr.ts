@@ -14,6 +14,8 @@ const fr: typeof en = {
 		colorOption: "Couleur {{color}}",
 		iconOption: "Icône {{name}}",
 		resizePanel: "Redimensionner le panneau",
+		increase: "Augmenter",
+		decrease: "Diminuer",
 	},
 	nav: {
 		views: "Vues",
@@ -31,6 +33,8 @@ const fr: typeof en = {
 	calendar: {
 		month: "Mois",
 		week: "Semaine",
+		previous: "Précédent",
+		next: "Suivant",
 		noTasks: "Aucune tâche pour ce jour",
 		newTask: "Nouvelle tâche pour ce jour",
 		closeDay: "Fermer le détail du jour",

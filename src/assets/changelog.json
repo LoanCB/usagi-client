@@ -34,6 +34,10 @@
 				],
 				"fixes": [
 					{
+						"en": "Icon-only buttons (calendar navigation, tag editing, time pickers in Settings) now have accessible names for screen readers.",
+						"fr": "Les boutons à icône seule (navigation du calendrier, édition des tags, sélecteurs d'heure des Réglages) ont désormais un nom accessible pour les lecteurs d'écran."
+					},
+					{
 						"en": "In Settings, the scrollbar no longer overlaps the content and text fields are no longer cut off at the edges.",
 						"fr": "Dans les Réglages, la barre de défilement ne chevauche plus le contenu et les champs de saisie ne sont plus rognés sur les bords."
 					},
