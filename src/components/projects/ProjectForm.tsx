@@ -14,6 +14,7 @@ import { PRESET_ICONS } from "@/lib/icons";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import type { Project } from "@/types";
+import { ProjectTagsEditor } from "./ProjectTagsEditor";
 
 interface ProjectFormProps {
 	/** Trigger element. Omit when using controlled `open`/`onOpenChange`. */
@@ -129,6 +130,7 @@ export function ProjectForm({
 							))}
 						</div>
 					</div>
+					{project && <ProjectTagsEditor projectId={project.id} />}
 					<div className="flex justify-end gap-2">
 						<Button
 							type="button"

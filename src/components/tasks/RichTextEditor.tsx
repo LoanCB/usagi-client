@@ -12,6 +12,7 @@ interface RichTextEditorProps {
 	readonly onChange: (html: string) => void;
 	readonly onBlur: () => void;
 	readonly placeholder?: string;
+	readonly readOnly?: boolean;
 }
 
 export function RichTextEditor({
@@ -19,6 +20,7 @@ export function RichTextEditor({
 	onChange,
 	onBlur,
 	placeholder,
+	readOnly = false,
 }: RichTextEditorProps) {
 	const onChangeRef = useRef(onChange);
 	const onBlurRef = useRef(onBlur);
@@ -41,6 +43,7 @@ export function RichTextEditor({
 			Link.configure({ openOnClick: false, autolink: true }),
 		],
 		content: value,
+		editable: !readOnly,
 		onUpdate({ editor }) {
 			onChangeRef.current(editor.getHTML());
 		},
@@ -75,13 +78,19 @@ export function RichTextEditor({
 		}
 	}, [value, editor]);
 
+	useEffect(() => {
+		editor?.setEditable(!readOnly);
+	}, [readOnly, editor]);
+
 	if (!editor) return null;
 
 	return (
 		<div className="flex-1 min-h-0 flex flex-col border-b border-border">
-			<div className="sticky top-0 bg-card z-10">
-				<RichTextToolbar editor={editor} />
-			</div>
+			{!readOnly && (
+				<div className="sticky top-0 bg-card z-10">
+					<RichTextToolbar editor={editor} />
+				</div>
+			)}
 			<div className="overflow-y-auto flex-1 min-h-0 flex flex-col">
 				<EditorContent editor={editor} className="flex-1 flex flex-col" />
 			</div>

@@ -2,6 +2,7 @@ import { RotateCcw, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArchiveDateFilter } from "@/components/layout/ArchiveDateFilter";
+import { ArchivedProjectsSection } from "@/components/layout/ArchivedProjectsSection";
 import {
 	type DateRange,
 	inRange,
@@ -151,6 +152,7 @@ export function ArchiveView() {
 				/>
 			</div>
 			<ScrollArea className="flex-1 min-h-0">
+				<ArchivedProjectsSection />
 				{archivedTasks.length === 0 ? (
 					<div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
 						{t("archive.empty")}

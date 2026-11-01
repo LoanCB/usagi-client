@@ -6,6 +6,7 @@ import "@/i18n";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { AppContent } from "@/App";
+import { useArchiveStore } from "@/store/archives";
 import { useProjectStore } from "@/store/projects";
 import { setRepository } from "@/store/repository";
 import { useTagStore } from "@/store/tags";
@@ -30,7 +31,11 @@ window.__reloadStores = async () => {
 	const { loadProjects } = useProjectStore.getState();
 	const { loadTags } = useTagStore.getState();
 	const { loadTasks } = useTaskStore.getState();
-	await Promise.all([loadProjects(repo), loadTags(repo)]);
+	await Promise.all([
+		loadProjects(repo),
+		loadTags(repo),
+		useArchiveStore.getState().load(repo),
+	]);
 	await loadTasks(repo, {});
 };
 

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { GroupColorShape } from "@/components/ui/GroupColorShape";
 import { Input } from "@/components/ui/input";
 import { GROUP_COLORS } from "@/lib/group-colors";
 import { cn } from "@/lib/utils";
+import { useArchiveStore } from "@/store/archives";
 import { useProjectGroupStore } from "@/store/projectGroups";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
@@ -44,6 +45,7 @@ export function ProjectGroupNavItem({
 	const { collapsedGroupIds, toggleGroupCollapsed } = useUIStore();
 	const { updateGroup } = useProjectGroupStore();
 	const { assignToGroup } = useProjectStore();
+	const archiveGroup = useArchiveStore((s) => s.archiveGroup);
 	const isCollapsed = isDragOver ? false : collapsedGroupIds.has(group.id);
 	const [editOpen, setEditOpen] = useState(false);
 	const [editName, setEditName] = useState("");
@@ -129,6 +131,12 @@ export function ProjectGroupNavItem({
 				<ContextMenuContent>
 					<ContextMenuItem onClick={() => setEditOpen(true)}>
 						{t("common.edit", "Modifier")}
+					</ContextMenuItem>
+					<ContextMenuItem
+						onClick={() => archiveGroup(getRepository(), group.id)}
+					>
+						<Archive className="h-3.5 w-3.5" />
+						{t("projectGroup.archive")}
 					</ContextMenuItem>
 					<ContextMenuSeparator />
 					<ContextMenuItem onClick={handleDissolve} variant="destructive">

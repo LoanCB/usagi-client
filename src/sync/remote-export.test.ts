@@ -61,6 +61,7 @@ describe("remoteToExportData", () => {
 				icon: null,
 				sortOrder: 0,
 				sortKey: "a0",
+				archivedAt: null,
 				groupId: null,
 				createdAt: "2026-09-01T10:00:00.000Z",
 				updatedAt: "2026-09-01T10:00:00.000Z",

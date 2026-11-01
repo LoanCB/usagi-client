@@ -30,6 +30,7 @@ export function remoteToExportData(
 				sortOrder: 0,
 				sortKey: str(p.sort_key) ?? "",
 				groupId: str(p.group_id),
+				archivedAt: str(p.archived_at),
 				createdAt: p.created_at,
 				updatedAt: p.created_at,
 			});

@@ -177,6 +177,7 @@ describe("SqliteRepository — tags", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
+				.mockResolvedValueOnce([]) // _claimTagName: the name is free
 				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
 				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
 				.mockResolvedValueOnce([
@@ -194,6 +195,7 @@ describe("SqliteRepository — tags", () => {
 		const db = makeDb({
 			select: vi
 				.fn()
+				.mockResolvedValueOnce([]) // _claimTagName: the name is free
 				.mockResolvedValueOnce([{ value: MOCK_DEVICE_ID }]) // getOrCreateDeviceId in _stamp
 				.mockResolvedValueOnce([{ field_updated_at: null }]) // _stamp's prior lookup
 				.mockResolvedValueOnce([
@@ -670,6 +672,7 @@ const sampleExportData: ExportData = {
 			icon: null,
 			sortOrder: 0,
 			sortKey: "a0",
+			archivedAt: null,
 			groupId: null,
 			createdAt: "2026-01-01T00:00:00.000Z",
 			updatedAt: "2026-01-01T00:00:00.000Z",
@@ -1928,6 +1931,7 @@ describe("bulkImport — a project whose group is absent locally", () => {
 					icon: null,
 					sortOrder: 0,
 					sortKey: "a0",
+					archivedAt: null,
 					groupId: "g-missing",
 					createdAt: "2026-01-01T00:00:00.000Z",
 					updatedAt: "2026-01-01T00:00:00.000Z",
@@ -2098,6 +2102,7 @@ describe("bulkImport — references the payload names but this device lacks", ()
 					icon: null,
 					sortOrder: 0,
 					sortKey: "a0",
+					archivedAt: null,
 					groupId: null,
 					createdAt: "2026-01-01T00:00:00.000Z",
 					updatedAt: "2026-01-01T00:00:00.000Z",
@@ -2217,6 +2222,7 @@ describe("bulkImport — references the payload names but this device lacks", ()
 						icon: null,
 						sortOrder: 0,
 						sortKey: "a0",
+						archivedAt: null,
 						groupId: null,
 						createdAt: "2026-01-01T00:00:00.000Z",
 						updatedAt: "2026-01-01T00:00:00.000Z",
@@ -2272,6 +2278,7 @@ describe("bulkImport — references the payload names but this device lacks", ()
 					icon: null,
 					sortOrder: 0,
 					sortKey: "a0",
+					archivedAt: null,
 					groupId: null,
 					createdAt: "2026-01-01T00:00:00.000Z",
 					updatedAt: "2026-01-01T00:00:00.000Z",

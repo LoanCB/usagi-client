@@ -26,9 +26,17 @@ export const SYNC_FIELDS = {
 		"completed_at",
 		"deleted_at",
 	],
-	project: ["name", "color", "icon", "group_id", "sort_key", "deleted_at"],
+	project: [
+		"name",
+		"color",
+		"icon",
+		"group_id",
+		"sort_key",
+		"deleted_at",
+		"archived_at",
+	],
 	tag: ["name", "color", "project_id", "deleted_at"],
-	project_group: ["name", "color", "sort_key"],
+	project_group: ["name", "color", "sort_key", "archived_at"],
 } as const satisfies Record<SyncEntityType, readonly string[]>;
 
 /**

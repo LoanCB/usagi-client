@@ -9,6 +9,7 @@ import {
 	useSensors,
 } from "@dnd-kit/core";
 import {
+	Archive,
 	ArchiveX,
 	Calendar,
 	CalendarDays,
@@ -41,17 +42,14 @@ import {
 } from "@/components/layout/sidebarDnd";
 import { CreateGroupDialog } from "@/components/projects/CreateGroupDialog";
 import { DeleteProjectDialog } from "@/components/projects/DeleteProjectDialog";
+import { NewProjectTagDialog } from "@/components/projects/NewProjectTagDialog";
 import { ProjectForm } from "@/components/projects/ProjectForm";
 import { Button } from "@/components/ui/button";
-import { ColorPicker } from "@/components/ui/ColorPicker";
 import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuSeparator,
-	ContextMenuSub,
-	ContextMenuSubContent,
-	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
@@ -59,13 +57,8 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
-	DropdownMenuSub,
-	DropdownMenuSubContent,
-	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { GroupColorShape } from "@/components/ui/GroupColorShape";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -74,9 +67,9 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { PRESET_COLORS } from "@/lib/colors";
 import { PRESET_ICONS } from "@/lib/icons";
 import { cn, isMac } from "@/lib/utils";
+import { useArchiveStore } from "@/store/archives";
 import { useProjectGroupStore } from "@/store/projectGroups";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
@@ -86,78 +79,6 @@ import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
 import type { Project } from "@/types";
-
-interface TagCreationFormProps {
-	readonly projectName: string;
-	readonly tagName: string;
-	readonly tagColor: string;
-	readonly tagInputRef: React.RefObject<HTMLInputElement | null>;
-	readonly onTagNameChange: (name: string) => void;
-	readonly onTagColorChange: (color: string) => void;
-	readonly onSubmit: () => void;
-}
-
-function TagCreationForm({
-	projectName,
-	tagName,
-	tagColor,
-	tagInputRef,
-	onTagNameChange,
-	onTagColorChange,
-	onSubmit,
-}: TagCreationFormProps) {
-	const { t } = useTranslation();
-	return (
-		<div className="flex flex-col gap-2">
-			<p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-				{t("project.newTagFor", { name: projectName })}
-			</p>
-			<Input
-				ref={tagInputRef}
-				autoFocus
-				placeholder={t("tag.namePlaceholder")}
-				value={tagName}
-				onChange={(e) => onTagNameChange(e.target.value)}
-				className="h-7 text-sm text-foreground"
-				onKeyDown={(e) => {
-					e.stopPropagation();
-					if (e.nativeEvent.isComposing) return;
-					if (e.key === "Enter") {
-						e.preventDefault();
-						onSubmit();
-					}
-				}}
-				onClick={(e) => e.stopPropagation()}
-			/>
-			<div role="none" onClick={(e) => e.stopPropagation()}>
-				<ColorPicker
-					colors={PRESET_COLORS}
-					selectedColor={tagColor}
-					onSelect={onTagColorChange}
-				/>
-			</div>
-			{tagName.trim() && (
-				<div className="flex items-center gap-1.5 px-2 py-1 rounded bg-accent/30 w-fit">
-					<GroupColorShape color={tagColor} size={8} className="shrink-0" />
-					<span className="text-xs truncate max-w-[9rem]">
-						{tagName.trim()}
-					</span>
-				</div>
-			)}
-			<Button
-				size="sm"
-				className="w-full"
-				disabled={!tagName.trim()}
-				onClick={(e) => {
-					e.stopPropagation();
-					onSubmit();
-				}}
-			>
-				{t("common.create")}
-			</Button>
-		</div>
-	);
-}
 
 interface NavItemProps {
 	readonly icon: React.ReactNode;
@@ -220,22 +141,30 @@ interface ProjectNavItemProps {
 	readonly itemRef?: (el: HTMLDivElement | null) => void;
 }
 
-// The three overlays (row menu, edit dialog, delete dialog) move together:
-// choosing "edit" or "delete" from the menu must also close the menu. A reducer
+// The overlays (row menu, edit, new tag and delete dialogs) move together:
+// choosing one of them from the menu must also close the menu. A reducer
 // encodes that invariant and collapses each two-setState transition into one
 // dispatch / one render.
-type NavOverlays = { menu: boolean; edit: boolean; delete: boolean };
+type NavOverlays = {
+	menu: boolean;
+	edit: boolean;
+	newTag: boolean;
+	delete: boolean;
+};
 
 type NavOverlayAction =
 	| { type: "setMenu"; value: boolean }
 	| { type: "openEdit" }
 	| { type: "setEdit"; value: boolean }
+	| { type: "openNewTag" }
+	| { type: "setNewTag"; value: boolean }
 	| { type: "openDelete" }
 	| { type: "setDelete"; value: boolean };
 
 const initialNavOverlays: NavOverlays = {
 	menu: false,
 	edit: false,
+	newTag: false,
 	delete: false,
 };
 
@@ -250,6 +179,10 @@ function navOverlayReducer(
 			return { ...state, menu: false, edit: true };
 		case "setEdit":
 			return { ...state, edit: action.value };
+		case "openNewTag":
+			return { ...state, menu: false, newTag: true };
+		case "setNewTag":
+			return { ...state, newTag: action.value };
 		case "openDelete":
 			return { ...state, menu: false, delete: true };
 		case "setDelete":
@@ -276,11 +209,14 @@ function ProjectNavItem({
 		navOverlayReducer,
 		initialNavOverlays,
 	);
-	const { menu: menuOpen, edit: editOpen, delete: deleteOpen } = overlays;
-	const [tagName, setTagName] = useState("");
-	const [tagColor, setTagColor] = useState<string>(PRESET_COLORS[5]);
-	const tagInputRef = useRef<HTMLInputElement>(null);
+	const {
+		menu: menuOpen,
+		edit: editOpen,
+		newTag: newTagOpen,
+		delete: deleteOpen,
+	} = overlays;
 	const { deleteProject } = useProjectStore();
+	const archiveProject = useArchiveStore((s) => s.archiveProject);
 	const { selectedProjectId, setSelectedProject } = useUIStore();
 	const { t } = useTranslation();
 
@@ -378,18 +314,6 @@ function ProjectNavItem({
 		if (selectedProjectId === project.id) setSelectedProject(null);
 	}
 
-	async function handleCreateTag() {
-		if (!tagName.trim()) return;
-		await useTagStore.getState().createTag(getRepository(), {
-			name: tagName.trim(),
-			color: tagColor,
-			projectId: project.id,
-		});
-		setTagName("");
-		setTagColor(PRESET_COLORS[5]);
-		tagInputRef.current?.focus();
-	}
-
 	const iconDef =
 		PRESET_ICONS.find((i) => i.name === project.icon) ?? PRESET_ICONS[0];
 	const ProjectIcon = iconDef.icon;
@@ -451,23 +375,18 @@ function ProjectNavItem({
 										</button>
 									}
 								/>
-								<DropdownMenuSub>
-									<DropdownMenuSubTrigger>
-										<Tag className="h-3.5 w-3.5" />
-										{t("project.newTag")}
-									</DropdownMenuSubTrigger>
-									<DropdownMenuSubContent className="p-3 w-[276px]">
-										<TagCreationForm
-											projectName={project.name}
-											tagName={tagName}
-											tagColor={tagColor}
-											tagInputRef={tagInputRef}
-											onTagNameChange={setTagName}
-											onTagColorChange={setTagColor}
-											onSubmit={handleCreateTag}
-										/>
-									</DropdownMenuSubContent>
-								</DropdownMenuSub>
+								<DropdownMenuItem
+									onClick={() => dispatch({ type: "openNewTag" })}
+								>
+									<Tag className="h-3.5 w-3.5" />
+									{t("project.newTag")}
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onClick={() => archiveProject(getRepository(), project.id)}
+								>
+									<Archive className="h-4 w-4" />
+									{t("project.archive")}
+								</DropdownMenuItem>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem
 									variant="destructive"
@@ -505,23 +424,16 @@ function ProjectNavItem({
 							<Pencil className="h-3.5 w-3.5" />
 							{t("common.edit")}
 						</ContextMenuItem>
-						<ContextMenuSub>
-							<ContextMenuSubTrigger>
-								<Tag className="h-3.5 w-3.5" />
-								{t("project.newTag")}
-							</ContextMenuSubTrigger>
-							<ContextMenuSubContent className="w-[276px] min-w-0">
-								<TagCreationForm
-									projectName={project.name}
-									tagName={tagName}
-									tagColor={tagColor}
-									tagInputRef={tagInputRef}
-									onTagNameChange={setTagName}
-									onTagColorChange={setTagColor}
-									onSubmit={handleCreateTag}
-								/>
-							</ContextMenuSubContent>
-						</ContextMenuSub>
+						<ContextMenuItem onClick={() => dispatch({ type: "openNewTag" })}>
+							<Tag className="h-3.5 w-3.5" />
+							{t("project.newTag")}
+						</ContextMenuItem>
+						<ContextMenuItem
+							onClick={() => archiveProject(getRepository(), project.id)}
+						>
+							<Archive className="h-3.5 w-3.5" />
+							{t("project.archive")}
+						</ContextMenuItem>
 						<ContextMenuSeparator />
 						<ContextMenuItem
 							variant="destructive"
@@ -537,6 +449,11 @@ function ProjectNavItem({
 				project={project}
 				open={editOpen}
 				onOpenChange={(value) => dispatch({ type: "setEdit", value })}
+			/>
+			<NewProjectTagDialog
+				project={project}
+				open={newTagOpen}
+				onOpenChange={(value) => dispatch({ type: "setNewTag", value })}
 			/>
 			<DeleteProjectDialog
 				project={project}
@@ -940,6 +857,7 @@ interface SidebarNavProps {
 	readonly tagsVisible: boolean;
 	readonly calendarVisible: boolean;
 	readonly archivesVisible: boolean;
+	readonly archivesActive: boolean;
 }
 
 function SidebarNav({
@@ -951,6 +869,7 @@ function SidebarNav({
 	tagsVisible,
 	calendarVisible,
 	archivesVisible,
+	archivesActive,
 }: SidebarNavProps) {
 	const { t } = useTranslation();
 	return (
@@ -998,7 +917,7 @@ function SidebarNav({
 				<NavItem
 					icon={<ArchiveX className="h-4 w-4" />}
 					label={t("nav.archives")}
-					active={selectedProjectId === "archives"}
+					active={archivesActive}
 					collapsed={collapsed}
 					onClick={() => setSelectedProject("archives")}
 				/>
@@ -1025,6 +944,10 @@ export function Sidebar() {
 	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
 	const searchTriggerVisible = useSettingsStore((s) => s.searchTriggerVisible);
 	const openSearch = useSearchStore((s) => s.open);
+	// An archived project is read from Archives, and has no row of its own here.
+	const viewingArchivedProject = useArchiveStore((s) =>
+		s.projects.some((p) => p.id === selectedProjectId),
+	);
 
 	const {
 		sidebarItems,
@@ -1143,6 +1066,9 @@ export function Sidebar() {
 					tagsVisible={tagsVisible}
 					calendarVisible={calendarVisible}
 					archivesVisible={archivesVisible}
+					archivesActive={
+						selectedProjectId === "archives" || viewingArchivedProject
+					}
 				/>
 
 				<Separator className="my-2 bg-sidebar-border" />

@@ -27,7 +27,9 @@ export interface TodoRepository {
 	archiveTask(id: string): Promise<void>;
 	deleteTask(id: string): Promise<void>;
 	unarchiveTask(id: string): Promise<void>;
-	getArchivedTasks(): Promise<Task[]>;
+	getArchivedTasks(
+		filters?: Pick<TaskFilters, "archivedProjects">,
+	): Promise<Task[]>;
 	moveTask(
 		id: string,
 		prevId: string | null,
@@ -48,6 +50,10 @@ export interface TodoRepository {
 		patch: Partial<CreateProjectInput>,
 	): Promise<Project>;
 	deleteProject(id: string): Promise<void>;
+	/** Projects archived directly or through their group. */
+	getArchivedProjects(): Promise<Project[]>;
+	archiveProject(id: string): Promise<void>;
+	unarchiveProject(id: string): Promise<void>;
 
 	// Project Groups
 	getProjectGroups(): Promise<ProjectGroup[]>;
@@ -57,6 +63,9 @@ export interface TodoRepository {
 		patch: Partial<Pick<ProjectGroup, "name" | "color">>,
 	): Promise<ProjectGroup>;
 	deleteProjectGroup(id: string): Promise<void>;
+	getArchivedProjectGroups(): Promise<ProjectGroup[]>;
+	archiveProjectGroup(id: string): Promise<void>;
+	unarchiveProjectGroup(id: string): Promise<void>;
 	moveProject(
 		id: string,
 		prevId: string | null,

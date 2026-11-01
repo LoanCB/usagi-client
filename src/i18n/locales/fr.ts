@@ -103,6 +103,7 @@ const fr: typeof en = {
 		remove: "Supprimer la date d'échéance",
 	},
 	project: {
+		archive: "Archiver",
 		new: "Nouveau projet",
 		edit: "Modifier le projet",
 		namePlaceholder: "Nom du projet",
@@ -154,6 +155,8 @@ const fr: typeof en = {
 		generic: "Générique",
 		projectConstraint:
 			"Ce tag est utilisé par des tâches dans un projet et ne peut pas être réaffecté.",
+		nameTaken: "Un tag porte déjà ce nom, dans ce projet ou un autre.",
+		saveFailed: "Le tag n'a pas pu être enregistré : {{detail}}",
 	},
 	app: {
 		loading: "Chargement…",
@@ -250,6 +253,18 @@ const fr: typeof en = {
 		statTotal: "Total",
 	},
 	archive: {
+		projectsSection: "Projets et groupes",
+		projectArchivedOn: "Archivé le {{date}}",
+		taskCount_one: "{{count}} tâche",
+		taskCount_other: "{{count}} tâches",
+		projectCount_one: "{{count}} projet",
+		projectCount_other: "{{count}} projets",
+		restoreItem: "Restaurer {{name}}",
+		restoreProject: "Restaurer le projet",
+		restoreGroup: "Restaurer le groupe",
+		projectBanner: "Ce projet est archivé : il est en lecture seule.",
+		groupBanner:
+			"Le groupe de ce projet est archivé : il est en lecture seule.",
 		empty: "Aucune tâche archivée",
 		archivedOn: "Archivée le {{date}}",
 		noResults: "Aucune tâche ne correspond aux filtres",
@@ -307,6 +322,7 @@ const fr: typeof en = {
 			"Restaurer depuis un fichier JSON exporté depuis Bunly. Vous pouvez fusionner ou remplacer vos données existantes.",
 	},
 	projectGroup: {
+		archive: "Archiver le groupe",
 		createTitle: "Nouveau groupe",
 		namePlaceholder: "Nom du groupe",
 		create: "Créer",
@@ -316,7 +332,7 @@ const fr: typeof en = {
 		dissolve: "Dissoudre le groupe",
 	},
 	search: {
-		placeholder: "Rechercher tâches, projets, tags…",
+		placeholder: "Rechercher vues, tâches, projets, tags…",
 		tasks: "Tâches",
 		projects: "Projets",
 		tags: "Tags",
@@ -325,6 +341,7 @@ const fr: typeof en = {
 		uncomplete: "Marquer comme active",
 		archive: "Archiver la tâche",
 		completed: "complétée",
+		projectArchived: "archivé",
 		archived: "archivée",
 		navigateHint: "Naviguer",
 		openHint: "Ouvrir",

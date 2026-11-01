@@ -3,6 +3,7 @@ import type { ExportData } from "@/lib/dataTransfer";
 import { INBOX_PROJECT_ID } from "@/lib/dataTransfer";
 import { nowIso } from "@/lib/sync-clock";
 import type {
+	ArchivedProjectsMode,
 	CreateProjectGroupInput,
 	CreateProjectInput,
 	CreateTagInput,
@@ -24,6 +25,7 @@ import {
 	resolveTagLink,
 } from "./import-resolution";
 import type { TodoRepository } from "./repository";
+import { TagNameTakenError } from "./tag-errors";
 
 // Tables that carry a field_updated_at stamp map. Closed so a table name can
 // never arrive from an arbitrary string into SQL.
@@ -47,6 +49,7 @@ const IMPORT_STAMPED_FIELDS = {
 		"sort_key",
 		"deleted_at",
 		"purged_at",
+		"archived_at",
 	],
 	tags: ["name", "color", "project_id", "deleted_at", "purged_at"],
 	tasks: [
@@ -89,6 +92,23 @@ const KEY_SPACE: Record<OrderedTable, readonly OrderedTable[]> = {
 	project_groups: ["projects", "project_groups"],
 };
 
+/**
+ * Projects out of the active lists, whether archived themselves or through
+ * their group. A purged group does not count: repairOrphans detaches its
+ * projects at the end of the sync cycle, and they are live again from there.
+ */
+const ARCHIVED_PROJECT_IDS = `SELECT p.id FROM projects p LEFT JOIN project_groups g ON g.id = p.group_id WHERE p.archived_at IS NOT NULL OR (g.archived_at IS NOT NULL AND g.purged_at IS NULL)`;
+
+function archivedProjectsClause(
+	mode: ArchivedProjectsMode,
+	column: string,
+): string | null {
+	if (mode === "include") return null;
+	if (mode === "only") return `${column} IN (${ARCHIVED_PROJECT_IDS})`;
+	// NOT IN alone would also drop the Inbox: NULL NOT IN (…) is NULL.
+	return `(${column} IS NULL OR ${column} NOT IN (${ARCHIVED_PROJECT_IDS}))`;
+}
+
 function buildProjectIdsCondition(
 	projectIds: string[] | undefined,
 ): { clause: string; params: string[] } | null {
@@ -118,6 +138,7 @@ interface ProjectRow {
 	sort_order: number;
 	sort_key: string;
 	group_id: string | null;
+	archived_at: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -128,6 +149,7 @@ interface ProjectGroupRow {
 	color: string;
 	sort_order: number;
 	sort_key: string;
+	archived_at: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -172,6 +194,7 @@ function mapProject(row: ProjectRow): Project {
 		sortOrder: row.sort_order,
 		sortKey: row.sort_key,
 		groupId: row.group_id,
+		archivedAt: row.archived_at ?? null,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -184,6 +207,7 @@ function mapProjectGroup(row: ProjectGroupRow): ProjectGroup {
 		color: row.color,
 		sortOrder: row.sort_order,
 		sortKey: row.sort_key,
+		archivedAt: row.archived_at ?? null,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -339,7 +363,7 @@ export class SqliteRepository implements TodoRepository {
 
 	async getProjects(): Promise<Project[]> {
 		const rows = await this.db.select<ProjectRow>(
-			"SELECT id, name, color, icon, sort_order, sort_key, group_id, created_at, updated_at FROM projects WHERE deleted_at IS NULL ORDER BY sort_key",
+			`SELECT id, name, color, icon, sort_order, sort_key, group_id, archived_at, created_at, updated_at FROM projects WHERE deleted_at IS NULL AND id NOT IN (${ARCHIVED_PROJECT_IDS}) ORDER BY sort_key`,
 		);
 		return rows.map(mapProject);
 	}
@@ -444,9 +468,39 @@ export class SqliteRepository implements TodoRepository {
 		});
 	}
 
+	async getArchivedProjects(): Promise<Project[]> {
+		const rows = await this.db.select<ProjectRow>(
+			`SELECT id, name, color, icon, sort_order, sort_key, group_id, archived_at, created_at, updated_at FROM projects WHERE deleted_at IS NULL AND purged_at IS NULL AND id IN (${ARCHIVED_PROJECT_IDS}) ORDER BY sort_key`,
+		);
+		return rows.map(mapProject);
+	}
+
+	archiveProject(id: string): Promise<void> {
+		return this._setArchivedAt("projects", id, nowIso());
+	}
+
+	unarchiveProject(id: string): Promise<void> {
+		return this._setArchivedAt("projects", id, null);
+	}
+
+	private async _setArchivedAt(
+		table: "projects" | "project_groups",
+		id: string,
+		archivedAt: string | null,
+	): Promise<void> {
+		const now = nowIso();
+		await this.db.transaction(async (tx) => {
+			await tx.execute(
+				`UPDATE ${table} SET archived_at = ?, updated_at = ? WHERE id = ?`,
+				[archivedAt, now, id],
+			);
+			await this._stamp(table, id, ["archived_at"], now, tx);
+		});
+	}
+
 	private async _getProject(id: string): Promise<Project | null> {
 		const rows = await this.db.select<ProjectRow>(
-			"SELECT id, name, color, icon, sort_order, sort_key, group_id, created_at, updated_at FROM projects WHERE id = ? AND deleted_at IS NULL",
+			"SELECT id, name, color, icon, sort_order, sort_key, group_id, archived_at, created_at, updated_at FROM projects WHERE id = ? AND deleted_at IS NULL",
 			[id],
 		);
 		return rows[0] ? mapProject(rows[0]) : null;
@@ -456,9 +510,24 @@ export class SqliteRepository implements TodoRepository {
 
 	async getProjectGroups(): Promise<ProjectGroup[]> {
 		const rows = await this.db.select<ProjectGroupRow>(
-			"SELECT id, name, color, sort_order, sort_key, created_at, updated_at FROM project_groups WHERE purged_at IS NULL ORDER BY sort_key",
+			"SELECT id, name, color, sort_order, sort_key, archived_at, created_at, updated_at FROM project_groups WHERE purged_at IS NULL AND archived_at IS NULL ORDER BY sort_key",
 		);
 		return rows.map(mapProjectGroup);
+	}
+
+	async getArchivedProjectGroups(): Promise<ProjectGroup[]> {
+		const rows = await this.db.select<ProjectGroupRow>(
+			"SELECT id, name, color, sort_order, sort_key, archived_at, created_at, updated_at FROM project_groups WHERE purged_at IS NULL AND archived_at IS NOT NULL ORDER BY sort_key",
+		);
+		return rows.map(mapProjectGroup);
+	}
+
+	archiveProjectGroup(id: string): Promise<void> {
+		return this._setArchivedAt("project_groups", id, nowIso());
+	}
+
+	unarchiveProjectGroup(id: string): Promise<void> {
+		return this._setArchivedAt("project_groups", id, null);
 	}
 
 	async createProjectGroup(
@@ -620,7 +689,7 @@ export class SqliteRepository implements TodoRepository {
 
 	private async _getProjectGroup(id: string): Promise<ProjectGroup | null> {
 		const rows = await this.db.select<ProjectGroupRow>(
-			"SELECT id, name, color, sort_order, sort_key, created_at, updated_at FROM project_groups WHERE id = ?",
+			"SELECT id, name, color, sort_order, sort_key, archived_at, created_at, updated_at FROM project_groups WHERE id = ?",
 			[id],
 		);
 		return rows[0] ? mapProjectGroup(rows[0]) : null;
@@ -652,6 +721,7 @@ export class SqliteRepository implements TodoRepository {
 		const id = crypto.randomUUID();
 		const now = nowIso();
 		await this.db.transaction(async (tx) => {
+			await this._claimTagName(input.name, id, now, tx);
 			await tx.execute(
 				"INSERT INTO tags (id, name, color, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
 				[
@@ -692,6 +762,9 @@ export class SqliteRepository implements TodoRepository {
 		}
 		params.push(id);
 		await this.db.transaction(async (tx) => {
+			if (patch.name !== undefined) {
+				await this._claimTagName(patch.name, id, now, tx);
+			}
 			await tx.execute(
 				`UPDATE tags SET ${sets.join(", ")} WHERE id = ?`,
 				params,
@@ -701,6 +774,37 @@ export class SqliteRepository implements TodoRepository {
 		const tag = await this._getTag(id);
 		if (!tag) throw new Error(`Tag not found after write: ${id}`);
 		return tag;
+	}
+
+	/**
+	 * tags.name stays UNIQUE on tombstones too. One holding the name renames to
+	 * its own id, as a purge does (see tombstoneResets), and stamps it so other
+	 * devices free the name as well. A live holder refuses the name.
+	 */
+	private async _claimTagName(
+		name: string,
+		tagId: string,
+		now: string,
+		tx: DbDriver,
+	): Promise<void> {
+		const rows = await tx.select<{
+			id: string;
+			deleted_at: string | null;
+			purged_at: string | null;
+		}>(
+			"SELECT id, deleted_at, purged_at FROM tags WHERE name = ? AND id != ?",
+			[name, tagId],
+		);
+		const holder = rows[0];
+		if (!holder) return;
+		if (!holder.deleted_at && !holder.purged_at) {
+			throw new TagNameTakenError(name);
+		}
+		await tx.execute("UPDATE tags SET name = id, updated_at = ? WHERE id = ?", [
+			now,
+			holder.id,
+		]);
+		await this._stamp("tags", holder.id, ["name"], now, tx);
 	}
 
 	async deleteTag(id: string): Promise<void> {
@@ -747,6 +851,13 @@ export class SqliteRepository implements TodoRepository {
 			conditions.push("t.project_id = ?");
 			params.push(filters.projectId);
 		}
+
+		const archivedClause = archivedProjectsClause(
+			filters?.archivedProjects ??
+				(typeof filters?.projectId === "string" ? "include" : "exclude"),
+			"t.project_id",
+		);
+		if (archivedClause) conditions.push(archivedClause);
 
 		const projectIdsFilter = buildProjectIdsCondition(filters?.projectIds);
 		if (projectIdsFilter) {
@@ -1011,9 +1122,15 @@ export class SqliteRepository implements TodoRepository {
 		});
 	}
 
-	async getArchivedTasks(): Promise<Task[]> {
+	async getArchivedTasks(
+		filters?: Pick<TaskFilters, "archivedProjects">,
+	): Promise<Task[]> {
+		const archivedClause = archivedProjectsClause(
+			filters?.archivedProjects ?? "exclude",
+			"project_id",
+		);
 		const taskRows = await this.db.select<TaskRow>(
-			"SELECT id, title, description, project_id, priority, due_date, completed_at, sort_order, created_at, updated_at, deleted_at FROM tasks WHERE deleted_at IS NOT NULL AND purged_at IS NULL ORDER BY deleted_at DESC",
+			`SELECT id, title, description, project_id, priority, due_date, completed_at, sort_order, created_at, updated_at, deleted_at FROM tasks WHERE deleted_at IS NOT NULL AND purged_at IS NULL${archivedClause ? ` AND ${archivedClause}` : ""} ORDER BY deleted_at DESC`,
 		);
 		if (taskRows.length === 0) return [];
 		return this._attachTags(taskRows);
@@ -1160,7 +1277,7 @@ export class SqliteRepository implements TodoRepository {
 			const priorProjectStamps = await this._priorStamps("projects", tx);
 			for (const [index, p] of data.projects.entries()) {
 				await tx.execute(
-					"INSERT OR REPLACE INTO projects (id, name, color, icon, group_id, sort_order, sort_key, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+					"INSERT OR REPLACE INTO projects (id, name, color, icon, group_id, archived_at, sort_order, sort_key, created_at, updated_at, field_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 					[
 						p.id,
 						p.name,
@@ -1169,6 +1286,8 @@ export class SqliteRepository implements TodoRepository {
 						p.groupId !== null && localGroupIds.has(p.groupId)
 							? p.groupId
 							: null,
+						// Absent from backups taken before archiving existed.
+						p.archivedAt ?? null,
 						p.sortOrder,
 						projectKeys[index],
 						p.createdAt,

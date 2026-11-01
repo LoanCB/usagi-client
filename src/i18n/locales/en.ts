@@ -101,6 +101,7 @@ const en = {
 		remove: "Remove due date",
 	},
 	project: {
+		archive: "Archive",
 		new: "New project",
 		edit: "Edit project",
 		namePlaceholder: "Project name",
@@ -152,6 +153,9 @@ const en = {
 		generic: "Generic",
 		projectConstraint:
 			"This tag is used by tasks in a project and cannot be reassigned.",
+		nameTaken:
+			"A tag with this name already exists, in this or another project.",
+		saveFailed: "The tag could not be saved: {{detail}}",
 	},
 	app: {
 		loading: "Loading…",
@@ -248,6 +252,17 @@ const en = {
 		statTotal: "Total",
 	},
 	archive: {
+		projectsSection: "Projects and groups",
+		projectArchivedOn: "Archived on {{date}}",
+		taskCount_one: "{{count}} task",
+		taskCount_other: "{{count}} tasks",
+		projectCount_one: "{{count}} project",
+		projectCount_other: "{{count}} projects",
+		restoreItem: "Restore {{name}}",
+		restoreProject: "Restore project",
+		restoreGroup: "Restore group",
+		projectBanner: "This project is archived, so it is read-only.",
+		groupBanner: "This project's group is archived, so it is read-only.",
 		empty: "No archived tasks",
 		archivedOn: "Archived on {{date}}",
 		noResults: "No tasks match your filters",
@@ -303,6 +318,7 @@ const en = {
 			"Restore from a previously exported JSON file. You will choose to merge or replace your existing data.",
 	},
 	projectGroup: {
+		archive: "Archive group",
 		createTitle: "New group",
 		namePlaceholder: "Group name",
 		create: "Create",
@@ -312,7 +328,7 @@ const en = {
 		dissolve: "Dissolve group",
 	},
 	search: {
-		placeholder: "Search tasks, projects, tags…",
+		placeholder: "Search views, tasks, projects, tags…",
 		tasks: "Tasks",
 		projects: "Projects",
 		tags: "Tags",
@@ -321,6 +337,7 @@ const en = {
 		uncomplete: "Mark as active",
 		archive: "Archive task",
 		completed: "completed",
+		projectArchived: "archived",
 		archived: "archived",
 		navigateHint: "Navigate",
 		openHint: "Open",

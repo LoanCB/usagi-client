@@ -1,3 +1,4 @@
+import { useArchiveStore } from "@/store/archives";
 import { useProjectGroupStore } from "@/store/projectGroups";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
@@ -24,6 +25,7 @@ export function reloadStoresAfterSync(): void {
 	const repo = getRepository();
 	void useProjectStore.getState().loadProjects(repo);
 	void useProjectGroupStore.getState().loadGroups(repo);
+	void useArchiveStore.getState().load(repo);
 	void useTagStore.getState().loadTags(repo);
 }
 

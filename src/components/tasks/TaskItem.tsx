@@ -23,9 +23,15 @@ interface TaskItemProps {
 	readonly task: Task;
 	readonly project?: Project;
 	readonly onDeleteRequest: (id: string) => void;
+	readonly readOnly?: boolean;
 }
 
-export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
+export function TaskItem({
+	task,
+	project,
+	onDeleteRequest,
+	readOnly = false,
+}: TaskItemProps) {
 	const { completeTask, uncompleteTask, archiveTask, updateTask } =
 		useTaskStore();
 	const { selectedTaskId, setSelectedTask } = useUIStore();
@@ -51,7 +57,7 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 		transform,
 		transition,
 		isDragging,
-	} = useSortable({ id: task.id });
+	} = useSortable({ id: task.id, disabled: readOnly });
 
 	const priorityTint = priorityColor(task.priority);
 	const style = {
@@ -110,20 +116,25 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 				)}
 			>
 				{/* Drag handle — always present, revealed on hover */}
-				<button
-					type="button"
-					{...attributes}
-					{...listeners}
-					className="w-[15px] shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground opacity-0 group-hover:opacity-50 transition-opacity touch-none"
-					aria-label={t("task.reorder")}
-					tabIndex={0}
-				>
-					<GripVertical className="h-4 w-4" />
-				</button>
+				{readOnly ? (
+					<span className="w-[15px] shrink-0" />
+				) : (
+					<button
+						type="button"
+						{...attributes}
+						{...listeners}
+						className="w-[15px] shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground opacity-0 group-hover:opacity-50 transition-opacity touch-none"
+						aria-label={t("task.reorder")}
+						tabIndex={0}
+					>
+						<GripVertical className="h-4 w-4" />
+					</button>
+				)}
 
 				<Checkbox
 					checked={!!task.completedAt}
 					onCheckedChange={handleChecked}
+					disabled={readOnly}
 					className="shrink-0"
 				/>
 
@@ -148,7 +159,7 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 					completed={!!task.completedAt}
 					isEditing={isEditing}
 					onSelect={() => setSelectedTask(task.id)}
-					onStartEdit={() => setIsEditing(true)}
+					onStartEdit={() => setIsEditing(!readOnly)}
 					onStopEdit={() => setIsEditing(false)}
 					onRename={handleRename}
 				/>
@@ -159,15 +170,17 @@ export function TaskItem({ task, project, onDeleteRequest }: TaskItemProps) {
 					colorblindMode={colorblindMode}
 				/>
 			</ContextMenuTrigger>
-			<TaskContextMenu
-				taskTagIds={task.tags.map((tag) => tag.id)}
-				visibleTags={visibleTags}
-				onCopyTitle={handleCopyTitle}
-				onEditTitle={() => setIsEditing(true)}
-				onArchive={handleArchive}
-				onDelete={() => onDeleteRequest(task.id)}
-				onTagToggle={handleTagToggle}
-			/>
+			{!readOnly && (
+				<TaskContextMenu
+					taskTagIds={task.tags.map((tag) => tag.id)}
+					visibleTags={visibleTags}
+					onCopyTitle={handleCopyTitle}
+					onEditTitle={() => setIsEditing(true)}
+					onArchive={handleArchive}
+					onDelete={() => onDeleteRequest(task.id)}
+					onTagToggle={handleTagToggle}
+				/>
+			)}
 		</ContextMenu>
 	);
 }

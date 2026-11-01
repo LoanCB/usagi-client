@@ -9,6 +9,7 @@ import { TagSelector } from "@/components/tasks/TagSelector";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { Input } from "@/components/ui/input";
+import { useArchiveStore } from "@/store/archives";
 import { getRepository } from "@/store/repository";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
@@ -55,6 +56,9 @@ function TaskDetailContent({
 		useTaskStore();
 	const { setSelectedTask } = useUIStore();
 	const { t } = useTranslation();
+	const readOnly = useArchiveStore((s) =>
+		s.projects.some((p) => p.id === task.projectId),
+	);
 
 	// oxlint-disable-next-line react-doctor/no-derived-useState -- intentional: parent remounts via key={task.id} to re-seed, the pattern this rule recommends
 	const [title, setTitle] = useState(task.title);
@@ -120,7 +124,8 @@ function TaskDetailContent({
 				<button
 					type="button"
 					onClick={handleToggleComplete}
-					className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+					disabled={readOnly}
+					className="shrink-0 text-muted-foreground hover:text-foreground transition-colors disabled:pointer-events-none"
 					aria-label={
 						task.completedAt ? t("task.markIncomplete") : t("task.markComplete")
 					}
@@ -135,6 +140,7 @@ function TaskDetailContent({
 					value={title}
 					onChange={(e) => setTitle(e.target.value)}
 					onBlur={handleTitleBlur}
+					readOnly={readOnly}
 					onKeyDown={(e) =>
 						e.key === "Enter" && (e.target as HTMLInputElement).blur()
 					}
@@ -158,10 +164,14 @@ function TaskDetailContent({
 				onChange={setDescription}
 				onBlur={handleDescriptionBlur}
 				placeholder={t("task.descriptionPlaceholder")}
+				readOnly={readOnly}
 			/>
 
 			{/* Metadata */}
-			<div className="flex flex-col gap-1 p-3 border-b border-border">
+			<div
+				inert={readOnly}
+				className="flex flex-col gap-1 p-3 border-b border-border"
+			>
 				<ProjectSelector
 					value={task.projectId}
 					onChange={handleProjectChange}
@@ -179,26 +189,28 @@ function TaskDetailContent({
 			</div>
 
 			{/* Actions */}
-			<div className="p-3 mt-auto flex flex-col gap-1">
-				<Button
-					variant="ghost"
-					size="sm"
-					className="gap-2 w-full justify-start"
-					onClick={handleArchive}
-				>
-					<Archive className="h-4 w-4" />
-					{t("task.archive")}
-				</Button>
-				<Button
-					variant="ghost"
-					size="sm"
-					className="gap-2 text-destructive hover:text-destructive w-full justify-start"
-					onClick={() => setConfirmDeleteOpen(true)}
-				>
-					<Trash2 className="h-4 w-4" />
-					{t("task.delete")}
-				</Button>
-			</div>
+			{!readOnly && (
+				<div className="p-3 mt-auto flex flex-col gap-1">
+					<Button
+						variant="ghost"
+						size="sm"
+						className="gap-2 w-full justify-start"
+						onClick={handleArchive}
+					>
+						<Archive className="h-4 w-4" />
+						{t("task.archive")}
+					</Button>
+					<Button
+						variant="ghost"
+						size="sm"
+						className="gap-2 text-destructive hover:text-destructive w-full justify-start"
+						onClick={() => setConfirmDeleteOpen(true)}
+					>
+						<Trash2 className="h-4 w-4" />
+						{t("task.delete")}
+					</Button>
+				</div>
+			)}
 			<ConfirmDeleteDialog
 				open={confirmDeleteOpen}
 				onConfirm={handleDelete}

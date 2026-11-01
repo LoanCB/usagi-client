@@ -11,6 +11,7 @@ const baseProject: Project = {
 	icon: null,
 	sortOrder: 0,
 	sortKey: "a0",
+	archivedAt: null,
 	groupId: null,
 	createdAt: "2026-04-01T00:00:00.000Z",
 	updatedAt: "2026-04-01T00:00:00.000Z",
@@ -38,6 +39,9 @@ function makeRepo(overrides: Partial<TodoRepository> = {}): TodoRepository {
 		setSetting: vi.fn().mockResolvedValue(undefined),
 		bulkImport: vi.fn().mockResolvedValue(undefined),
 		previewImport: vi.fn().mockResolvedValue(NO_IMPORT_GAPS),
+		getArchivedProjects: vi.fn().mockResolvedValue([]),
+		archiveProject: vi.fn().mockResolvedValue(undefined),
+		unarchiveProject: vi.fn().mockResolvedValue(undefined),
 		...overrides,
 	} as TodoRepository;
 }

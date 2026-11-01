@@ -141,3 +141,12 @@ describe("payloadToWrite", () => {
 		expect(back._fields).toEqual(original._fields);
 	});
 });
+
+describe("archive fields", () => {
+	it.each([
+		"project",
+		"project_group",
+	] as const)("syncs archived_at on a %s", (entityType) => {
+		expect(SYNC_FIELDS[entityType]).toContain("archived_at");
+	});
+});

@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/popover";
 import { PRESET_ICONS } from "@/lib/icons";
 import { cn } from "@/lib/utils";
+import { useArchiveStore } from "@/store/archives";
 import { useProjectStore } from "@/store/projects";
 import type { Project } from "@/types";
 
@@ -35,7 +36,13 @@ export function ProjectSelector({ value, onChange }: ProjectSelectorProps) {
 	const { t } = useTranslation();
 	const { projects } = useProjectStore();
 
-	const selectedProject = projects.find((p) => p.id === value) ?? null;
+	// Not offered as a choice below, but a task opened read-only still names it.
+	const archivedProject = useArchiveStore((s) =>
+		s.projects.find((p) => p.id === value),
+	);
+
+	const selectedProject =
+		projects.find((p) => p.id === value) ?? archivedProject ?? null;
 
 	return (
 		<Popover>

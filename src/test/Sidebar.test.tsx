@@ -1,10 +1,4 @@
-import {
-	act,
-	fireEvent,
-	render,
-	screen,
-	waitFor,
-} from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@/i18n";
 import { vi } from "vitest";
@@ -189,6 +183,7 @@ describe("ProjectNavItem — quick tag creation", () => {
 		icon: null,
 		sortOrder: 0,
 		sortKey: "a0",
+		archivedAt: null,
 		groupId: null,
 		createdAt: new Date().toISOString(),
 		updatedAt: new Date().toISOString(),
@@ -225,36 +220,40 @@ describe("ProjectNavItem — quick tag creation", () => {
 		expect(await screen.findByText(/new tag/i)).toBeInTheDocument();
 	});
 
-	it("shows the tag name input when hovering the New tag submenu trigger", async () => {
-		const user = userEvent.setup();
-		render(<Sidebar />);
-
+	async function openNewTag(user: ReturnType<typeof userEvent.setup>) {
 		await user.pointer({
 			keys: "[MouseRight]",
 			target: screen.getByText("Design"),
 		});
+		await user.click(await screen.findByText(/new tag/i));
+		return screen.findByPlaceholderText(/tag name/i);
+	}
 
-		const newTagTrigger = await screen.findByText(/new tag/i);
-		await user.hover(newTagTrigger);
+	it("opens a dialog when New tag is clicked, without any hovering", async () => {
+		const user = userEvent.setup();
+		render(<Sidebar />);
 
-		expect(await screen.findByPlaceholderText(/tag name/i)).toBeInTheDocument();
+		expect(await openNewTag(user)).toBeInTheDocument();
+		expect(screen.getByRole("dialog")).toBeInTheDocument();
 	});
 
-	it("calls createTag with the correct projectId on Enter", async () => {
+	it("keeps the dialog open when the pointer moves away", async () => {
 		const user = userEvent.setup();
 		render(<Sidebar />);
 
-		await user.pointer({
-			keys: "[MouseRight]",
-			target: screen.getByText("Design"),
-		});
+		const input = await openNewTag(user);
+		await user.type(input, "UI review");
+		await user.unhover(input);
+		await user.hover(document.body);
 
-		const newTagTrigger = await screen.findByText(/new tag/i);
-		await user.hover(newTagTrigger);
+		expect(screen.getByPlaceholderText(/tag name/i)).toHaveValue("UI review");
+	});
 
-		const input = await screen.findByPlaceholderText(/tag name/i);
-		fireEvent.change(input, { target: { value: "UI review" } });
-		fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+	it("calls createTag with the correct projectId on Enter, then closes", async () => {
+		const user = userEvent.setup();
+		render(<Sidebar />);
+
+		await user.type(await openNewTag(user), "UI review{Enter}");
 
 		await waitFor(() => {
 			expect(mockCreateTag).toHaveBeenCalledWith(
@@ -265,26 +264,8 @@ describe("ProjectNavItem — quick tag creation", () => {
 				}),
 			);
 		});
-	});
-
-	it("clears the name input after tag creation", async () => {
-		const user = userEvent.setup();
-		render(<Sidebar />);
-
-		await user.pointer({
-			keys: "[MouseRight]",
-			target: screen.getByText("Design"),
-		});
-
-		const newTagTrigger = await screen.findByText(/new tag/i);
-		await user.hover(newTagTrigger);
-
-		const input = await screen.findByPlaceholderText(/tag name/i);
-		fireEvent.change(input, { target: { value: "UI review" } });
-		fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
-
-		await waitFor(() => {
-			expect(input).toHaveValue("");
-		});
+		await waitFor(() =>
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
 	});
 });

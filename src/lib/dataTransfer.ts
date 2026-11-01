@@ -24,8 +24,15 @@ export async function exportData(
 	repo: TodoRepository,
 	options: ExportOptions,
 ): Promise<ExportData> {
-	const allNonArchived = await repo.getTasks({ allTasks: true });
-	const archived = options.archivedTasks ? await repo.getArchivedTasks() : [];
+	// Archived projects travel too: a replace import tombstones whatever the
+	// backup leaves out, so skipping them would destroy them on restore.
+	const allNonArchived = await repo.getTasks({
+		allTasks: true,
+		archivedProjects: "include",
+	});
+	const archived = options.archivedTasks
+		? await repo.getArchivedTasks({ archivedProjects: "include" })
+		: [];
 
 	let tasks: Task[] = [
 		...(options.activeTasks
@@ -50,7 +57,12 @@ export async function exportData(
 
 	// When a project filter is active, always export the matching project records.
 	const allProjects: Project[] =
-		options.projects || projectSet ? await repo.getProjects() : [];
+		options.projects || projectSet
+			? (await Promise.all([repo.getProjects(), repo.getArchivedProjects()]))
+					.flat()
+					// Import keys rows in payload order, so this order is the restored one.
+					.sort((a, b) => (a.sortKey < b.sortKey ? -1 : 1))
+			: [];
 	const projects: Project[] =
 		projectSet === null
 			? allProjects

@@ -3,12 +3,14 @@ import userEvent from "@testing-library/user-event";
 import "@/i18n";
 import { vi } from "vitest";
 import { GlobalSearch } from "@/components/layout/GlobalSearch";
+import { useArchiveStore } from "@/store/archives";
 import { useProjectStore } from "@/store/projects";
 import { useSearchStore } from "@/store/search";
+import { useSettingsStore } from "@/store/settings";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
-import type { Task } from "@/types";
+import type { Project, Task } from "@/types";
 
 vi.mock("@/store/repository", () => ({
 	getRepository: vi.fn(() => ({
@@ -56,6 +58,7 @@ beforeEach(() => {
 		unarchiveTask: vi.fn(),
 		moveTask: vi.fn(),
 	});
+	useArchiveStore.setState({ projects: [], groups: [], tasks: [] });
 	useProjectStore.setState({
 		projects: [],
 		loadProjects: vi.fn(),
@@ -69,6 +72,11 @@ beforeEach(() => {
 		createTag: vi.fn(),
 		updateTag: vi.fn(),
 		deleteTag: vi.fn(),
+	});
+	useSettingsStore.setState({
+		tagsVisible: true,
+		calendarVisible: true,
+		archivesVisible: true,
 	});
 	useUIStore.setState({
 		sidebarCollapsed: false,
@@ -86,14 +94,14 @@ beforeEach(() => {
 describe("GlobalSearch — visibility", () => {
 	it("renders the input when open", () => {
 		render(<GlobalSearch />);
-		expect(screen.getByPlaceholderText(/search tasks/i)).toBeInTheDocument();
+		expect(screen.getByPlaceholderText(/^search views/i)).toBeInTheDocument();
 	});
 
 	it("renders nothing when closed", () => {
 		useSearchStore.setState({ isOpen: false });
 		render(<GlobalSearch />);
 		expect(
-			screen.queryByPlaceholderText(/search tasks/i),
+			screen.queryByPlaceholderText(/^search views/i),
 		).not.toBeInTheDocument();
 	});
 });
@@ -107,7 +115,7 @@ describe("GlobalSearch — task results", () => {
 		const user = userEvent.setup();
 		render(<GlobalSearch />);
 
-		await user.type(screen.getByPlaceholderText(/search tasks/i), "grocer");
+		await user.type(screen.getByPlaceholderText(/^search views/i), "grocer");
 		expect(await screen.findByText("Buy groceries")).toBeInTheDocument();
 	});
 
@@ -119,7 +127,7 @@ describe("GlobalSearch — task results", () => {
 		const user = userEvent.setup();
 		render(<GlobalSearch />);
 
-		await user.type(screen.getByPlaceholderText(/search tasks/i), "xyz");
+		await user.type(screen.getByPlaceholderText(/^search views/i), "xyz");
 		expect(screen.queryByText("Buy groceries")).not.toBeInTheDocument();
 	});
 
@@ -137,7 +145,7 @@ describe("GlobalSearch — task results", () => {
 		const user = userEvent.setup();
 		render(<GlobalSearch />);
 
-		await user.type(screen.getByPlaceholderText(/search tasks/i), "archived");
+		await user.type(screen.getByPlaceholderText(/^search views/i), "archived");
 		expect(await screen.findByText("Old archived task")).toBeInTheDocument();
 	});
 });
@@ -153,7 +161,7 @@ describe("GlobalSearch — navigation", () => {
 		const user = userEvent.setup();
 		render(<GlobalSearch />);
 
-		await user.type(screen.getByPlaceholderText(/search tasks/i), "grocer");
+		await user.type(screen.getByPlaceholderText(/^search views/i), "grocer");
 		await user.click(await screen.findByText("Buy groceries"));
 
 		expect(mockNavigateToTask).toHaveBeenCalledWith("proj-1", "task-1");
@@ -170,6 +178,7 @@ describe("GlobalSearch — navigation", () => {
 					icon: null,
 					sortOrder: 0,
 					sortKey: "a0",
+					archivedAt: null,
 					groupId: null,
 					createdAt: new Date().toISOString(),
 					updatedAt: new Date().toISOString(),
@@ -179,7 +188,10 @@ describe("GlobalSearch — navigation", () => {
 		const user = userEvent.setup();
 		render(<GlobalSearch />);
 
-		await user.type(screen.getByPlaceholderText(/search tasks/i), "my project");
+		await user.type(
+			screen.getByPlaceholderText(/^search views/i),
+			"my project",
+		);
 		await user.click(await screen.findByText("My Project"));
 
 		expect(mockSetSelectedProject).toHaveBeenCalledWith("proj-1");
@@ -200,10 +212,48 @@ describe("GlobalSearch — navigation", () => {
 		const user = userEvent.setup();
 		render(<GlobalSearch />);
 
-		await user.type(screen.getByPlaceholderText(/search tasks/i), "urgent");
+		await user.type(screen.getByPlaceholderText(/^search views/i), "urgent");
 		await user.click(await screen.findByText("urgent"));
 
 		expect(mockSetSelectedProject).toHaveBeenCalledWith("tags");
+	});
+});
+
+describe("GlobalSearch — views", () => {
+	it("lists the views before anything is typed", () => {
+		render(<GlobalSearch />);
+		for (const name of ["Today", "All tasks", "Tags", "Calendar", "Archives"]) {
+			expect(screen.getByRole("option", { name })).toBeInTheDocument();
+		}
+	});
+
+	it("opens a view from the keyboard", async () => {
+		const user = userEvent.setup();
+		render(<GlobalSearch />);
+
+		await user.type(screen.getByPlaceholderText(/^search views/i), "calen");
+		await user.keyboard("{Enter}");
+
+		expect(mockSetSelectedProject).toHaveBeenCalledWith("calendar");
+		expect(useSearchStore.getState().isOpen).toBe(false);
+	});
+
+	it("opens All tasks with its undefined selection", async () => {
+		const user = userEvent.setup();
+		render(<GlobalSearch />);
+
+		await user.click(screen.getByRole("option", { name: "All tasks" }));
+
+		expect(mockSetSelectedProject).toHaveBeenCalledWith(undefined);
+	});
+
+	it("hides views turned off in the settings", () => {
+		useSettingsStore.setState({ calendarVisible: false });
+		render(<GlobalSearch />);
+
+		expect(
+			screen.queryByRole("option", { name: "Calendar" }),
+		).not.toBeInTheDocument();
 	});
 });
 
@@ -220,7 +270,7 @@ describe("GlobalSearch — quick actions", () => {
 		render(<GlobalSearch />);
 
 		// Type to show results
-		await user.type(screen.getByPlaceholderText(/search tasks/i), "buy");
+		await user.type(screen.getByPlaceholderText(/^search views/i), "buy");
 		// Arrow down to select the task
 		await user.keyboard("{ArrowDown}");
 		// Tab to enter quick actions
@@ -231,5 +281,65 @@ describe("GlobalSearch — quick actions", () => {
 		await user.click(screen.getByText(/mark as complete/i));
 
 		expect(mockCompleteTask).toHaveBeenCalledWith(expect.anything(), "task-1");
+	});
+});
+
+describe("GlobalSearch — archived projects", () => {
+	const archivedProject: Project = {
+		id: "p-old",
+		name: "Dormant",
+		color: null,
+		icon: null,
+		sortOrder: 0,
+		sortKey: "a0",
+		groupId: null,
+		archivedAt: "2026-10-01T00:00:00.000Z",
+		createdAt: "2026-01-01T00:00:00.000Z",
+		updatedAt: "2026-01-01T00:00:00.000Z",
+	};
+
+	it("finds an archived project and opens it", async () => {
+		useArchiveStore.setState({ projects: [archivedProject] });
+		render(<GlobalSearch />);
+
+		await userEvent.type(screen.getByRole("combobox"), "dorm");
+		expect(screen.getByText("archived")).toBeInTheDocument();
+		await userEvent.click(screen.getByText("Dormant"));
+
+		expect(mockSetSelectedProject).toHaveBeenCalledWith("p-old");
+	});
+
+	it("finds a task of an archived project, badged and opened in place", async () => {
+		const task = makeTask({ id: "t-old", title: "Buried", projectId: "p-old" });
+		useArchiveStore.setState({ projects: [archivedProject], tasks: [task] });
+		render(<GlobalSearch />);
+
+		await userEvent.type(screen.getByRole("combobox"), "buried");
+		expect(screen.getByText("archived")).toBeInTheDocument();
+		await userEvent.click(screen.getByText("Buried"));
+
+		expect(mockNavigateToTask).toHaveBeenCalledWith("p-old", "t-old");
+	});
+
+	it("offers no quick action on such a task", async () => {
+		const task = makeTask({ id: "t-old", title: "Buried", projectId: "p-old" });
+		useArchiveStore.setState({ projects: [archivedProject], tasks: [task] });
+		render(<GlobalSearch />);
+
+		await userEvent.type(screen.getByRole("combobox"), "buried");
+		await userEvent.keyboard("{Tab}");
+
+		expect(screen.queryByText("Archive task")).not.toBeInTheDocument();
+	});
+
+	it("lists a task once while its archived project is open", async () => {
+		const task = makeTask({ id: "t-old", title: "Buried", projectId: "p-old" });
+		useTaskStore.setState((s) => ({ ...s, tasks: [task] }));
+		useArchiveStore.setState({ projects: [archivedProject], tasks: [task] });
+		render(<GlobalSearch />);
+
+		await userEvent.type(screen.getByRole("combobox"), "buried");
+
+		expect(screen.getAllByText("Buried")).toHaveLength(1);
 	});
 });

@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@/i18n";
+import { useArchiveStore } from "@/store/archives";
 import { useProjectGroupStore } from "@/store/projectGroups";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
@@ -46,6 +47,7 @@ const { reloadStoresAfterFirstSync } = await import("./first-sync-reload");
 const loadTasks = vi.fn(async () => {});
 const loadProjects = vi.fn(async () => {});
 const loadGroups = vi.fn(async () => {});
+const loadArchives = vi.fn(async () => {});
 const loadTags = vi.fn(async () => {});
 
 beforeEach(() => {
@@ -53,6 +55,7 @@ beforeEach(() => {
 	useTaskStore.setState({ loadTasks });
 	useProjectStore.setState({ loadProjects });
 	useProjectGroupStore.setState({ loadGroups });
+	useArchiveStore.setState({ load: loadArchives });
 	useTagStore.setState({ loadTags });
 });
 
@@ -65,6 +68,7 @@ describe("reloadStoresAfterFirstSync", () => {
 		expect(getRepository).toHaveBeenCalled();
 		expect(loadProjects).toHaveBeenCalledWith(repo);
 		expect(loadGroups).toHaveBeenCalledWith(repo);
+		expect(loadArchives).toHaveBeenCalledWith(repo);
 		expect(loadTags).toHaveBeenCalledWith(repo);
 		expect(loadTasks).toHaveBeenCalledWith(repo, {});
 	});

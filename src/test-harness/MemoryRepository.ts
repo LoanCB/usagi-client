@@ -7,8 +7,10 @@ import {
 	resolveTagLink,
 } from "@/db/import-resolution";
 import type { TodoRepository } from "@/db/repository";
+import { TagNameTakenError } from "@/db/tag-errors";
 import type { ExportData } from "@/lib/dataTransfer";
 import type {
+	ArchivedProjectsMode,
 	CreateProjectGroupInput,
 	CreateProjectInput,
 	CreateTagInput,
@@ -107,8 +109,10 @@ export class MemoryRepository implements TodoRepository {
 	}
 
 	async getTasks(filters: TaskFilters = {}): Promise<Task[]> {
-		let results = Array.from(this.tasks.values()).filter(
-			(t) => t.deletedAt === null,
+		let results = this.scopeToArchivedProjects(
+			Array.from(this.tasks.values()).filter((t) => t.deletedAt === null),
+			filters.archivedProjects ??
+				(typeof filters.projectId === "string" ? "include" : "exclude"),
 		);
 
 		if (!filters.allTasks) {
@@ -149,6 +153,29 @@ export class MemoryRepository implements TodoRepository {
 
 		// Map iteration order is the order of the list; moveTask rebuilds it.
 		return results;
+	}
+
+	private isProjectArchived(id: string): boolean {
+		const project = this.projects.get(id);
+		if (!project) return false;
+		if (project.archivedAt !== null) return true;
+		const group = project.groupId
+			? this.projectGroups.get(project.groupId)
+			: undefined;
+		return (group?.archivedAt ?? null) !== null;
+	}
+
+	private scopeToArchivedProjects(
+		tasks: Task[],
+		mode: ArchivedProjectsMode,
+	): Task[] {
+		if (mode === "include") return tasks;
+		const wanted = mode === "only";
+		return tasks.filter(
+			(t) =>
+				(t.projectId !== null && this.isProjectArchived(t.projectId)) ===
+				wanted,
+		);
 	}
 
 	async getTask(id: string): Promise<Task | null> {
@@ -255,10 +282,13 @@ export class MemoryRepository implements TodoRepository {
 		this.tasks.set(id, { ...task, deletedAt: null, updatedAt: now() });
 	}
 
-	async getArchivedTasks(): Promise<Task[]> {
-		return Array.from(this.tasks.values())
-			.filter((t) => t.deletedAt !== null)
-			.sort((a, b) => ((b.deletedAt ?? "") > (a.deletedAt ?? "") ? 1 : -1));
+	async getArchivedTasks(
+		filters: Pick<TaskFilters, "archivedProjects"> = {},
+	): Promise<Task[]> {
+		return this.scopeToArchivedProjects(
+			Array.from(this.tasks.values()).filter((t) => t.deletedAt !== null),
+			filters.archivedProjects ?? "exclude",
+		).sort((a, b) => ((b.deletedAt ?? "") > (a.deletedAt ?? "") ? 1 : -1));
 	}
 
 	async moveTask(
@@ -345,7 +375,25 @@ export class MemoryRepository implements TodoRepository {
 	}
 
 	async getProjects(): Promise<Project[]> {
-		return Array.from(this.projects.values()).sort(byKey);
+		return Array.from(this.projects.values())
+			.filter((p) => !this.isProjectArchived(p.id))
+			.sort(byKey);
+	}
+
+	async getArchivedProjects(): Promise<Project[]> {
+		return Array.from(this.projects.values())
+			.filter((p) => this.isProjectArchived(p.id))
+			.sort(byKey);
+	}
+
+	async archiveProject(id: string): Promise<void> {
+		const project = this.projects.get(id);
+		if (project) this.projects.set(id, { ...project, archivedAt: now() });
+	}
+
+	async unarchiveProject(id: string): Promise<void> {
+		const project = this.projects.get(id);
+		if (project) this.projects.set(id, { ...project, archivedAt: null });
 	}
 
 	async createProject(input: CreateProjectInput): Promise<Project> {
@@ -360,6 +408,7 @@ export class MemoryRepository implements TodoRepository {
 			sortOrder: ++this.sortCounter,
 			sortKey: this.projectSpaceHeadKey(),
 			groupId: null,
+			archivedAt: null,
 			createdAt: now(),
 			updatedAt: now(),
 		};
@@ -394,7 +443,25 @@ export class MemoryRepository implements TodoRepository {
 	}
 
 	async getProjectGroups(): Promise<ProjectGroup[]> {
-		return Array.from(this.projectGroups.values()).sort(byKey);
+		return Array.from(this.projectGroups.values())
+			.filter((g) => g.archivedAt === null)
+			.sort(byKey);
+	}
+
+	async getArchivedProjectGroups(): Promise<ProjectGroup[]> {
+		return Array.from(this.projectGroups.values())
+			.filter((g) => g.archivedAt !== null)
+			.sort(byKey);
+	}
+
+	async archiveProjectGroup(id: string): Promise<void> {
+		const group = this.projectGroups.get(id);
+		if (group) this.projectGroups.set(id, { ...group, archivedAt: now() });
+	}
+
+	async unarchiveProjectGroup(id: string): Promise<void> {
+		const group = this.projectGroups.get(id);
+		if (group) this.projectGroups.set(id, { ...group, archivedAt: null });
 	}
 
 	async createProjectGroup(
@@ -406,6 +473,7 @@ export class MemoryRepository implements TodoRepository {
 			color: input.color,
 			sortOrder: ++this.sortCounter,
 			sortKey: this.projectSpaceHeadKey(),
+			archivedAt: null,
 			createdAt: now(),
 			updatedAt: now(),
 		};
@@ -483,7 +551,16 @@ export class MemoryRepository implements TodoRepository {
 		return all.filter((t) => t.projectId === null || t.projectId === projectId);
 	}
 
+	private assertTagNameFree(name: string, tagId?: string): void {
+		for (const tag of this.tags.values()) {
+			if (tag.name === name && tag.id !== tagId) {
+				throw new TagNameTakenError(name);
+			}
+		}
+	}
+
 	async createTag(input: CreateTagInput): Promise<Tag> {
+		this.assertTagNameFree(input.name);
 		const tag: Tag = {
 			id: uuid(),
 			name: input.name,
@@ -497,6 +574,7 @@ export class MemoryRepository implements TodoRepository {
 	async updateTag(id: string, patch: Partial<CreateTagInput>): Promise<Tag> {
 		const tag = this.tags.get(id);
 		if (!tag) throw new Error(`Tag ${id} not found`);
+		if (patch.name !== undefined) this.assertTagNameFree(patch.name, id);
 		const updated: Tag = { ...tag, ...patch };
 		this.tags.set(id, updated);
 		return updated;

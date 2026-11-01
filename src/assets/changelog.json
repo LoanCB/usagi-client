@@ -8,6 +8,18 @@
 			"changes": {
 				"features": [
 					{
+						"en": "You can now add, rename, recolor and delete a project's tags directly from its edit dialog.",
+						"fr": "Vous pouvez désormais ajouter, renommer, recolorer et supprimer les tags d'un projet directement depuis sa fenêtre de modification."
+					},
+					{
+						"en": "You can now archive a project with its tasks, or a whole project group, from their menu. They leave the sidebar and your task views, and stay in Archives, where you can open a project to read it and restore it at any time, exactly as it was. The search palette finds them too.",
+						"fr": "Vous pouvez désormais archiver un projet avec ses tâches, ou tout un groupe de projets, depuis leur menu. Ils quittent la barre latérale et vos vues de tâches, et restent dans les Archives, d'où vous pouvez ouvrir un projet pour le relire et le restaurer à tout moment, exactement tel qu'il était. La palette de recherche les retrouve aussi."
+					},
+					{
+						"en": "The search palette (⌘K / Ctrl+K) now lists your views: type a name such as Calendar or Tags and press Enter to go there.",
+						"fr": "La palette de recherche (⌘K / Ctrl+K) liste désormais vos vues : tapez par exemple Calendrier ou Tags, puis Entrée pour y accéder."
+					},
+					{
 						"en": "New \"Don't ask for the password\" option under Settings › Security: this device's keychain unlocks Bunly and sync at startup, so you never type your password there, even on a synced device. Turn it off at any time. Signing in on a new device still needs your password.",
 						"fr": "Nouvelle option « Ne pas demander le mot de passe » dans Réglages › Sécurité : le trousseau de cet appareil déverrouille Bunly et la synchronisation au démarrage, vous n'y saisissez donc plus votre mot de passe, même sur un appareil synchronisé. Désactivable à tout moment. La connexion sur un nouvel appareil demande toujours votre mot de passe."
 					},
@@ -49,6 +61,14 @@
 					}
 				],
 				"fixes": [
+					{
+						"en": "You can reuse the name of a deleted tag, and a name already taken now shows a message instead of silently doing nothing.",
+						"fr": "Vous pouvez réutiliser le nom d'un tag supprimé, et un nom déjà pris affiche désormais un message au lieu de ne rien faire."
+					},
+					{
+						"en": "Creating a tag from a project's right-click or options menu now opens a dialog. The form no longer disappears when the pointer leaves it or after a quick click on New tag.",
+						"fr": "La création d'un tag depuis le clic droit ou le menu d'options d'un projet ouvre désormais une fenêtre. Le formulaire ne disparaît plus quand le pointeur en sort ni après un clic rapide sur Nouveau tag."
+					},
 					{
 						"en": "The sidebar now scrolls when its content doesn't fit, instead of hiding projects and the Settings button.",
 						"fr": "La barre latérale défile désormais lorsque son contenu dépasse, au lieu de masquer des projets et le bouton Réglages."

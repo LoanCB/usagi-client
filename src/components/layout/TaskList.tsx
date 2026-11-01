@@ -26,6 +26,7 @@ import {
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { ArchivedProjectBanner } from "@/components/layout/ArchivedProjectBanner";
 import { FilterBar } from "@/components/tasks/FilterBar";
 import { QuickAddTask } from "@/components/tasks/QuickAddTask";
 import { TaskForm } from "@/components/tasks/TaskForm";
@@ -34,6 +35,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { matchesShortcut } from "@/lib/shortcuts";
 import { todayIso } from "@/lib/utils";
+import { useArchiveStore } from "@/store/archives";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import { useShortcutsStore } from "@/store/shortcuts";
@@ -172,6 +174,7 @@ function TaskListHeader({
 	search,
 	onSearchChange,
 	formProjectId,
+	readOnly,
 }: {
 	readonly title: string;
 	readonly showProgress: boolean;
@@ -179,6 +182,7 @@ function TaskListHeader({
 	readonly search: string;
 	readonly onSearchChange: (value: string) => void;
 	readonly formProjectId: string | null;
+	readonly readOnly: boolean;
 }) {
 	const { t, i18n } = useTranslation();
 	const totalCount = tasks.length;
@@ -226,15 +230,17 @@ function TaskListHeader({
 						</button>
 					</div>
 					{/* New task */}
-					<TaskForm projectId={formProjectId}>
-						<button
-							type="button"
-							aria-label={t("task.new")}
-							className="glass-stat flex h-[35px] w-[35px] shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:text-foreground"
-						>
-							<Plus className="h-4 w-4" />
-						</button>
-					</TaskForm>
+					{!readOnly && (
+						<TaskForm projectId={formProjectId}>
+							<button
+								type="button"
+								aria-label={t("task.new")}
+								className="glass-stat flex h-[35px] w-[35px] shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:text-foreground"
+							>
+								<Plus className="h-4 w-4" />
+							</button>
+						</TaskForm>
+					)}
 				</div>
 			</div>
 
@@ -305,6 +311,7 @@ function TaskListBody({
 	displayedTasks,
 	selectedProjectId,
 	projects,
+	readOnly,
 	onDeleteRequest,
 	sensors,
 	activeId,
@@ -317,6 +324,7 @@ function TaskListBody({
 	readonly displayedTasks: Task[];
 	readonly selectedProjectId: string | null | undefined;
 	readonly projects: Project[];
+	readonly readOnly: boolean;
 	readonly onDeleteRequest: (id: string) => void;
 	readonly sensors: ReturnType<typeof useSensors>;
 	readonly activeId: string | null;
@@ -345,7 +353,7 @@ function TaskListBody({
 			? projects.find((p) => p.id === task.projectId)
 			: undefined;
 
-	if (search.trim()) {
+	if (search.trim() || readOnly) {
 		return (
 			<div>
 				{filteredTasks.map((task) => (
@@ -354,6 +362,7 @@ function TaskListBody({
 						task={task}
 						project={projectFor(task)}
 						onDeleteRequest={onDeleteRequest}
+						readOnly={readOnly}
 					/>
 				))}
 			</div>
@@ -408,7 +417,11 @@ export function TaskList() {
 	const { selectedProjectId, activeFilters, selectedTaskId, setSelectedTask } =
 		useUIStore();
 
-	const currentProject = projects.find((p) => p.id === selectedProjectId);
+	const archivedProject = useArchiveStore((s) =>
+		s.projects.find((p) => p.id === selectedProjectId),
+	);
+	const currentProject =
+		projects.find((p) => p.id === selectedProjectId) ?? archivedProject;
 	const [search, setSearch] = useState("");
 	const [drag, dragDispatch] = useReducer(taskDragReducer, initialTaskDrag);
 	const { activeId, overId } = drag;
@@ -571,7 +584,10 @@ export function TaskList() {
 				search={search}
 				onSearchChange={setSearch}
 				formProjectId={formProjectId}
+				readOnly={archivedProject !== undefined}
 			/>
+
+			{archivedProject && <ArchivedProjectBanner project={archivedProject} />}
 
 			<FilterBar
 				sortDir={sortDir}
@@ -592,6 +608,7 @@ export function TaskList() {
 					displayedTasks={displayedTasks}
 					selectedProjectId={selectedProjectId}
 					projects={projects}
+					readOnly={archivedProject !== undefined}
 					onDeleteRequest={setConfirmDeleteId}
 					sensors={sensors}
 					activeId={activeId}
@@ -601,7 +618,7 @@ export function TaskList() {
 					onDragEnd={handleDragEnd}
 				/>
 			</ScrollArea>
-			<QuickAddTask projectId={formProjectId} />
+			{!archivedProject && <QuickAddTask projectId={formProjectId} />}
 			<ConfirmDeleteDialog
 				open={confirmDeleteId !== null}
 				onConfirm={async () => {

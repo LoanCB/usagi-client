@@ -42,6 +42,11 @@ export interface Project {
 	 */
 	sortKey: string;
 	groupId: string | null;
+	/**
+	 * Set only when the project itself was archived: one inside an archived group
+	 * keeps null, so restoring the group leaves it as it was.
+	 */
+	archivedAt: string | null;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -54,6 +59,7 @@ export interface ProjectGroup {
 	sortOrder: number;
 	/** Same key space as `Project.sortKey` — see there. */
 	sortKey: string;
+	archivedAt: string | null;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -63,6 +69,12 @@ export interface CreateProjectGroupInput {
 	color: string;
 }
 
+/**
+ * How a task read treats projects that are archived, directly or through their
+ * group. Defaults to "exclude", except for a read naming one project.
+ */
+export type ArchivedProjectsMode = "exclude" | "include" | "only";
+
 export interface TaskFilters {
 	projectId?: string | null; // null = Inbox, undefined = all projects
 	projectIds?: string[]; // multi-project filter; INBOX_PROJECT_ID = tasks with no project
@@ -71,6 +83,7 @@ export interface TaskFilters {
 	completed?: boolean; // undefined = non-completed only (default)
 	dueBefore?: string; // ISO date, inclusive
 	allTasks?: boolean; // when true, returns all tasks regardless of completion status
+	archivedProjects?: ArchivedProjectsMode;
 }
 
 export interface CreateTaskInput {

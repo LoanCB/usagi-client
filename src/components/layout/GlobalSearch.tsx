@@ -1,14 +1,27 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { Command, useCommandState } from "cmdk";
-import { ArchiveIcon, CheckIcon, CircleIcon, SearchIcon } from "lucide-react";
+import {
+	ArchiveIcon,
+	ArchiveXIcon,
+	CalendarDaysIcon,
+	CalendarIcon,
+	CheckIcon,
+	CircleIcon,
+	ListChecksIcon,
+	type LucideIcon,
+	SearchIcon,
+	TagsIcon,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GroupColorShape } from "@/components/ui/GroupColorShape";
 import { PRESET_ICONS } from "@/lib/icons";
 import { cn } from "@/lib/utils";
+import { useArchiveStore } from "@/store/archives";
 import { useProjectStore } from "@/store/projects";
 import { getRepository } from "@/store/repository";
 import { useSearchStore } from "@/store/search";
+import { useSettingsStore } from "@/store/settings";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import { useUIStore } from "@/store/ui";
@@ -17,6 +30,14 @@ import type { Project, Tag, Task } from "@/types";
 const TASK_LIMIT = 5;
 const PROJECT_LIMIT = 3;
 const TAG_LIMIT = 3;
+
+interface ViewItem {
+	readonly id: string;
+	/** undefined is the "All tasks" selection (see useUIStore). */
+	readonly target: string | undefined;
+	readonly label: string;
+	readonly icon: LucideIcon;
+}
 
 const GROUP_HEADING_CLASS =
 	"[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground";
@@ -74,16 +95,48 @@ function QuickActions({
 	);
 }
 
+function ViewResults({
+	views,
+	onSelect,
+}: {
+	readonly views: ViewItem[];
+	readonly onSelect: (target: string | undefined) => void;
+}) {
+	const { t } = useTranslation();
+	return (
+		<Command.Group heading={t("nav.views")} className={GROUP_HEADING_CLASS}>
+			{views.map((view) => {
+				const ViewIcon = view.icon;
+				return (
+					<Command.Item
+						key={view.id}
+						value={`view-${view.id}`}
+						onSelect={() => onSelect(view.target)}
+						className={ITEM_CLASS}
+					>
+						<span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+							<ViewIcon className="size-4" />
+						</span>
+						<span className="truncate">{view.label}</span>
+					</Command.Item>
+				);
+			})}
+		</Command.Group>
+	);
+}
+
 function TaskResults({
 	tasks,
+	isArchived,
 	onSelect,
 }: {
 	readonly tasks: Task[];
+	readonly isArchived: (task: Task) => boolean;
 	readonly onSelect: (task: Task) => void;
 }) {
 	const { t } = useTranslation();
 	const badgeFor = (task: Task) => {
-		if (task.deletedAt) return t("search.archived");
+		if (isArchived(task)) return t("search.archived");
 		if (task.completedAt) return t("search.completed");
 		return null;
 	};
@@ -143,9 +196,11 @@ function TaskResults({
 
 function ProjectResults({
 	projects,
+	archivedIds,
 	onSelect,
 }: {
 	readonly projects: Project[];
+	readonly archivedIds: ReadonlySet<string>;
 	readonly onSelect: (projectId: string) => void;
 }) {
 	const { t } = useTranslation();
@@ -171,7 +226,14 @@ function ProjectResults({
 								style={{ color: project.color ?? undefined }}
 							/>
 						</span>
-						<span className="truncate">{project.name}</span>
+						<span className="min-w-0 flex-1">
+							<span className="block truncate">{project.name}</span>
+							{archivedIds.has(project.id) && (
+								<span className="text-xs text-muted-foreground">
+									{t("search.projectArchived")}
+								</span>
+							)}
+						</span>
 					</Command.Item>
 				);
 			})}
@@ -210,6 +272,53 @@ function TagResults({
 	);
 }
 
+function SearchResults({
+	views,
+	tasks,
+	projects,
+	archivedProjectIds,
+	isArchived,
+	tags,
+	onSelectView,
+	onSelectTask,
+	onSelectProject,
+	onSelectTag,
+}: {
+	readonly views: ViewItem[];
+	readonly tasks: Task[];
+	readonly projects: Project[];
+	readonly archivedProjectIds: ReadonlySet<string>;
+	readonly isArchived: (task: Task) => boolean;
+	readonly tags: Tag[];
+	readonly onSelectView: (target: string | undefined) => void;
+	readonly onSelectTask: (task: Task) => void;
+	readonly onSelectProject: (projectId: string) => void;
+	readonly onSelectTag: () => void;
+}) {
+	return (
+		<>
+			{views.length > 0 && (
+				<ViewResults views={views} onSelect={onSelectView} />
+			)}
+			{tasks.length > 0 && (
+				<TaskResults
+					tasks={tasks}
+					isArchived={isArchived}
+					onSelect={onSelectTask}
+				/>
+			)}
+			{projects.length > 0 && (
+				<ProjectResults
+					projects={projects}
+					archivedIds={archivedProjectIds}
+					onSelect={onSelectProject}
+				/>
+			)}
+			{tags.length > 0 && <TagResults tags={tags} onSelect={onSelectTag} />}
+		</>
+	);
+}
+
 function SearchFooter({ mode }: { readonly mode: "search" | "action" }) {
 	const { t } = useTranslation();
 	if (mode === "action") {
@@ -240,6 +349,55 @@ function SearchFooter({ mode }: { readonly mode: "search" | "action" }) {
 	);
 }
 
+/** Same list and visibility rules as the sidebar's views. */
+function useFilteredViews(q: string): ViewItem[] {
+	const { t } = useTranslation();
+	const tagsVisible = useSettingsStore((s) => s.tagsVisible);
+	const calendarVisible = useSettingsStore((s) => s.calendarVisible);
+	const archivesVisible = useSettingsStore((s) => s.archivesVisible);
+	return useMemo(() => {
+		const views: ViewItem[] = [
+			{
+				id: "today",
+				target: "today",
+				label: t("nav.today"),
+				icon: CalendarIcon,
+			},
+			{
+				id: "all",
+				target: undefined,
+				label: t("nav.allTasks"),
+				icon: ListChecksIcon,
+			},
+		];
+		if (tagsVisible) {
+			views.push({
+				id: "tags",
+				target: "tags",
+				label: t("nav.tags"),
+				icon: TagsIcon,
+			});
+		}
+		if (calendarVisible) {
+			views.push({
+				id: "calendar",
+				target: "calendar",
+				label: t("nav.calendar"),
+				icon: CalendarDaysIcon,
+			});
+		}
+		if (archivesVisible) {
+			views.push({
+				id: "archives",
+				target: "archives",
+				label: t("nav.archives"),
+				icon: ArchiveXIcon,
+			});
+		}
+		return views.filter((view) => view.label.toLowerCase().includes(q));
+	}, [t, tagsVisible, calendarVisible, archivesVisible, q]);
+}
+
 export function GlobalSearch() {
 	const { isOpen, close } = useSearchStore();
 	const [query, setQuery] = useState("");
@@ -253,6 +411,8 @@ export function GlobalSearch() {
 	const uncompleteTask = useTaskStore((s) => s.uncompleteTask);
 	const archiveTask = useTaskStore((s) => s.archiveTask);
 	const projects = useProjectStore((s) => s.projects);
+	const archivedProjects = useArchiveStore((s) => s.projects);
+	const archivedProjectTasks = useArchiveStore((s) => s.tasks);
 	const tags = useTagStore((s) => s.tags);
 	const navigateToTask = useUIStore((s) => s.navigateToTask);
 	const setSelectedProject = useUIStore((s) => s.setSelectedProject);
@@ -273,21 +433,37 @@ export function GlobalSearch() {
 	}
 
 	const q = query.toLowerCase();
+	const filteredViews = useFilteredViews(q);
 
-	const filteredTasks = useMemo(
-		() =>
-			[...tasks, ...archivedTasks]
-				.filter((task) => task.title.toLowerCase().includes(q))
-				.slice(0, TASK_LIMIT),
-		[tasks, archivedTasks, q],
+	const archivedProjectIds = useMemo(
+		() => new Set(archivedProjects.map((p) => p.id)),
+		[archivedProjects],
 	);
+
+	const isArchived = (task: Task) =>
+		task.deletedAt !== null ||
+		(task.projectId !== null && archivedProjectIds.has(task.projectId));
+
+	const filteredTasks = useMemo(() => {
+		// By id: `tasks` already holds archivedProjectTasks while one of those
+		// projects is open.
+		const candidates = new Map(
+			[...tasks, ...archivedTasks, ...archivedProjectTasks].map((task) => [
+				task.id,
+				task,
+			]),
+		);
+		return [...candidates.values()]
+			.filter((task) => task.title.toLowerCase().includes(q))
+			.slice(0, TASK_LIMIT);
+	}, [tasks, archivedTasks, archivedProjectTasks, q]);
 
 	const filteredProjects = useMemo(
 		() =>
-			projects
+			[...projects, ...archivedProjects]
 				.filter((p) => p.name.toLowerCase().includes(q))
 				.slice(0, PROJECT_LIMIT),
-		[projects, q],
+		[projects, archivedProjects, q],
 	);
 
 	const filteredTags = useMemo(
@@ -308,6 +484,11 @@ export function GlobalSearch() {
 		handleClose();
 	}
 
+	function handleSelectView(target: string | undefined) {
+		setSelectedProject(target);
+		handleClose();
+	}
+
 	function handleSelectTag() {
 		setSelectedProject("tags");
 		handleClose();
@@ -318,7 +499,7 @@ export function GlobalSearch() {
 			const task = filteredTasks.find(
 				(task) => task.id === selectedValueRef.current,
 			);
-			if (task && !task.deletedAt) {
+			if (task && !isArchived(task)) {
 				e.preventDefault();
 				setQuickActionTarget(task);
 				setQuery("");
@@ -399,30 +580,25 @@ export function GlobalSearch() {
 								{t("search.noResults")}
 							</Command.Empty>
 
-							{quickActionTarget && (
+							{quickActionTarget ? (
 								<QuickActions
 									target={quickActionTarget}
 									onComplete={handleQuickComplete}
 									onArchive={handleQuickArchive}
 								/>
-							)}
-
-							{!quickActionTarget && filteredTasks.length > 0 && (
-								<TaskResults
+							) : (
+								<SearchResults
+									views={filteredViews}
 									tasks={filteredTasks}
-									onSelect={handleSelectTask}
-								/>
-							)}
-
-							{!quickActionTarget && filteredProjects.length > 0 && (
-								<ProjectResults
 									projects={filteredProjects}
-									onSelect={handleSelectProject}
+									archivedProjectIds={archivedProjectIds}
+									isArchived={isArchived}
+									tags={filteredTags}
+									onSelectView={handleSelectView}
+									onSelectTask={handleSelectTask}
+									onSelectProject={handleSelectProject}
+									onSelectTag={handleSelectTag}
 								/>
-							)}
-
-							{!quickActionTarget && filteredTags.length > 0 && (
-								<TagResults tags={filteredTags} onSelect={handleSelectTag} />
 							)}
 						</Command.List>
 

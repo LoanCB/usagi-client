@@ -14,6 +14,7 @@ import { runMigrations } from "@/db/migrations/run-migrations";
 import { useOverdueNotifications } from "@/hooks/useOverdueNotifications";
 import { UpdaterContext, useUpdater } from "@/hooks/useUpdater";
 import { getReleasedVersions, getVersionsSince } from "@/lib/changelog";
+import { useArchiveStore } from "@/store/archives";
 import { useProjectGroupStore } from "@/store/projectGroups";
 import { useProjectStore } from "@/store/projects";
 import { getRepository, setRepository } from "@/store/repository";
@@ -56,6 +57,7 @@ export function AppContent() {
 			await loadShortcuts(repo);
 			loadProjects(repo);
 			loadGroups(repo);
+			useArchiveStore.getState().load(repo);
 			loadTags(repo);
 			loadTasks(repo, {});
 
