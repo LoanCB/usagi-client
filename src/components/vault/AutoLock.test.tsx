@@ -60,6 +60,28 @@ describe("AutoLock", () => {
 		vi.useRealTimers();
 	});
 
+	it("calls onUnlocked after a successful unlock only", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		useSettingsStore.setState({ autoLockMinutes: 5 });
+		const onUnlocked = vi.fn();
+		render(
+			<AutoLock api={api("password")} onUnlocked={onUnlocked}>
+				<p>the app</p>
+			</AutoLock>,
+		);
+		await idle(5);
+		expect(onUnlocked).not.toHaveBeenCalled();
+		await userEvent.type(
+			await screen.findByLabelText(/^password$|^mot de passe$/i),
+			"hunter2",
+		);
+		await userEvent.click(
+			screen.getByRole("button", { name: /^unlock$|^déverrouiller$/i }),
+		);
+		expect(onUnlocked).toHaveBeenCalledTimes(1);
+		vi.useRealTimers();
+	});
+
 	it("stays locked on a wrong password", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		useSettingsStore.setState({ autoLockMinutes: 1 });

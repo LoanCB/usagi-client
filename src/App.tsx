@@ -23,7 +23,7 @@ import { useSyncStore } from "@/store/sync";
 import { useTagStore } from "@/store/tags";
 import { useTaskStore } from "@/store/tasks";
 import type { FetchLike } from "@/sync/http";
-import { setSyncContext, startSync } from "@/sync/runtime";
+import { getSyncRuntime, setSyncContext, startSync } from "@/sync/runtime";
 import { getSyncState } from "@/sync/state";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import type { ChangelogVersion } from "@/types/changelog";
@@ -181,7 +181,9 @@ function AppBoot() {
 	}
 
 	return (
-		<AutoLock>
+		// The timer only ticks while the app runs, so a long lock leaves the
+		// device behind: catch up as soon as the session is usable again.
+		<AutoLock onUnlocked={() => void getSyncRuntime()?.engine.syncNow()}>
 			<AppContent />
 		</AutoLock>
 	);

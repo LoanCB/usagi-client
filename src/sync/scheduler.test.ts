@@ -27,7 +27,7 @@ describe("SyncScheduler (§4.2 triggers)", () => {
 		expect(syncNow).toHaveBeenCalledTimes(1);
 	});
 
-	it("syncs every 5 minutes", () => {
+	it("syncs every 10 minutes", () => {
 		scheduler.start();
 		vi.advanceTimersByTime(SYNC_INTERVAL_MS * 2);
 		expect(syncNow).toHaveBeenCalledTimes(3); // start + 2 intervals

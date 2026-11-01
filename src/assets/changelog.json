@@ -8,6 +8,10 @@
 			"changes": {
 				"features": [
 					{
+						"en": "When a sync server is configured, Bunly now syncs in the background every 10 minutes and right after you unlock a password-protected session.",
+						"fr": "Lorsqu'un serveur de synchronisation est configuré, Bunly se synchronise désormais en arrière-plan toutes les 10 minutes et juste après le déverrouillage d'une session protégée par mot de passe."
+					},
+					{
 						"en": "You can now have Bunly lock itself after a period of inactivity (1 to 60 minutes) and ask for your password again. It is off by default — set it under Settings › Security once your data is protected by a password.",
 						"fr": "Bunly peut désormais se verrouiller après une période d'inactivité (de 1 à 60 minutes) et redemander votre mot de passe. Désactivé par défaut — à régler dans Réglages › Sécurité une fois vos données protégées par un mot de passe."
 					},
@@ -38,20 +42,20 @@
 				],
 				"fixes": [
 					{
-						"en": "Icon-only buttons (calendar navigation, tag editing, time pickers in Settings) now have accessible names for screen readers.",
-						"fr": "Les boutons à icône seule (navigation du calendrier, édition des tags, sélecteurs d'heure des Réglages) ont désormais un nom accessible pour les lecteurs d'écran."
-					},
-					{
-						"en": "In Settings, the scrollbar no longer overlaps the content and text fields are no longer cut off at the edges.",
-						"fr": "Dans les Réglages, la barre de défilement ne chevauche plus le contenu et les champs de saisie ne sont plus rognés sur les bords."
-					},
-					{
 						"en": "The sidebar now scrolls when its content doesn't fit, instead of hiding projects and the Settings button.",
 						"fr": "La barre latérale défile désormais lorsque son contenu dépasse, au lieu de masquer des projets et le bouton Réglages."
 					},
 					{
 						"en": "Task dots in the calendar's month view now have accessible names, so screen readers announce the task's title.",
 						"fr": "Les pastilles de tâches de la vue mois du calendrier ont désormais un nom accessible : les lecteurs d'écran annoncent le titre de la tâche."
+					},
+					{
+						"en": "Icon-only buttons (calendar navigation, tag editing, time pickers in Settings) now have accessible names for screen readers.",
+						"fr": "Les boutons à icône seule (navigation du calendrier, édition des tags, sélecteurs d'heure des Réglages) ont désormais un nom accessible pour les lecteurs d'écran."
+					},
+					{
+						"en": "In Settings, the scrollbar no longer overlaps the content and text fields are no longer cut off at the edges.",
+						"fr": "Dans les Réglages, la barre de défilement ne chevauche plus le contenu et les champs de saisie ne sont plus rognés sur les bords."
 					},
 					{
 						"en": "Multi-step writes such as importing a backup or moving a task are now guaranteed to apply completely or not at all, even when several run at the same time. Previously they could be split across database connections, which could leave a write half-applied or make a concurrent one fail.",

@@ -8,6 +8,8 @@ import { vaultErrorMessage } from "./vaultErrorMessage";
 
 interface AutoLockProps {
 	api?: VaultApi;
+	/** Runs after the password re-opens the session, e.g. to catch up on sync. */
+	onUnlocked?: () => void;
 	children: ReactNode;
 }
 
@@ -16,7 +18,11 @@ interface AutoLockProps {
  * is inert and covered until the vault password is re-entered. The decrypted
  * database stays open in Rust.
  */
-export function AutoLock({ api = tauriVaultApi, children }: AutoLockProps) {
+export function AutoLock({
+	api = tauriVaultApi,
+	onUnlocked,
+	children,
+}: AutoLockProps) {
 	const { t } = useTranslation();
 	const minutes = useSettingsStore((s) => s.autoLockMinutes);
 	const [locked, setLocked] = useState(false);
@@ -42,6 +48,7 @@ export function AutoLock({ api = tauriVaultApi, children }: AutoLockProps) {
 		try {
 			await api.unlockPassword(password);
 			setLocked(false);
+			onUnlocked?.();
 		} catch (e) {
 			setError(vaultErrorMessage(t, e));
 		} finally {

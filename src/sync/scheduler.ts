@@ -1,8 +1,8 @@
-export const SYNC_INTERVAL_MS = 5 * 60_000;
+export const SYNC_INTERVAL_MS = 10 * 60_000;
 export const WRITE_DEBOUNCE_MS = 2_000;
 
 /**
- * Spec §4.2 (v1): sync on start, on window focus, every 5 minutes, and 2s
+ * Spec §4.2 (v1): sync on start, on window focus, every 10 minutes, and 2s
  * after a local write (debounced). No WebSocket — real time is a later
  * improvement that does not change the protocol. Overlapping triggers are
  * harmless: the engine is single-flight and coalesces reruns.
