@@ -46,6 +46,14 @@
 						"fr": "Dans les Réglages, la barre de défilement ne chevauche plus le contenu et les champs de saisie ne sont plus rognés sur les bords."
 					},
 					{
+						"en": "The sidebar now scrolls when its content doesn't fit, instead of hiding projects and the Settings button.",
+						"fr": "La barre latérale défile désormais lorsque son contenu dépasse, au lieu de masquer des projets et le bouton Réglages."
+					},
+					{
+						"en": "Task dots in the calendar's month view now have accessible names, so screen readers announce the task's title.",
+						"fr": "Les pastilles de tâches de la vue mois du calendrier ont désormais un nom accessible : les lecteurs d'écran annoncent le titre de la tâche."
+					},
+					{
 						"en": "Multi-step writes such as importing a backup or moving a task are now guaranteed to apply completely or not at all, even when several run at the same time. Previously they could be split across database connections, which could leave a write half-applied or make a concurrent one fail.",
 						"fr": "Les écritures en plusieurs étapes comme l'import d'une sauvegarde ou le déplacement d'une tâche s'appliquent désormais entièrement ou pas du tout, même lorsque plusieurs se produisent en même temps. Elles pouvaient auparavant être réparties sur plusieurs connexions à la base, ce qui pouvait laisser une écriture à moitié appliquée ou en faire échouer une autre."
 					},

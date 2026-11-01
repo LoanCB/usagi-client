@@ -73,6 +73,10 @@ test("deletes a task", async ({ page }) => {
 		.filter({ hasText: "Task to delete" });
 	await row.getByRole("button", { name: "Task to delete" }).click();
 	await page.getByRole("button", { name: "Delete task" }).click();
+	await page
+		.getByRole("dialog")
+		.getByRole("button", { name: "Delete", exact: true })
+		.click();
 
 	await expect(row).not.toBeVisible();
 });

@@ -65,7 +65,7 @@ test("priority filter shows only matching tasks", async ({ page }) => {
 	});
 
 	await page.getByRole("button", { name: "Priority", exact: true }).click();
-	await page.getByRole("menuitem", { name: "High" }).click();
+	await page.getByRole("menuitem", { name: "High", exact: true }).click();
 
 	await expect(
 		page.locator(".task-row-animate").filter({ hasText: "High priority task" }),
@@ -88,7 +88,7 @@ test("Today view shows only tasks due today", async ({ page }) => {
 
 	await page
 		.locator(".glass-sidebar")
-		.getByRole("button", { name: "Today", exact: true })
+		.getByRole("button", { name: /^Today\b/ })
 		.click();
 
 	await expect(
@@ -127,4 +127,23 @@ test("selecting a project shows only its tasks", async ({ page }) => {
 	await expect(
 		page.locator(".task-row-animate").filter({ hasText: "Inbox task" }),
 	).not.toBeVisible();
+});
+
+test("sidebar scrolls instead of clipping when its content overflows", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 800, height: 320 });
+
+	const sidebar = page.locator(".glass-sidebar");
+	const viewport = sidebar.locator("[data-slot=scroll-area-viewport]");
+
+	const { clientHeight, scrollHeight } = await viewport.evaluate((el) => ({
+		clientHeight: el.clientHeight,
+		scrollHeight: el.scrollHeight,
+	}));
+	expect(scrollHeight).toBeGreaterThan(clientHeight);
+
+	await expect(
+		sidebar.getByRole("button", { name: "Settings" }),
+	).toBeInViewport();
 });

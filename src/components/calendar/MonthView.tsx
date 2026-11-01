@@ -106,6 +106,7 @@ export function MonthView({
 										<Tooltip key={task.id}>
 											<TooltipTrigger
 												type="button"
+												aria-label={task.title}
 												onClick={(e) => {
 													e.stopPropagation();
 													onTaskClick(task);
@@ -125,6 +126,7 @@ export function MonthView({
 										<Tooltip key={task.id}>
 											<TooltipTrigger
 												type="button"
+												aria-label={task.title}
 												onClick={(e) => {
 													e.stopPropagation();
 													onTaskClick(task);

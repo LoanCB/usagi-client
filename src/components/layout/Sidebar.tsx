@@ -1133,7 +1133,7 @@ export function Sidebar() {
 				</div>
 			)}
 
-			<ScrollArea className="flex-1 px-2">
+			<ScrollArea className="flex-1 min-h-0 px-2">
 				<SidebarNav
 					collapsed={sidebarCollapsed}
 					selectedProjectId={selectedProjectId}

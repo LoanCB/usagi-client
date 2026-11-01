@@ -35,7 +35,9 @@ test("task with dueDate appears in calendar on the correct day", async ({
 		.getByRole("button", { name: "Calendar" })
 		.click();
 
-	await expect(page.locator('[title="Calendar task"]')).toBeVisible();
+	await expect(
+		page.getByRole("button", { name: "Calendar task" }),
+	).toBeVisible();
 });
 
 test("completed task appears on its completion date in calendar", async ({
@@ -55,7 +57,7 @@ test("completed task appears on its completion date in calendar", async ({
 		.getByRole("button", { name: "Calendar" })
 		.click();
 
-	await expect(page.locator('[title="Done task"]')).toBeVisible();
+	await expect(page.getByRole("button", { name: "Done task" })).toBeVisible();
 });
 
 test("clicking a day shows QuickAddTask", async ({ page }) => {
@@ -84,7 +86,9 @@ test("creating a task from calendar day adds it to the calendar", async ({
 	await page.getByLabel("Task title").fill("New calendar task");
 	await page.keyboard.press("Enter");
 
-	await expect(page.locator('[title="New calendar task"]')).toBeVisible();
+	await expect(
+		page.locator('button[aria-label="New calendar task"]'),
+	).toBeVisible();
 });
 
 test("clicking a task in calendar opens the task detail panel", async ({
@@ -102,7 +106,7 @@ test("clicking a task in calendar opens the task detail panel", async ({
 		.getByRole("button", { name: "Calendar" })
 		.click();
 
-	await page.locator('[title="Nav task"]').click();
+	await page.getByRole("button", { name: "Nav task" }).click();
 
 	await expect(page.locator(".detail-panel-animate")).toBeVisible();
 });
