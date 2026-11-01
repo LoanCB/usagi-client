@@ -32,10 +32,13 @@ function api(
 		setPassword: vi.fn(async () => PHRASE),
 		changePassword: vi.fn(async () => {}),
 		removePassword: vi.fn(async () => {}),
+		requirePassword: vi.fn(async () => {}),
 		...over,
 	};
 }
 const button = (name: RegExp) => screen.findByRole("button", { name });
+const noPrompt = () =>
+	screen.findByRole("switch", { name: /don't ask|ne pas demander/i });
 const autoLock = () => screen.findByLabelText(/auto-lock|verrouillage auto/i);
 const setSetting = vi.fn().mockResolvedValue(undefined);
 
@@ -46,13 +49,11 @@ beforeEach(() => {
 });
 
 describe("SecurityPanel", () => {
-	it("offers only 'set a password' in keychain mode", async () => {
+	it("shows the option on in keychain mode, with nothing to change", async () => {
 		render(<SecurityPanel api={api({ state: "keychain" })} />);
+		expect(await noPrompt()).toBeChecked();
 		expect(
-			await button(/set a password|définir un mot de passe/i),
-		).toBeEnabled();
-		expect(
-			screen.queryByRole("button", { name: /remove|supprimer/i }),
+			screen.queryByRole("button", { name: /change|changer/i }),
 		).not.toBeInTheDocument();
 	});
 
@@ -61,7 +62,7 @@ describe("SecurityPanel", () => {
 		const a = api({ state: "keychain" });
 		const blocked = vi.fn();
 		render(<SecurityPanel api={a} onDismissBlockedChange={blocked} />);
-		await user.click(await button(/set a password|définir un mot de passe/i));
+		await user.click(await noPrompt());
 		await user.type(
 			screen.getByLabelText(/^new password$|^nouveau mot de passe$/i),
 			"Str0ng-pass",
@@ -91,9 +92,7 @@ describe("SecurityPanel", () => {
 		);
 		expect(a.changePassword).toHaveBeenCalledWith("old", "Str0ng-pass");
 
-		await user.click(
-			await button(/remove password|supprimer le mot de passe/i),
-		);
+		await user.click(await noPrompt());
 		await user.type(screen.getByLabelText(/current|actuel/i), "new");
 		await user.click(
 			screen.getByRole("button", { name: /^save$|^enregistrer$/i }),
@@ -112,9 +111,7 @@ describe("SecurityPanel", () => {
 			},
 		);
 		render(<SecurityPanel api={a} />);
-		await user.click(
-			await button(/remove password|supprimer le mot de passe/i),
-		);
+		await user.click(await noPrompt());
 		await user.type(screen.getByLabelText(/current|actuel/i), "x");
 		await user.click(
 			screen.getByRole("button", { name: /^save$|^enregistrer$/i }),
@@ -124,23 +121,51 @@ describe("SecurityPanel", () => {
 		).toBeInTheDocument();
 	});
 
-	it("disables both actions on a synced device and says why", async () => {
+	it("only blocks changing the password on a synced device", async () => {
 		render(<SecurityPanel api={api({ state: "password", syncBound: true })} />);
 		expect(
 			await button(/change password|changer le mot de passe/i),
 		).toBeDisabled();
+		expect(await noPrompt()).toBeEnabled();
+		expect(await noPrompt()).not.toBeChecked();
+	});
+
+	it("stops asking on a synced device with the account password", async () => {
+		const user = userEvent.setup();
+		const a = api({ state: "password", syncBound: true });
+		render(<SecurityPanel api={a} />);
+		await user.click(await noPrompt());
+		await user.type(screen.getByLabelText(/current|actuel/i), "account");
+		await user.click(
+			screen.getByRole("button", { name: /^save$|^enregistrer$/i }),
+		);
+		await waitFor(() =>
+			expect(a.removePassword).toHaveBeenCalledWith("account"),
+		);
+	});
+
+	it("asks again on a synced device without a new password or recovery key", async () => {
+		const user = userEvent.setup();
+		const a = api({ state: "keychain", syncBound: true });
+		render(<SecurityPanel api={a} />);
+		const toggle = await noPrompt();
+		expect(toggle).toBeChecked();
+		await user.click(toggle);
 		expect(
-			screen.getByRole("button", {
-				name: /remove password|supprimer le mot de passe/i,
-			}),
-		).toBeDisabled();
-		expect(
-			screen.getByText(/always asks|le demande toujours/i),
-		).toBeInTheDocument();
+			screen.queryByLabelText(/^new password$|^nouveau mot de passe$/i),
+		).not.toBeInTheDocument();
+		await user.type(screen.getByLabelText(/current|actuel/i), "account");
+		await user.click(
+			screen.getByRole("button", { name: /^save$|^enregistrer$/i }),
+		);
+		await waitFor(() =>
+			expect(a.requirePassword).toHaveBeenCalledWith("account"),
+		);
+		expect(a.setPassword).not.toHaveBeenCalled();
 	});
 
 	async function fillSet(user: ReturnType<typeof userEvent.setup>) {
-		await user.click(await button(/set a password|définir un mot de passe/i));
+		await user.click(await noPrompt());
 		await user.type(
 			screen.getByLabelText(/^new password$|^nouveau mot de passe$/i),
 			"Str0ng-pass",
@@ -155,7 +180,7 @@ describe("SecurityPanel", () => {
 		const user = userEvent.setup();
 		const a = api({ state: "keychain" });
 		render(<SecurityPanel api={a} random={() => 0} />);
-		await user.click(await button(/set a password|définir un mot de passe/i));
+		await user.click(await noPrompt());
 		await user.type(
 			screen.getByLabelText(/^new password$|^nouveau mot de passe$/i),
 			"weak",
@@ -220,7 +245,7 @@ describe("SecurityPanel", () => {
 		const user = userEvent.setup();
 		const a = api({ state: "keychain" });
 		render(<SecurityPanel api={a} />);
-		await user.click(await button(/set a password|définir un mot de passe/i));
+		await user.click(await noPrompt());
 		await user.type(
 			screen.getByLabelText(/^new password$|^nouveau mot de passe$/i),
 			"a",
@@ -291,17 +316,13 @@ describe("SecurityPanel", () => {
 		await user.click(
 			screen.getByRole("button", { name: /try again|réessayer/i }),
 		);
-		expect(
-			await button(/set a password|définir un mot de passe/i),
-		).toBeEnabled();
+		expect(await noPrompt()).toBeEnabled();
 	});
 
 	it("keeps Save disabled while a required field is empty", async () => {
 		const user = userEvent.setup();
 		render(<SecurityPanel api={api({ state: "password" })} />);
-		await user.click(
-			await button(/remove password|supprimer le mot de passe/i),
-		);
+		await user.click(await noPrompt());
 		const save = screen.getByRole("button", { name: /^save$|^enregistrer$/i });
 		expect(save).toBeDisabled();
 		await user.type(screen.getByLabelText(/current|actuel/i), "x");
@@ -311,9 +332,7 @@ describe("SecurityPanel", () => {
 	it("confirms a successful change or removal", async () => {
 		const user = userEvent.setup();
 		render(<SecurityPanel api={api({ state: "password" })} />);
-		await user.click(
-			await button(/remove password|supprimer le mot de passe/i),
-		);
+		await user.click(await noPrompt());
 		await user.type(screen.getByLabelText(/current|actuel/i), "x");
 		await user.click(
 			screen.getByRole("button", { name: /^save$|^enregistrer$/i }),
@@ -334,9 +353,7 @@ describe("SecurityPanel", () => {
 			},
 		);
 		render(<SecurityPanel api={a} />);
-		await user.click(
-			await button(/remove password|supprimer le mot de passe/i),
-		);
+		await user.click(await noPrompt());
 		await user.type(screen.getByLabelText(/current|actuel/i), "pw");
 		await user.click(
 			screen.getByRole("button", { name: /^save$|^enregistrer$/i }),
@@ -365,9 +382,7 @@ describe("SecurityPanel", () => {
 		const user = userEvent.setup();
 		useSettingsStore.setState({ autoLockMinutes: 5 });
 		render(<SecurityPanel api={api({ state: "password" })} />);
-		await user.click(
-			await button(/remove password|supprimer le mot de passe/i),
-		);
+		await user.click(await noPrompt());
 		await user.type(screen.getByLabelText(/current|actuel/i), "pw");
 		await user.click(
 			screen.getByRole("button", { name: /^save$|^enregistrer$/i }),

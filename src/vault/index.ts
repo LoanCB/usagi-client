@@ -49,6 +49,7 @@ export const tauriVaultApi: VaultApi = {
 	changePassword: (current, newPassword) =>
 		invoke("vault_change_password", { current, newPassword }),
 	removePassword: (current) => invoke("vault_remove_password", { current }),
+	requirePassword: (current) => invoke("vault_require_password", { current }),
 };
 
 export function bindAccount(wrappedDekRecovery: string): Promise<string> {

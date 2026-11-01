@@ -170,9 +170,10 @@ La migration ne crée donc aucune copie en clair supplémentaire et ne supprime 
 |---|---|
 | `keychain` | **Définir un mot de passe** → mdp + confirmation → clé de récupération. L'entrée du trousseau est supprimée. |
 | `password`, sans sync | **Changer le mot de passe** (mdp actuel requis ; nouveau sel ; la clé de récupération ne change pas). **Supprimer le mot de passe** (mdp actuel requis) → `keychain`, `wrappedLdkRecovery` retiré. |
-| `password`, avec sync | **Supprimer le mot de passe** et **Changer le mot de passe** désactivés, avec la raison (sync ⇒ mdp obligatoire ; changement du mdp du compte hors périmètre). |
+| `password`, avec sync | **Changer le mot de passe** désactivé (changement du mdp du compte hors périmètre). **Ne pas demander le mot de passe** (mdp du compte requis) → `keychain` ; `wrappedLdk`, le sel et les enveloppes de sync sont conservés. |
+| `keychain`, avec sync | Désactiver **Ne pas demander le mot de passe** (mdp du compte requis, vérifié hors ligne) → `password`, sans nouvelle clé de récupération. L'entrée du trousseau est supprimée. Une entrée perdue fait repasser le vault en `password` au déverrouillage. Une nouvelle connexion conserve le mode. |
 
-Commandes associées : `vault_set_password`, `vault_change_password`, `vault_remove_password`.
+Commandes associées : `vault_set_password`, `vault_change_password`, `vault_remove_password`, `vault_require_password`.
 
 ### Sauvegardes automatiques chiffrées
 

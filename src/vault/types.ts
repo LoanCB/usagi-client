@@ -42,4 +42,6 @@ export interface VaultApi {
 	setPassword(password: string): Promise<string>;
 	changePassword(current: string, newPassword: string): Promise<void>;
 	removePassword(current: string): Promise<void>;
+	/** Undoes removePassword on a synced device, with the account password. */
+	requirePassword(current: string): Promise<void>;
 }

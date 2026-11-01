@@ -8,6 +8,10 @@
 			"changes": {
 				"features": [
 					{
+						"en": "New \"Don't ask for the password\" option under Settings › Security: this device's keychain unlocks Bunly and sync at startup, so you never type your password there, even on a synced device. Turn it off at any time. Signing in on a new device still needs your password.",
+						"fr": "Nouvelle option « Ne pas demander le mot de passe » dans Réglages › Sécurité : le trousseau de cet appareil déverrouille Bunly et la synchronisation au démarrage, vous n'y saisissez donc plus votre mot de passe, même sur un appareil synchronisé. Désactivable à tout moment. La connexion sur un nouvel appareil demande toujours votre mot de passe."
+					},
+					{
 						"en": "Choosing a password now checks its strength. A strong password has at least 8 characters with a lowercase letter, an uppercase letter and a special symbol — or is a passphrase of at least 3 words. A weaker one triggers a warning, and you must confirm to keep it.",
 						"fr": "Le choix d'un mot de passe vérifie désormais sa robustesse. Un mot de passe robuste contient au moins 8 caractères dont une minuscule, une majuscule et un symbole spécial — ou est une phrase secrète d'au moins 3 mots. Un mot de passe plus faible déclenche un avertissement et demande une confirmation pour être conservé."
 					},
@@ -20,8 +24,8 @@
 						"fr": "Bunly peut désormais se verrouiller après une période d'inactivité (de 1 à 60 minutes) et redemander votre mot de passe. Désactivé par défaut — à régler dans Réglages › Sécurité une fois vos données protégées par un mot de passe."
 					},
 					{
-						"en": "Your data is now encrypted on your device. On first launch, choose a password — with a 24-word recovery key in case you forget it — or let your computer's keychain unlock Bunly for you. You can add, change or remove the password later under Settings › Security. A device connected to sync always asks for your account password at startup.",
-						"fr": "Vos données sont désormais chiffrées sur votre appareil. Au premier lancement, choisissez un mot de passe — avec une clé de récupération de 24 mots en cas d'oubli — ou laissez le trousseau de votre ordinateur déverrouiller Bunly pour vous. Vous pouvez ajouter, changer ou supprimer le mot de passe plus tard dans Réglages › Sécurité. Un appareil connecté à la synchronisation demande toujours le mot de passe du compte au démarrage."
+						"en": "Your data is now encrypted on your device. On first launch, choose a password — with a 24-word recovery key in case you forget it — or let your computer's keychain unlock Bunly for you. You can add, change or remove the password later under Settings › Security. A device connected to sync asks for your account password at startup unless you turn on \"Don't ask for the password\".",
+						"fr": "Vos données sont désormais chiffrées sur votre appareil. Au premier lancement, choisissez un mot de passe — avec une clé de récupération de 24 mots en cas d'oubli — ou laissez le trousseau de votre ordinateur déverrouiller Bunly pour vous. Vous pouvez ajouter, changer ou supprimer le mot de passe plus tard dans Réglages › Sécurité. Un appareil connecté à la synchronisation demande le mot de passe du compte au démarrage, sauf si vous activez « Ne pas demander le mot de passe »."
 					},
 					{
 						"en": "Sync is here. Connect the app to a usagi server — your own or someone else's — and your tasks, projects and tags follow you across devices. Everything is encrypted on your device before it leaves it, so the server never sees your data. Set it up under Settings › Sync.",

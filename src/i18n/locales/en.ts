@@ -522,11 +522,16 @@ const en = {
 		securityKeychain:
 			"No password: this device's keychain unlocks Bunly at startup.",
 		securityPassword: "Bunly asks for your password at startup.",
+		securityKeychainSynced:
+			"No password: this device's keychain unlocks Bunly and sync at startup.",
 		securitySynced:
-			"Your password is your sync account's. A synced device always asks for it.",
-		setPassword: "Set a password",
+			"Your password is your sync account's. Bunly asks for it at startup.",
+		noPrompt: "Don't ask for the password",
+		noPromptHint:
+			"This device's keychain unlocks Bunly. Anyone using your session can open it. Your recovery key stops working.",
+		noPromptHintSynced:
+			"This device's keychain unlocks Bunly and sync. Anyone using your session can open them. Signing in on a new device still needs your password.",
 		changePassword: "Change password",
-		removePassword: "Remove password",
 		currentPassword: "Current password",
 		save: "Save",
 		cancel: "Cancel",

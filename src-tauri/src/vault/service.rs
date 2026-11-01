@@ -200,7 +200,18 @@ impl<K: KeyStore> Vault<K> {
         if file.mode != VaultMode::Keychain {
             return Err(invalid("vault is not in keychain mode"));
         }
-        let ldk = self.keys.get(&file.vault_id)?;
+        let ldk = match self.keys.get(&file.vault_id) {
+            // A synced vault keeps its password wrapping: losing the keychain
+            // entry falls back to asking for the password instead of stranding
+            // the data.
+            Err(VaultError::KeyMissing) if file.wrapped_ldk.is_some() => {
+                let mut file = file;
+                file.mode = VaultMode::Password;
+                save(&self.dir, &file)?;
+                return Err(VaultError::KeyMissing);
+            }
+            other => other?,
+        };
         self.finish_migration(file, &ldk).await?;
         Ok(ldk)
     }
@@ -274,6 +285,9 @@ impl<K: KeyStore> Vault<K> {
         if file.mode != VaultMode::Keychain {
             return Err(invalid("a password is already set"));
         }
+        if file.wrapped_ldk_by_dek.is_some() {
+            return Err(invalid("the password belongs to the sync account"));
+        }
         self.assert_keychain_ldk(&file, ldk)?;
         Self::wrap_under_password(&mut file, ldk, password)?;
         let phrase = Self::new_recovery(&mut file, ldk)?;
@@ -297,17 +311,36 @@ impl<K: KeyStore> Vault<K> {
 
     pub fn remove_password(&self, current: &str) -> Result<(), VaultError> {
         let mut file = self.file()?;
-        if file.wrapped_ldk_by_dek.is_some() {
-            return Err(invalid("a synced vault always needs its password"));
-        }
         let ldk = Self::open_with_password(&file, current)?;
         self.keys.set(&file.vault_id, &ldk)?;
         file.mode = VaultMode::Keychain;
+        // The password of a synced vault is the account's: its wrappings stay so
+        // the prompt can come back, verified offline, without a new secret.
+        if file.wrapped_ldk_by_dek.is_none() {
+            Self::clear_password_wrappings(&mut file);
+        }
+        save(&self.dir, &file)
+    }
+
+    /// Undoes `remove_password` on a synced vault.
+    pub fn require_password(&self, current: &str) -> Result<(), VaultError> {
+        let mut file = self.file()?;
+        if file.mode != VaultMode::Keychain || file.wrapped_ldk_by_dek.is_none() {
+            return Err(invalid("only a synced keychain vault can do this"));
+        }
+        Self::open_with_password(&file, current)?;
+        file.mode = VaultMode::Password;
+        save(&self.dir, &file)?;
+        // A failure here is retried by the next password unlock.
+        let _ = self.keys.delete(&file.vault_id);
+        Ok(())
+    }
+
+    fn clear_password_wrappings(file: &mut VaultFile) {
         file.salt = None;
         file.kdf = None;
         file.wrapped_ldk = None;
         file.wrapped_ldk_recovery = None;
-        save(&self.dir, &file)
     }
 
     pub fn bind_account(
@@ -320,8 +353,12 @@ impl<K: KeyStore> Vault<K> {
     ) -> Result<String, VaultError> {
         let mut file = self.file()?;
         self.assert_keychain_ldk(&file, ldk)?;
-        let was_keychain = file.mode == VaultMode::Keychain;
-        file.mode = VaultMode::Password;
+        // Signing in again must not undo the user's choice not to be asked.
+        let keeps_keychain = file.mode == VaultMode::Keychain && file.wrapped_ldk_by_dek.is_some();
+        let was_keychain = file.mode == VaultMode::Keychain && !keeps_keychain;
+        if !keeps_keychain {
+            file.mode = VaultMode::Password;
+        }
         file.salt = Some(salt.to_owned());
         file.kdf = Some(KdfParams::current());
         file.wrapped_ldk = Some(wrap_key(local_kek, AAD_LDK, ldk));
@@ -341,13 +378,11 @@ impl<K: KeyStore> Vault<K> {
         let mut file = self.file()?;
         file.wrapped_ldk_by_dek = None;
         file.wrapped_dek_recovery = None;
-        if file.wrapped_ldk_recovery.is_none() {
+        if file.wrapped_ldk_recovery.is_none() || file.mode == VaultMode::Keychain {
             // The keychain copy must be durable before the password wrapping goes.
             self.keys.set(&file.vault_id, ldk)?;
             file.mode = VaultMode::Keychain;
-            file.salt = None;
-            file.kdf = None;
-            file.wrapped_ldk = None;
+            Self::clear_password_wrappings(&mut file);
         }
         save(&self.dir, &file)
     }
@@ -554,15 +589,93 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_bound_vault_refuses_to_drop_or_change_its_password() {
+    async fn a_bound_vault_can_stop_asking_for_its_password_and_ask_again() {
         let (_d, v) = vault();
         let ldk = v.setup_keychain().await.unwrap();
         let (dek, local_kek, salt, wdr, _) = account("account-pw");
         v.bind_account(&ldk, &local_kek, &salt, &dek, &wdr).unwrap();
+
+        v.remove_password("account-pw").unwrap();
+        let s = v.status();
+        assert_eq!((s.state, s.sync_bound), ("keychain", true));
+        assert_eq!(*v.unlock_keychain().await.unwrap(), *ldk);
+
+        assert_eq!(
+            v.require_password("nope").unwrap_err(),
+            VaultError::WrongSecret
+        );
+        assert_eq!(v.status().state, "keychain");
+
+        v.require_password("account-pw").unwrap();
+        assert_eq!(v.status().state, "password");
+        assert_eq!(
+            v.keys.get(&file(&v).vault_id).unwrap_err(),
+            VaultError::KeyMissing
+        );
+        assert_eq!(*v.unlock_password("account-pw").await.unwrap(), *ldk);
+    }
+
+    #[tokio::test]
+    async fn require_password_is_only_for_a_bound_keychain_vault() {
+        let (_d, v) = vault();
+        v.setup_keychain().await.unwrap();
         assert!(matches!(
-            v.remove_password("account-pw"),
+            v.require_password("pw"),
             Err(VaultError::InvalidState(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn signing_in_again_keeps_the_choice_not_to_be_asked() {
+        let (_d, v) = vault();
+        let ldk = v.setup_keychain().await.unwrap();
+        let (dek, local_kek, salt, wdr, _) = account("account-pw");
+        v.bind_account(&ldk, &local_kek, &salt, &dek, &wdr).unwrap();
+        v.remove_password("account-pw").unwrap();
+
+        v.bind_account(&ldk, &local_kek, &salt, &dek, &wdr).unwrap();
+        assert_eq!(v.status().state, "keychain");
+        assert_eq!(*v.unlock_keychain().await.unwrap(), *ldk);
+    }
+
+    #[tokio::test]
+    async fn a_lost_keychain_entry_on_a_bound_vault_falls_back_to_the_password() {
+        let (_d, v) = vault();
+        let ldk = v.setup_keychain().await.unwrap();
+        let (dek, local_kek, salt, wdr, phrase) = account("account-pw");
+        v.bind_account(&ldk, &local_kek, &salt, &dek, &wdr).unwrap();
+        v.remove_password("account-pw").unwrap();
+        v.keys.delete(&file(&v).vault_id).unwrap();
+
+        assert_eq!(
+            v.unlock_keychain().await.unwrap_err(),
+            VaultError::KeyMissing
+        );
+        assert_eq!(v.status().state, "password");
+        assert_eq!(*v.unlock_recovery(&phrase, "n").await.unwrap(), *ldk);
+    }
+
+    #[tokio::test]
+    async fn unbinding_a_vault_that_stopped_asking_drops_its_password_wrappings() {
+        let (_d, v) = vault();
+        let (ldk, _) = v.setup_password("old").await.unwrap();
+        let (dek, local_kek, salt, wdr, _) = account("account-pw");
+        v.bind_account(&ldk, &local_kek, &salt, &dek, &wdr).unwrap();
+        v.remove_password("account-pw").unwrap();
+
+        v.unbind_account(&ldk).unwrap();
+        let f = file(&v);
+        assert_eq!(f.mode, VaultMode::Keychain);
+        assert!(f.wrapped_ldk.is_none() && f.wrapped_ldk_recovery.is_none());
+        assert_eq!(*v.unlock_keychain().await.unwrap(), *ldk);
+    }
+
+    #[tokio::test]
+    async fn a_bound_vault_refuses_to_change_its_password() {
+        let (_d, v) = vault();
+        let ldk = v.setup_keychain().await.unwrap();
+        let (dek, local_kek, salt, wdr, _) = account("account-pw");
+        v.bind_account(&ldk, &local_kek, &salt, &dek, &wdr).unwrap();
         assert!(matches!(
             v.change_password("account-pw", "x"),
             Err(VaultError::InvalidState(_))

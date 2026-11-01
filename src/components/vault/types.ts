@@ -24,4 +24,4 @@ export type Action =
 	| { type: "recovering"; value: boolean }
 	| { type: "open" };
 
-export type SecurityForm = "set" | "change" | "remove" | null;
+export type SecurityForm = "set" | "change" | "remove" | "require" | null;

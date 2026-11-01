@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { RecoveryPhraseStep } from "@/components/sync/RecoveryPhraseStep";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useWeakPasswordGuard } from "@/components/ui/useWeakPasswordGuard";
 import { getRepository } from "@/store/repository";
 import { useSettingsStore } from "@/store/settings";
@@ -69,6 +70,7 @@ export function SecurityPanel({
 		setLoadAttempt((n) => n + 1);
 	}
 
+	const currentOnly = form === "remove" || form === "require";
 	const missingRequired =
 		(form !== null && form !== "set" && current === "") ||
 		((form === "set" || form === "change") && next === "");
@@ -84,12 +86,15 @@ export function SecurityPanel({
 
 	async function submit(e: { preventDefault(): void }) {
 		e.preventDefault();
-		if (form !== "remove" && next !== confirm) {
+		if (currentOnly) {
+			void apply();
+			return;
+		}
+		if (next !== confirm) {
 			setError(t("vault.mismatch"));
 			return;
 		}
-		if (form === "remove") void apply();
-		else guard(next, () => void apply());
+		guard(next, () => void apply());
 	}
 
 	async function apply() {
@@ -109,6 +114,9 @@ export function SecurityPanel({
 				if (autoLockMinutes > 0) {
 					await setAutoLockMinutes(getRepository(), 0);
 				}
+				setSaved(true);
+			} else if (form === "require") {
+				await api.requirePassword(current);
 				setSaved(true);
 			}
 			setForm(null);
@@ -160,7 +168,11 @@ export function SecurityPanel({
 		<div className="flex flex-col gap-4 py-4" role="tabpanel">
 			<p className="text-sm">
 				{keychain
-					? t("vault.securityKeychain")
+					? t(
+							locked
+								? "vault.securityKeychainSynced"
+								: "vault.securityKeychain",
+						)
 					: locked
 						? t("vault.securitySynced")
 						: t("vault.securityPassword")}
@@ -168,38 +180,41 @@ export function SecurityPanel({
 			{saved && (
 				<p className="text-xs text-muted-foreground">{t("vault.saved")}</p>
 			)}
-			{locked && (
-				<p className="text-xs text-muted-foreground">
-					{t("vault.accountPasswordLater")}
-				</p>
-			)}
-
-			<div className="flex flex-wrap gap-2">
-				{keychain ? (
-					<Button type="button" variant="outline" onClick={() => open("set")}>
-						{t("vault.setPassword")}
-					</Button>
-				) : (
-					<>
-						<Button
-							type="button"
-							variant="outline"
-							disabled={locked}
-							onClick={() => open("change")}
-						>
-							{t("vault.changePassword")}
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							disabled={locked}
-							onClick={() => open("remove")}
-						>
-							{t("vault.removePassword")}
-						</Button>
-					</>
-				)}
+			<div className="flex max-w-sm items-start justify-between gap-3 text-sm">
+				<div className="flex flex-col gap-1">
+					<span className="font-medium">{t("vault.noPrompt")}</span>
+					<span className="text-xs text-muted-foreground">
+						{t(locked ? "vault.noPromptHintSynced" : "vault.noPromptHint")}
+					</span>
+				</div>
+				<Switch
+					aria-label={t("vault.noPrompt")}
+					checked={keychain}
+					disabled={busy}
+					onCheckedChange={(on) => {
+						if (on) open("remove");
+						else open(locked ? "require" : "set");
+					}}
+				/>
 			</div>
+
+			{!keychain && (
+				<div className="flex flex-col items-start gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						disabled={locked}
+						onClick={() => open("change")}
+					>
+						{t("vault.changePassword")}
+					</Button>
+					{locked && (
+						<p className="text-xs text-muted-foreground">
+							{t("vault.accountPasswordLater")}
+						</p>
+					)}
+				</div>
+			)}
 
 			<AutoLockSetting disabled={keychain} />
 
@@ -223,7 +238,7 @@ export function SecurityPanel({
 							/>
 						</label>
 					)}
-					{form !== "remove" && (
+					{!currentOnly && (
 						<>
 							<label
 								className="flex flex-col gap-1.5 text-sm"

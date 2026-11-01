@@ -221,6 +221,13 @@ pub async fn vault_remove_password(rt: Rt<'_>, current: String) -> Result<(), Va
 }
 
 #[tauri::command]
+pub async fn vault_require_password(rt: Rt<'_>, current: String) -> Result<(), VaultError> {
+    let current = Zeroizing::new(current);
+    let _gate = rt.gate.lock().await;
+    blocking(&rt, move |v| v.require_password(&current)).await
+}
+
+#[tauri::command]
 pub async fn vault_bind_account(
     rt: Rt<'_>,
     crypto: Crypto<'_>,

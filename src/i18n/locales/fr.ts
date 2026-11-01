@@ -532,11 +532,16 @@ const fr: typeof en = {
 		securityKeychain:
 			"Pas de mot de passe : le trousseau de cet appareil déverrouille Bunly au démarrage.",
 		securityPassword: "Bunly demande votre mot de passe au démarrage.",
+		securityKeychainSynced:
+			"Pas de mot de passe : le trousseau de cet appareil déverrouille Bunly et la synchronisation au démarrage.",
 		securitySynced:
-			"Votre mot de passe est celui de votre compte de synchronisation. Un appareil synchronisé le demande toujours.",
-		setPassword: "Définir un mot de passe",
+			"Votre mot de passe est celui de votre compte de synchronisation. Bunly le demande au démarrage.",
+		noPrompt: "Ne pas demander le mot de passe",
+		noPromptHint:
+			"Le trousseau de cet appareil déverrouille Bunly. Toute personne utilisant votre session peut l'ouvrir. Votre clé de récupération ne fonctionnera plus.",
+		noPromptHintSynced:
+			"Le trousseau de cet appareil déverrouille Bunly et la synchronisation. Toute personne utilisant votre session peut y accéder. La connexion sur un nouvel appareil demande toujours votre mot de passe.",
 		changePassword: "Changer le mot de passe",
-		removePassword: "Supprimer le mot de passe",
 		currentPassword: "Mot de passe actuel",
 		save: "Enregistrer",
 		cancel: "Annuler",

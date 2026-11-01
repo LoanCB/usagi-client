@@ -26,6 +26,7 @@ function api(over: Partial<VaultApi> = {}): VaultApi {
 		setPassword: vi.fn(async () => PHRASE),
 		changePassword: vi.fn(async () => {}),
 		removePassword: vi.fn(async () => {}),
+		requirePassword: vi.fn(async () => {}),
 		...over,
 	};
 }
@@ -81,6 +82,28 @@ describe("VaultGate", () => {
 		render(<VaultGate api={a}>{APP}</VaultGate>);
 		expect(await screen.findByText("the app")).toBeInTheDocument();
 		expect(a.unlockKeychain).toHaveBeenCalledTimes(1);
+	});
+
+	it("asks for the password when a synced vault lost its keychain entry", async () => {
+		const statusFn = vi
+			.fn()
+			.mockResolvedValueOnce(status({ state: "keychain", syncBound: true }))
+			.mockResolvedValue(status({ state: "password", syncBound: true }));
+		render(
+			<VaultGate
+				api={api({
+					status: statusFn,
+					unlockKeychain: vi.fn(async () => {
+						throw { code: "key-missing" };
+					}),
+				})}
+			>
+				{APP}
+			</VaultGate>,
+		);
+		expect(
+			await screen.findByRole("button", { name: /^unlock$|^déverrouiller$/i }),
+		).toBeInTheDocument();
 	});
 
 	it("offers a retry when the keychain refuses", async () => {

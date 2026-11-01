@@ -86,6 +86,12 @@ export function VaultGate({
 				isVaultError(e) &&
 				(e.code === "key-missing" || e.code === "corrupt")
 			) {
+				// A synced vault falls back to its password when the entry is gone.
+				const status = await api.status().catch(() => null);
+				if (status?.state === "password") {
+					dispatch({ type: "status", status });
+					return;
+				}
 				dispatch({
 					type: "status",
 					status: {
