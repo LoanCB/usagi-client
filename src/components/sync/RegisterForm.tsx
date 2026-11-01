@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useWeakPasswordGuard } from "@/components/ui/useWeakPasswordGuard";
 import { RecoveryPhraseStep } from "./RecoveryPhraseStep";
 import { registerErrorMessage } from "./register-error";
 
@@ -39,6 +40,7 @@ export function RegisterForm({
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [inviteToken, setInviteToken] = useState("");
+	const { guard, dialog } = useWeakPasswordGuard();
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	// Real key material: it lives here only between registering and confirming,
@@ -54,6 +56,10 @@ export function RegisterForm({
 	async function handleSubmit(e: { preventDefault(): void }) {
 		e.preventDefault();
 		if (!ready) return;
+		guard(password, () => void register());
+	}
+
+	async function register() {
 		setBusy(true);
 		setError(null);
 		try {
@@ -151,6 +157,7 @@ export function RegisterForm({
 			)}
 
 			{error && <p className="text-xs text-destructive">{error}</p>}
+			{dialog}
 
 			<div className="flex items-center justify-between gap-2">
 				{onSwitchToSignIn ? (

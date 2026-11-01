@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useWeakPasswordGuard } from "@/components/ui/useWeakPasswordGuard";
 import { VaultCard } from "./VaultMessage";
 
 interface RecoverScreenProps {
@@ -24,6 +25,7 @@ export function RecoverScreen({
 	const [password, setPassword] = useState("");
 	const [confirm, setConfirm] = useState("");
 	const [mismatch, setMismatch] = useState(false);
+	const { guard, dialog } = useWeakPasswordGuard();
 	return (
 		<VaultCard title={t("vault.recoverTitle")}>
 			<p className="text-muted-foreground">{t("vault.recoverIntro")}</p>
@@ -40,7 +42,7 @@ export function RecoverScreen({
 						setMismatch(true);
 						return;
 					}
-					onRecover(phrase, password);
+					guard(password, () => onRecover(phrase, password));
 				}}
 			>
 				<label className="flex flex-col gap-1.5" htmlFor="vault-recover-phrase">
@@ -101,6 +103,7 @@ export function RecoverScreen({
 			<Button type="button" variant="ghost" size="sm" onClick={onBack}>
 				{t("vault.back")}
 			</Button>
+			{dialog}
 		</VaultCard>
 	);
 }

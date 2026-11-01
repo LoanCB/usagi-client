@@ -151,14 +151,14 @@ describe("VaultGate", () => {
 				/will now be encrypted|vont désormais être chiffrées/i,
 			),
 		).toBeInTheDocument();
-		await user.type(pw(), "pw");
-		await user.type(screen.getByLabelText(/confirm/i), "pw");
+		await user.type(pw(), "Str0ng-pass");
+		await user.type(screen.getByLabelText(/confirm/i), "Str0ng-pass");
 		await user.click(
 			screen.getByRole("button", { name: /protect with|protéger par/i }),
 		);
 		expect(await screen.findByText("word24")).toBeInTheDocument();
 		expect(screen.queryByText("the app")).not.toBeInTheDocument();
-		expect(a.setupPassword).toHaveBeenCalledWith("pw");
+		expect(a.setupPassword).toHaveBeenCalledWith("Str0ng-pass");
 	});
 
 	it("recovers with the phrase and a new password", async () => {
@@ -174,16 +174,16 @@ describe("VaultGate", () => {
 		);
 		await user.type(
 			screen.getByLabelText(/^new password$|^nouveau mot de passe$/i),
-			"n",
+			"Str0ng-pass",
 		);
-		await user.type(screen.getByLabelText(/confirm/i), "n");
+		await user.type(screen.getByLabelText(/confirm/i), "Str0ng-pass");
 		await user.click(
 			screen.getByRole("button", {
 				name: /set password|définir le mot de passe/i,
 			}),
 		);
 		expect(await screen.findByText("the app")).toBeInTheDocument();
-		expect(a.unlockRecovery).toHaveBeenCalledWith(PHRASE, "n");
+		expect(a.unlockRecovery).toHaveBeenCalledWith(PHRASE, "Str0ng-pass");
 	});
 
 	it("explains a broken vault and offers nothing to click", async () => {
@@ -243,9 +243,9 @@ describe("VaultGate", () => {
 		render(<VaultGate api={a}>{APP}</VaultGate>);
 		await user.type(
 			await screen.findByLabelText(/^password$|^mot de passe$/i),
-			"pw",
+			"Str0ng-pass",
 		);
-		await user.type(screen.getByLabelText(/confirm/i), "pw");
+		await user.type(screen.getByLabelText(/confirm/i), "Str0ng-pass");
 		await user.click(
 			screen.getByRole("button", { name: /protect with|protéger par/i }),
 		);
@@ -291,9 +291,9 @@ describe("VaultGate", () => {
 		);
 		await user.type(
 			screen.getByLabelText(/^new password$|^nouveau mot de passe$/i),
-			"n",
+			"Str0ng-pass",
 		);
-		await user.type(screen.getByLabelText(/confirm/i), "n");
+		await user.type(screen.getByLabelText(/confirm/i), "Str0ng-pass");
 		await user.click(
 			screen.getByRole("button", {
 				name: /set password|définir le mot de passe/i,

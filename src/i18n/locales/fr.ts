@@ -7,6 +7,11 @@ const fr: typeof en = {
 		delete: "Supprimer",
 		deleteConfirmTitle: "Supprimer définitivement ?",
 		deleteConfirmMessage: "Cette action est irréversible.",
+		weakPasswordTitle: "Mot de passe faible",
+		weakPasswordMessage:
+			"Ce mot de passe est faible. Un mot de passe robuste contient au moins 8 caractères dont une minuscule, une majuscule et un symbole spécial — ou est une phrase secrète d'au moins 3 mots. Voulez-vous l'utiliser quand même ?",
+		weakPasswordChange: "En choisir un autre",
+		weakPasswordKeep: "Utiliser quand même",
 		create: "Créer",
 		edit: "Modifier",
 		color: "Couleur",

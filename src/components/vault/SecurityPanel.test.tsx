@@ -64,14 +64,14 @@ describe("SecurityPanel", () => {
 		await user.click(await button(/set a password|définir un mot de passe/i));
 		await user.type(
 			screen.getByLabelText(/^new password$|^nouveau mot de passe$/i),
-			"pw",
+			"Str0ng-pass",
 		);
-		await user.type(screen.getByLabelText(/confirm/i), "pw");
+		await user.type(screen.getByLabelText(/confirm/i), "Str0ng-pass");
 		await user.click(
 			screen.getByRole("button", { name: /^save$|^enregistrer$/i }),
 		);
 		expect(await screen.findByText("word24")).toBeInTheDocument();
-		expect(a.setPassword).toHaveBeenCalledWith("pw");
+		expect(a.setPassword).toHaveBeenCalledWith("Str0ng-pass");
 		expect(blocked).toHaveBeenCalledWith(true);
 	});
 
@@ -83,13 +83,13 @@ describe("SecurityPanel", () => {
 		await user.type(screen.getByLabelText(/current|actuel/i), "old");
 		await user.type(
 			screen.getByLabelText(/^new password$|^nouveau mot de passe$/i),
-			"new",
+			"Str0ng-pass",
 		);
-		await user.type(screen.getByLabelText(/confirm/i), "new");
+		await user.type(screen.getByLabelText(/confirm/i), "Str0ng-pass");
 		await user.click(
 			screen.getByRole("button", { name: /^save$|^enregistrer$/i }),
 		);
-		expect(a.changePassword).toHaveBeenCalledWith("old", "new");
+		expect(a.changePassword).toHaveBeenCalledWith("old", "Str0ng-pass");
 
 		await user.click(
 			await button(/remove password|supprimer le mot de passe/i),
@@ -143,13 +143,34 @@ describe("SecurityPanel", () => {
 		await user.click(await button(/set a password|définir un mot de passe/i));
 		await user.type(
 			screen.getByLabelText(/^new password$|^nouveau mot de passe$/i),
-			"pw",
+			"Str0ng-pass",
 		);
-		await user.type(screen.getByLabelText(/confirm/i), "pw");
+		await user.type(screen.getByLabelText(/confirm/i), "Str0ng-pass");
 		await user.click(
 			screen.getByRole("button", { name: /^save$|^enregistrer$/i }),
 		);
 	}
+
+	it("asks for confirmation before setting a weak password", async () => {
+		const user = userEvent.setup();
+		const a = api({ state: "keychain" });
+		render(<SecurityPanel api={a} random={() => 0} />);
+		await user.click(await button(/set a password|définir un mot de passe/i));
+		await user.type(
+			screen.getByLabelText(/^new password$|^nouveau mot de passe$/i),
+			"weak",
+		);
+		await user.type(screen.getByLabelText(/confirm/i), "weak");
+		await user.click(
+			screen.getByRole("button", { name: /^save$|^enregistrer$/i }),
+		);
+		expect(await screen.findByRole("dialog")).toBeInTheDocument();
+		expect(a.setPassword).not.toHaveBeenCalled();
+		await user.click(
+			screen.getByRole("button", { name: /use anyway|utiliser quand même/i }),
+		);
+		await waitFor(() => expect(a.setPassword).toHaveBeenCalledWith("weak"));
+	});
 
 	it("drops the phrase and unblocks dismissal once it is confirmed", async () => {
 		const user = userEvent.setup();
@@ -250,9 +271,9 @@ describe("SecurityPanel", () => {
 		await user.type(screen.getByLabelText(/current|actuel/i), "old");
 		await user.type(
 			screen.getByLabelText(/^new password$|^nouveau mot de passe$/i),
-			"n",
+			"Str0ng-pass",
 		);
-		await user.type(screen.getByLabelText(/confirm/i), "n");
+		await user.type(screen.getByLabelText(/confirm/i), "Str0ng-pass");
 		await user.click(
 			screen.getByRole("button", { name: /^save$|^enregistrer$/i }),
 		);

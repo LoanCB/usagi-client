@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useWeakPasswordGuard } from "@/components/ui/useWeakPasswordGuard";
 import { VaultCard } from "./VaultMessage";
 
 interface SetupScreenProps {
@@ -23,6 +24,7 @@ export function SetupScreen({
 	const [password, setPassword] = useState("");
 	const [confirm, setConfirm] = useState("");
 	const [mismatch, setMismatch] = useState(false);
+	const { guard, dialog } = useWeakPasswordGuard();
 
 	function handleSubmit(e: { preventDefault(): void }) {
 		e.preventDefault();
@@ -30,7 +32,7 @@ export function SetupScreen({
 			setMismatch(true);
 			return;
 		}
-		onPassword(password);
+		guard(password, () => onPassword(password));
 	}
 
 	return (
@@ -85,6 +87,7 @@ export function SetupScreen({
 					{t("vault.noPasswordHint")}
 				</p>
 			</div>
+			{dialog}
 		</VaultCard>
 	);
 }

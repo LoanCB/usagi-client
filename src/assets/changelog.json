@@ -8,6 +8,10 @@
 			"changes": {
 				"features": [
 					{
+						"en": "Choosing a password now checks its strength. A strong password has at least 8 characters with a lowercase letter, an uppercase letter and a special symbol — or is a passphrase of at least 3 words. A weaker one triggers a warning, and you must confirm to keep it.",
+						"fr": "Le choix d'un mot de passe vérifie désormais sa robustesse. Un mot de passe robuste contient au moins 8 caractères dont une minuscule, une majuscule et un symbole spécial — ou est une phrase secrète d'au moins 3 mots. Un mot de passe plus faible déclenche un avertissement et demande une confirmation pour être conservé."
+					},
+					{
 						"en": "When a sync server is configured, Bunly now syncs in the background every 10 minutes and right after you unlock a password-protected session.",
 						"fr": "Lorsqu'un serveur de synchronisation est configuré, Bunly se synchronise désormais en arrière-plan toutes les 10 minutes et juste après le déverrouillage d'une session protégée par mot de passe."
 					},

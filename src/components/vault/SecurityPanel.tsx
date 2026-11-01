@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { RecoveryPhraseStep } from "@/components/sync/RecoveryPhraseStep";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useWeakPasswordGuard } from "@/components/ui/useWeakPasswordGuard";
 import { getRepository } from "@/store/repository";
 import { useSettingsStore } from "@/store/settings";
 import { tauriVaultApi, type VaultApi, type VaultStatus } from "@/vault";
@@ -36,6 +37,7 @@ export function SecurityPanel({
 	const [saved, setSaved] = useState(false);
 	const autoLockMinutes = useSettingsStore((s) => s.autoLockMinutes);
 	const setAutoLockMinutes = useSettingsStore((s) => s.setAutoLockMinutes);
+	const { guard, dialog } = useWeakPasswordGuard();
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: loadAttempt re-runs the load on retry
 	useEffect(() => {
@@ -86,6 +88,11 @@ export function SecurityPanel({
 			setError(t("vault.mismatch"));
 			return;
 		}
+		if (form === "remove") void apply();
+		else guard(next, () => void apply());
+	}
+
+	async function apply() {
 		setBusy(true);
 		setError(null);
 		try {
@@ -252,6 +259,7 @@ export function SecurityPanel({
 						</p>
 					)}
 					{error && <p className="text-xs text-destructive">{error}</p>}
+					{dialog}
 					<div className="flex gap-2">
 						<Button type="submit" disabled={busy || missingRequired}>
 							{t("vault.save")}

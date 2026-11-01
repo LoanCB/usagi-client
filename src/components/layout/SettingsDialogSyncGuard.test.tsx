@@ -94,7 +94,7 @@ async function reachRecoveryPhrase() {
 	);
 	await user.type(
 		screen.getByLabelText(/^password$|^mot de passe$/i),
-		"hunter2hunter2",
+		"Hunter2-hunter2",
 	);
 	await user.click(
 		screen.getByRole("button", { name: /^create account$|^créer un compte$/i }),

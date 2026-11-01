@@ -5,6 +5,11 @@ const en = {
 		delete: "Delete",
 		deleteConfirmTitle: "Delete permanently?",
 		deleteConfirmMessage: "This action is permanent and cannot be undone.",
+		weakPasswordTitle: "Weak password",
+		weakPasswordMessage:
+			"This password is weak. A strong password has at least 8 characters with a lowercase letter, an uppercase letter and a special symbol — or is a passphrase of at least 3 words. Do you want to use it anyway?",
+		weakPasswordChange: "Choose another",
+		weakPasswordKeep: "Use anyway",
 		create: "Create",
 		edit: "Edit",
 		color: "Color",
